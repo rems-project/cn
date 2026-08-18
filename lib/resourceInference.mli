@@ -1,10 +1,3 @@
-val debug_constraint_failure_diagnostics
-  :  int ->
-  Solver.model_with_q ->
-  Simplify.simp_ctxt ->
-  LogicalConstraints.t ->
-  unit
-
 module General : sig
   type uiinfo = Error_common.situation * TypeErrors.RequestChain.t
 

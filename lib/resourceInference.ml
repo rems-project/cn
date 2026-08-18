@@ -3,41 +3,6 @@ module LC = LogicalConstraints
 module Req = Request
 open Typing
 
-let debug_constraint_failure_diagnostics
-      _lvl
-      (_model_with_q : Solver.model_with_q)
-      _simp_ctxt
-      _c
-  =
-  ()
-
-
-(* let model = fst model_with_q in *)
-(* if !Pp.print_level == 0 then *)
-(*   () *)
-(* else ( *)
-(*   let pp_f = Terms.Normal.pp_with_eval (Solver.eval model) in *)
-(*   let diag msg c = *)
-(*     match (c, model_with_q) with *)
-(*     | LC.T tm, _ -> *)
-(*       Pp.debug lvl (lazy (Pp.item msg (Terms.Normal.pp tm))); *)
-(*       Pp.debug lvl (lazy (pp_f tm)) *)
-(*     | LC.Forall ((sym, _bt), tm), (_, [ (sym', _bt') ]) -> *)
-(*       let tm' = Terms.Normal.subst (Terms.Normal.make_rename ~from:sym ~to_:sym') tm in *)
-(*       Pp.debug lvl (lazy (Pp.item ("quantified " ^ msg) (Terms.Normal.pp tm))); *)
-(*       Pp.debug lvl (lazy (pp_f tm')) *)
-(*     | _ -> *)
-(*       Pp.warn *)
-(*         (Locations.other __LOC__) *)
-(*         (Pp.bold "unexpected quantifier count with model") *)
-(*   in *)
-(*   diag "counterexample, expanding" c; *)
-(*   let c2 = Simplify.LogicalConstraints.simp simp_ctxt c in *)
-(*   if LC.equal c c2 then *)
-(*     () *)
-(*   else *)
-(*     diag "simplified variant" c2) *)
-
 module General = struct
   type one =
     { one_index : Terms.Normal.t;
@@ -154,8 +119,6 @@ module General = struct
          let@ model = model () in
          let@ all_cs = get_cs () in
          let () = assert (not (LC.Set.mem c all_cs)) in
-         debug_constraint_failure_diagnostics 6 model simp_ctxt c;
-         let@ () = Diagnostics.investigate model c in
          fail (fun ctxt ->
            (* let ctxt = { ctxt with resources = original_resources } in *)
            { loc;
@@ -195,10 +158,7 @@ module General = struct
             MT.(eq_ (allocId_ requested.pointer here, allocId_ p'.pointer here) here)
           in
           let eqs = addr_eq :: alloc_id_eq :: iargs_eq in
-          let debug_failure model msg term =
-            Pp.debug 9 (lazy (Pp.item msg (Req.pp (fst re))));
-            debug_constraint_failure_diagnostics 9 model simp_ctxt (LC.T term)
-          in
+          let debug_failure msg = Pp.debug 9 (lazy (Pp.item msg (Req.pp (fst re)))) in
           (match
              (if fast_path then provable_simp else provable) (LC.T (MT.and_ eqs here))
            with
@@ -212,12 +172,8 @@ module General = struct
                     (lazy (item "solver match" (Terms.Normal.pp (MT.and_ eqs here))))));
              (Deleted, (false, p'_oarg))
            | `False ->
-             if not fast_path then (
-               let model = Solver.model () in
-               debug_failure
-                 model
-                 "couldn't use resource (pointer+iargs did not match)"
-                 (MT.and_ eqs here));
+             if not fast_path then
+               debug_failure "couldn't use resource (pointer+iargs did not match)";
              continue)
         | _re -> continue)
     in
@@ -307,11 +263,9 @@ module General = struct
                          (Q { p' with permission = and_ permission' here }, O p'_oarg),
                        (Simplify.Terms.simp simp_ctxt (and_ needed' here), oarg) )
                    | `False ->
-                     let model = Solver.model () in
                      Pp.debug
                        9
                        (lazy (Pp.item "couldn't use q-resource" (Req.pp (fst re))));
-                     debug_constraint_failure_diagnostics 9 model simp_ctxt (LC.T pmatch);
                      continue))
              | _re -> continue))
         (needed, C [])
@@ -372,10 +326,7 @@ module General = struct
       let@ oarg_item_bt = WellTyped.oarg_bt_of_pred loc requested.name in
       let@ oarg = cases_to_map loc requested.q oarg_item_bt oarg in
       return (Some ((requested, Resource.O oarg), l))
-    | `False ->
-      let@ model = model () in
-      debug_constraint_failure_diagnostics 9 model simp_ctxt nothing_more_needed;
-      return None
+    | `False -> return None
 
 
   and ftyp_args_request_for_pack loc uiinfo ftyp =
