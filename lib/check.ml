@@ -1358,12 +1358,8 @@ let all_empty loc _original_resources =
   (* there will be a model available if at least one resource persisted *)
   match remaining_resources with
   | [] -> return ()
-  | (resource, constr, model) :: _ ->
-    let@ simp_ctxt = simp_ctxt () in
-    RI.debug_constraint_failure_diagnostics 6 model simp_ctxt constr;
-    fail (fun ctxt ->
-      (* let ctxt = { ctxt with resources = original_resources } in *)
-      { loc; msg = Unused_resource { resource; ctxt; model } })
+  | (resource, _constr, model) :: _ ->
+    fail (fun ctxt -> { loc; msg = Unused_resource { resource; ctxt; model } })
 
 
 let load loc pointer ct =
@@ -2373,9 +2369,6 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : T.t -> unit m) : unit m =
          | `True -> return ()
          | `False ->
            let@ model = model () in
-           let@ simp_ctxt = simp_ctxt () in
-           RI.debug_constraint_failure_diagnostics 6 model simp_ctxt lc;
-           let@ () = Diagnostics.investigate model lc in
            fail (fun ctxt ->
              { loc;
                msg =
