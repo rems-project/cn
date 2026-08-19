@@ -3,7 +3,7 @@ struct node { int head; struct node* tail; };
 /*@
 datatype seq {
   Nil {},
-  Cons {i32 head, datatype seq tail}
+  Cons {integer head, datatype seq tail}
 }
 
 predicate [rec] (datatype seq) IntList(pointer p) {
@@ -16,10 +16,10 @@ predicate [rec] (datatype seq) IntList(pointer p) {
   }
 }
 
-function (i32) hd (datatype seq xs) {
+function (integer) hd (datatype seq xs) {
   match xs {
     Nil {} => {
-      0i32
+      0
     }
     Cons {head : h, tail : _} => {
       h
@@ -49,7 +49,7 @@ function [rec] (datatype seq) append(datatype seq xs, datatype seq ys) {
   }
 }
 
-function [rec] (datatype seq) snoc(datatype seq xs, i32 y) {
+function [rec] (datatype seq) snoc(datatype seq xs, integer y) {
   match xs {
     Nil {} => {
       Cons {head: y, tail: Nil {}}
@@ -76,7 +76,7 @@ lemma append_nil (datatype seq l1)
   requires true;
   ensures append(l1, Nil {}) == l1;
 
-lemma append_cons (datatype seq l1, i32 x, datatype seq l2)
+lemma append_cons (datatype seq l1, integer x, datatype seq l2)
   requires true;
   ensures append(l1, Cons {head: x, tail: l2})
           == append(snoc(l1, x), l2);
