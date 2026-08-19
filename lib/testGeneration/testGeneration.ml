@@ -12,6 +12,7 @@ module Cn_to_ail = Fulminate.Cn_to_ail
 
 module Private = struct
   module Bennet = Bennet
+  module BuildScripts = BuildScripts
   module SpecExport = SpecExport
 end
 
