@@ -11,7 +11,6 @@ struct MapNode {
 };
 
 extern void* cn_malloc(size_t size);
-extern void cn_free_sized(void *ptr, size_t size);
 
 
 /*@
@@ -21,12 +20,6 @@ type_synonym VALUE = i64
 type_synonym NodeData = { KEY key, VALUE value }
 
 function (KEY) defaultKey() { 0i32 }
-
-datatype ValueOption {
-  ValueNone {},
-  ValueSome { VALUE value }
-}
-
 
 // -----------------------------------------------------------------------------
 // Intervals
@@ -109,41 +102,6 @@ datatype BST {
   Node { NodeData data, BST smaller, BST larger }
 }
 
-function (boolean) hasRoot(KEY key, BST tree) {
-  match tree {
-    Leaf {} => { false }
-    Node { data: data, smaller: _, larger: _ } => { data.key == key }
-  }
-}
-
-function [rec] (ValueOption) lookup(KEY key, BST tree) {
-  match tree {
-    Leaf {} => { ValueNone {} }
-    Node { data: data, smaller: smaller, larger: larger } => {
-      if (data.key == key) {
-        ValueSome { value: data.value }
-      } else {
-        if (data.key < key) {
-          lookup(key,larger)
-        } else {
-          lookup(key,smaller)
-        }
-      }
-    }
-  }
-}
-
-function [rec] (boolean) member(KEY k, BST tree) {
-  match tree {
-    Leaf {} => { false }
-    Node { data: data, smaller: smaller, larger: larger } => {
-      data.key == k ||
-      k < data.key && member(k,smaller) ||
-      k > data.key && member(k,larger)
-    }
-  }
-}
-
 function [rec] (BST) insert(KEY key, VALUE value, BST tree) {
   match tree {
     Leaf {} => { Node { data: { key: key, value: value },
@@ -164,22 +122,6 @@ function [rec] (BST) insert(KEY key, VALUE value, BST tree) {
     }
   }
 }
-
-function [rec] (BST) setKey(KEY k, BST root, BST value) {
-  match root {
-    Leaf {} => { value }
-    Node { data: data, smaller: smaller, larger: larger } => {
-      if (k < data.key) {
-        Node { data: data, smaller: setKey(k, smaller, value), larger: larger }
-      } else {
-        Node { data: data, smaller: smaller, larger: setKey(k, larger, value) }
-      }
-    }
-  }
-}
-
-
-
 
 // *****************************************************************************
 // Consuming an entire tree
@@ -226,108 +168,13 @@ predicate BST BST(pointer root) {
   take result = RangedBST(root);
   return result.tree;
 }
-
-
-
-
-// *****************************************************************************
-// Focusing on a node in the tree
-// *****************************************************************************
-
-type_synonym BSTNodeFocus =
-  { BST done, struct MapNode node, BST smaller, BST larger }
-
-datatype BSTFocus {
-  AtLeaf { BST tree },
-  AtNode { BST done, struct MapNode node, BST smaller, BST larger }
-}
-
-// Consume parts of the tree starting at `p` until we get to `c`.
-// We do not consume `c`.
-// `child` is the node stored at `c`.
-predicate [rec] RangedBST BSTNodeUpTo(pointer p, pointer c, struct MapNode child, Interval range) {
-  if (ptr_eq(p,c)) {
-    return { tree: Leaf {}, range: IntervalSome { i: range } };
-  } else {
-    take parent = Owned<struct MapNode>(p);
-    take result = BSTNodeChildUpTo(c, child, range, parent);
-    return result;
-  }
-}
-
-// Starting at a parent with data `data` and children `smaller` and `larger`,
-// we go toward `c`, guided by its value, `target`.
-predicate [rec] RangedBST
-  BSTNodeChildUpTo(pointer c, struct MapNode target, Interval range, struct MapNode parent) {
-  if (parent.key < target.key) {
-    take small = RangedBST(parent.smaller);
-    take large = BSTNodeUpTo(parent.larger, c, target, range);
-    let node = getNodeData(parent);
-    let optRange = joinInterval(small.range, node.key, large.range);
-    assert(isIntervalSome(optRange));
-    return { tree: Node { data: node, smaller: small.tree, larger: large.tree },
-             range: optRange };
-  } else {
-  if (parent.key > target.key) {
-    take small = BSTNodeUpTo(parent.smaller, c, target, range);
-    take large = RangedBST(parent.larger);
-    let node = getNodeData(parent);
-    let optRange = joinInterval(small.range, node.key, large.range);
-    assert(isIntervalSome(optRange));
-    return { tree: Node { data: node, smaller: small.tree, larger: large.tree },
-             range: optRange };
-  } else {
-    // We should never get here, but asserting `false` is not allowed
-    return { tree: Leaf {}, range: IntervalNone {} };
-  }}
-}
-
-predicate BSTFocus BSTFocus(pointer root, pointer child) {
-  if (is_null(child)) {
-    take tree = BST(root);
-    return AtLeaf { tree: tree };
-  } else {
-    take node    = RangedNode(child);
-    take result  = BSTNodeUpTo(root, child, node.node, node.range);
-    return AtNode { done: result.tree, node: node.node,
-                    smaller: node.smaller, larger: node.larger };
-  }
-}
-
-function (BST) unfocus(BSTFocus fcs) {
-  match fcs {
-    AtLeaf { tree: tree } => { tree }
-    AtNode { done: tree, node: node, smaller: smaller, larger: larger } => {
-      let bst = Node { data: getNodeData(node), smaller: smaller, larger: larger };
-      setKey(node.key, tree, bst)  
-    }
-  }
-}
-
-function (BST) focusDone(BSTFocus fcs) {
-  match fcs {
-    AtLeaf { tree: tree } => { tree }
-    AtNode { done: tree, node: _, smaller: _, larger: _ } => { tree }
-  }
-}
-
-
-
 @*/
 
 
-/* Allocate a new singleton node */
+/* Allocate a new singleton node.
+   Left unspecified: `map_insert` is the only function under test here, and
+   `bst.pass.c` already tests this spec. */
 struct MapNode *newNode(KEY key, VALUE value)
-/*@
-requires
-  true;
-ensures
-  take node = Owned<struct MapNode>(return);
-  node.key == key;
-  node.value == value;
-  is_null(node.smaller);
-  is_null(node.larger);
-@*/
 {
   struct MapNode *node = (struct MapNode*)cn_malloc(sizeof(struct MapNode));
   node->key = key;
@@ -338,27 +185,8 @@ ensures
 }
 
 
+/* Left unspecified: see `newNode` above. */
 struct MapNode *findParent(struct MapNode **node, KEY key)
-/*@
-requires
-  take tree_ptr = Owned<struct MapNode*>(node);
-  take tree     = BST(tree_ptr);
-ensures
-  take cur_ptr  = Owned<struct MapNode*>(node);
-  let not_found = is_null(cur_ptr);
-  not_found == !member(key, tree);
-  take fcs = BSTFocus(tree_ptr, return);
-  unfocus(fcs) == tree;
-  match fcs {
-    AtLeaf { tree: _ } => {
-      not_found || ptr_eq(cur_ptr,tree_ptr) && hasRoot(key, tree)
-    }
-    AtNode { done: _, node: parent, smaller: _, larger: _ } => {
-      let tgt = if (key < parent.key) { parent.smaller } else { parent.larger };
-      ptr_eq(cur_ptr,tgt)    
-    }
-  };
-@*/
 {
   struct MapNode *parent = 0;
   struct MapNode *cur = *node;
