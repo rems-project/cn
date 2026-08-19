@@ -85,7 +85,6 @@ SUCCESS=$(find cn -name '*.c' \
     ! -name "has_alloc_id_shift.c" \
     ! -name "ptr_diff2.c" \
     ! -name "has_alloc_id_ptr_neq.c" \
-    ! -name "spec_null_shift.c" \
     ! -name "alloc_token.c" \
     ! -name "ptr_diff.c" \
     ! -name "previously_inconsistent_assumptions1.c" \
