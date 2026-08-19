@@ -150,12 +150,22 @@ def format_size(nbytes):
     return f"{nbytes}b"
 
 
-CACHE_VERSION = 2
+CACHE_VERSION = 3
 
 
 def _config_hash(config_str):
     """Short SHA-256 hash of config string for cache key."""
     return hashlib.sha256(config_str.encode()).hexdigest()[:12]
+
+
+def _file_parity(file_name):
+    """Deterministic 0/1 parity of a test file name, used to spread files
+    across build tools.
+
+    Deliberately separate from _config_hash: cache-key changes must not
+    reshuffle build-tool assignments (see COVERAGE_SMOKE).
+    """
+    return int(hashlib.sha256(file_name.encode()).hexdigest()[:12], 16) % 2
 
 
 def _cache_key(test_file, config_str):
@@ -222,26 +232,33 @@ def _kill_active_procs():
 
 
 # Coverage only affects generated build scripts, so it is exercised only by
-# random config 0. Under auto selection, these fixtures land on opposite build
-# tools; the CI compiler matrix therefore covers Bash and Make with GCC and
-# Clang without requiring coverage tooling in the symbolic workflow.
+# random config 0. Under auto selection, the two passing fixtures land on
+# opposite build tools (asserted below); the CI compiler matrix therefore
+# covers Bash and Make with GCC and Clang without requiring coverage tooling
+# in the symbolic workflow. The failing fixture (pinned to Bash like every
+# FAIL test) checks that the coverage tail preserves the failing test status.
 COVERAGE_SMOKE = {
     "abs.pass.c",
     "abs_mem.pass.c",
+    "abs_mem.fail.c",
 }
 
+# Both build tools must see coverage: fail loudly if a rename or a parity
+# change lands the passing smoke fixtures on the same tool.
+assert _file_parity("abs.pass.c") != _file_parity("abs_mem.pass.c")
 
-def get_test_type(test_file, config):
-    """Determine the expected test result type based on filename and config.
 
-    The config string starts with the engine subcommand (bennet/darcy/lucas).
+def get_test_type(test_file, engine):
+    """Determine the expected test result type based on filename and engine.
+
+    engine is the engine subcommand name (bennet/darcy/lucas).
     """
     test_file = Path(test_file).name
 
     if (test_file.endswith('learn_cast.special.c')
         or test_file.endswith('learn_multiple.special.c')
             or test_file.endswith('pointer_ordering.special.c')):
-        if config.startswith('darcy'):
+        if engine == 'darcy':
             return 'PASS'
         else:
             return 'SKIP'
@@ -517,7 +534,7 @@ def main():
         # Choose deterministically from the filename rather than relying on
         # glob order. Adding the config index flips the assignment so each
         # random config exercises both tools across passing files.
-        file_parity = int(_config_hash(Path(test_file).name), 16) % 2
+        file_parity = _file_parity(Path(test_file).name)
         return ["bash" if (file_parity + config_idx) % 2 == 0 else "make"]
 
     # Determine test files
@@ -599,6 +616,11 @@ def main():
                 # here is independent of the runner's --only file filter.
                 if Path(tf).name == "runway.fail.c":
                     full_config += ' --only=tick'
+
+                # Stop symbolic enumeration at the expected first failure;
+                # this is also --exit-fast's only end-to-end exercise.
+                if args.symbolic and Path(tf).name == "ini_queue.fail.c":
+                    full_config += ' --exit-fast'
 
                 if Path(tf).name == "mkm.pass.c":
                     full_config += ' --max-array-length=1024'
