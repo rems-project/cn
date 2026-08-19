@@ -1,6 +1,8 @@
 module Config = TestGenConfig
 open Pp
 
+let infrastructure_failure_exit_code = 2
+
 let setup ~output_dir =
   !^"#!/bin/bash"
   ^^ twice hardline
@@ -10,15 +12,16 @@ let setup ~output_dir =
   ^^ hardline
   ^^ !^"[ -d \"${RUNTIME_PREFIX}\" ]"
   ^^^ twice bar
-  ^^^ parens
-        (nest
-           4
-           (hardline
-            ^^ !^"printf \"Could not find CN's runtime directory (looked at: \
-                  '${RUNTIME_PREFIX}')\""
-            ^^ hardline
-            ^^ !^"exit 1")
-         ^^ hardline)
+  ^^^ !^"{"
+  ^^ nest
+       4
+       (hardline
+        ^^ !^"printf \"Could not find CN's runtime directory (looked at: \
+              '${RUNTIME_PREFIX}')\""
+        ^^ hardline
+        ^^ !^(Printf.sprintf "exit %d" infrastructure_failure_exit_code))
+  ^^ hardline
+  ^^ !^"}"
   ^^ twice hardline
   ^^ !^("TEST_DIR=" ^ Filename.dirname (Filename.concat output_dir "junk"))
   ^^ hardline
@@ -35,7 +38,12 @@ let attempt cmd success failure =
        )
   ^^ hardline
   ^^ !^"else"
-  ^^ nest 4 (hardline ^^ !^("printf \"" ^ failure ^ "\"") ^^ hardline ^^ !^"exit 1")
+  ^^ nest
+       4
+       (hardline
+        ^^ !^("printf \"" ^ failure ^ "\"")
+        ^^ hardline
+        ^^ !^(Printf.sprintf "exit %d" infrastructure_failure_exit_code))
   ^^ hardline
   ^^ !^"fi"
 
