@@ -65,11 +65,3 @@ struct int_list* IntList_rev_aux(struct int_list* xs, struct int_list* ys)
     return IntList_rev_aux(ys, tmp);
   }
 }
-
-struct int_list* IntList_rev(struct int_list* xs)
-  /*@ requires take L1 = IntList(xs);
-      ensures take L1_rev = IntList(return);
-              L1_rev == rev(L1); @*/
-{
-  return IntList_rev_aux(0, xs);
-}

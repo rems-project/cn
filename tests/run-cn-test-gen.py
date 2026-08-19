@@ -593,9 +593,6 @@ def main():
                 if Path(tf).name in COVERAGE_SMOKE:
                     full_config += ' --coverage'
 
-                if args.symbolic and Path(tf).name == "ini_queue.fail.c":
-                    full_config += ' --exit-fast'
-
                 if Path(tf).name == "mkm.pass.c":
                     full_config += ' --max-array-length=1024'
 
