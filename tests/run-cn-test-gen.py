@@ -221,6 +221,16 @@ def _kill_active_procs():
                 pass
 
 
+# Test files whose generated test code is byte-identical under every alt
+# config (verified by hashing `cn test ... --no-run` output across configs),
+# so running them under more than one config is redundant. Re-verify before
+# adding a file here.
+CONFIG_INSENSITIVE = {
+    "enum1.pass.c",
+    "enum2.pass.c",
+}
+
+
 def get_test_type(test_file, config):
     """Determine the expected test result type based on filename and config.
 
@@ -390,8 +400,9 @@ def main():
                         help='SMT solver to use for the test run (default: solver executable in PATH)')
     parser.add_argument('--memory-limit', type=str, default=None,
                         help='Per-test memory limit (e.g., 512m, 4g)')
-    parser.add_argument('--build-tool', choices=['bash', 'make', 'both'], default='both',
-                        help='Build tool to use: bash, make, or both (default: both)')
+    parser.add_argument('--build-tool', choices=['bash', 'make', 'both', 'auto'], default='auto',
+                        help='Build tool to use: bash, make, both (full cross product), '
+                             'or auto (one tool per config, alternating; default)')
     parser.add_argument('--only', type=str,
                         help='Comma-separated list of specific test files to run (e.g., "bst.pass.c,bst.fail.c")')
     parser.add_argument('--cache-file', type=str, default=None,
@@ -464,30 +475,46 @@ def main():
 
     # Set engine and configurations based on symbolic option. Each alt config
     # carries its engine: abstract-domain flags are only accepted by the lucas
-    # engine (lucas = bennet + abstract domains).
+    # engine (lucas = bennet + abstract domains). The third element is the
+    # build tool(s) used under the default --build-tool=auto: every historical
+    # CI test failure hit bash and make identically, so instead of running the
+    # full config x build-tool cross product, tools alternate across configs
+    # (both stay covered every run).
     if args.symbolic:
         if args.solver_type:
             base_config += f" --solver-type={args.solver_type}"
+        # A second darcy config without --symbolic-timeout used to run here,
+        # but both configs generate byte-identical test code for every file
+        # (the timeout only sets Z3's `:timeout`, and a timeout is handled as
+        # UNKNOWN + retry), so the timed config strictly subsumes it. The lone
+        # config gets both build tools to keep make coverage for darcy.
         alt_configs = [
-            ("darcy", "--coverage --print-backtrack-info --print-satisfaction-info --symbolic-timeout=2000"),
-            ("darcy", "--coverage --print-backtrack-info --print-satisfaction-info")
+            ("darcy", "--coverage --print-backtrack-info --print-satisfaction-info --symbolic-timeout=2000",
+             ["bash", "make"]),
         ]
     else:
         base_config += " --max-generator-size=16"
         alt_configs = [
-            ("bennet", "--coverage --sizing-strategy=quickcheck --inline=everything --old-style-alloc"),
-            ("lucas", "--coverage --print-backtrack-info --print-size-info --static-absint --domains=wrapped_interval --inline=semirec --dynamic-arbitrary-domain --smt-pruning-after-absint=slow --runtime-assert-domain --dynamic-assert-domain --local-iterations=15"),
-            ("lucas", "--sizing-strategy=uniform --experimental-product-arg-destruction --experimental-return-pruning --experimental-arg-pruning --static-absint --domains=congruence --dynamic-return-propagation --smt-pruning-before-absint=fast"),
-            ("lucas", "--print-satisfaction-info --output-tyche=results.jsonl --inline=nonrec --static-absint --domains=tristate --dynamic-arbitrary-domain --dynamic-arbitrary-propagation --dynamic-assert-domain --runtime-assert-domain --dynamic-return-propagation")
+            ("bennet", "--coverage --sizing-strategy=quickcheck --inline=everything --old-style-alloc",
+             ["bash"]),
+            ("lucas", "--coverage --print-backtrack-info --print-size-info --static-absint --domains=wrapped_interval --inline=semirec --dynamic-arbitrary-domain --smt-pruning-after-absint=slow --runtime-assert-domain --dynamic-assert-domain --local-iterations=15",
+             ["make"]),
+            ("lucas", "--sizing-strategy=uniform --experimental-product-arg-destruction --experimental-return-pruning --experimental-arg-pruning --static-absint --domains=congruence --dynamic-return-propagation --smt-pruning-before-absint=fast",
+             ["bash"]),
+            ("lucas", "--print-satisfaction-info --output-tyche=results.jsonl --inline=nonrec --static-absint --domains=tristate --dynamic-arbitrary-domain --dynamic-arbitrary-propagation --dynamic-assert-domain --runtime-assert-domain --dynamic-return-propagation",
+             ["make"])
         ]
 
-    # Set build tools based on argument
-    if args.build_tool == 'bash':
-        build_tools = ["bash"]
-    elif args.build_tool == 'make':
-        build_tools = ["make"]
-    else:  # 'both'
-        build_tools = ["bash", "make"]
+    def build_tools_for(auto_tools):
+        """Resolve the build tools for one alt config from --build-tool."""
+        if args.build_tool == 'bash':
+            return ["bash"]
+        elif args.build_tool == 'make':
+            return ["make"]
+        elif args.build_tool == 'both':
+            return ["bash", "make"]
+        else:  # 'auto'
+            return auto_tools
 
     # Determine test files
     if args.test_file:
@@ -543,8 +570,11 @@ def main():
     # Build flat job list
     jobs = []
     for tf in test_files:
-        for engine, alt_config in alt_configs:
-            for build_tool in build_tools:
+        for config_idx, (engine, alt_config, auto_tools) in enumerate(alt_configs):
+            # Config-insensitive files: run only under the first alt config
+            if config_idx > 0 and Path(tf).name in CONFIG_INSENSITIVE:
+                continue
+            for build_tool in build_tools_for(auto_tools):
                 full_config = f"{engine} {base_config} {alt_config} --build-tool={build_tool}"
 
                 if args.symbolic and Path(tf).name == "ini_queue.fail.c":
