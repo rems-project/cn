@@ -46,7 +46,6 @@ val num_scopes : solver -> int
 val provable_or_unknown
   :  loc:Locations.t ->
   solver:solver ->
-  assumptions:LogicalConstraints.Set.t ->
   simp_ctxt:Simplify.simp_ctxt ->
   LogicalConstraints.t ->
   [> `True | `False | `Unknown ]
@@ -57,7 +56,6 @@ val provable_or_unknown
 val provable
   :  loc:Locations.t ->
   solver:solver ->
-  assumptions:LogicalConstraints.Set.t ->
   simp_ctxt:Simplify.simp_ctxt ->
   ?purpose:string ->
   LogicalConstraints.t ->
