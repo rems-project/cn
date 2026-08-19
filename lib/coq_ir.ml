@@ -74,52 +74,60 @@ type itp_binop =
   | ITP_impl
   | ITP_impl_prop
 
-type itp_term =
+type itp_pure_term =
   | ITP_sym_term of itp_sym
   | ITP_const of itp_const
-  | ITP_unop of itp_unop * itp_term * itp_bt
-  | ITP_binop of itp_binop * itp_term * itp_term * itp_bt
-  | ITP_match of itp_term * (itp_pat * itp_term) list
-  | ITP_ite of itp_term * itp_term * itp_term
-  | ITP_eachI of (int * (itp_sym * itp_bt) * int) * itp_term
-  | ITP_mapset of itp_term * itp_term * itp_term
-  | ITP_mapget of itp_term * itp_term
+  | ITP_unop of itp_unop * itp_pure_term * itp_bt
+  | ITP_binop of itp_binop * itp_pure_term * itp_pure_term * itp_bt
+  | ITP_match of itp_pure_term * (itp_pat * itp_pure_term) list
+  | ITP_ite of itp_pure_term * itp_pure_term * itp_pure_term
+  | ITP_eachI of (int * (itp_sym * itp_bt) * int) * itp_pure_term
+  | ITP_mapset of itp_pure_term * itp_pure_term * itp_pure_term
+  | ITP_mapget of itp_pure_term * itp_pure_term
     (* the (int * int) gives the position of an element *)
-  | ITP_recordmember of itp_term * itp_id * (int * int)
-  | ITP_recordupdate of (itp_term * itp_id) * itp_term * (int * int)
-  | ITP_record of itp_term list
-  | ITP_structmember of itp_term * itp_id * (int * int)
-  | ITP_structupdate of (itp_term * itp_id) * itp_term * (int * int)
-  | ITP_cast of itp_bt * itp_term
-  | ITP_apply of itp_sym * itp_term list
-  | ITP_apply_prop of itp_sym * itp_term list
-  | ITP_good of itp_term (*| ITP_good of itp_sym * itp_bt * itp_term*)
-  | ITP_representable of itp_sym * itp_bt * itp_term
-  | ITP_constructor of itp_sym * itp_term list
-  | ITP_nthlist of itp_term * itp_term * itp_term
-  | ITP_arraytolist of itp_term * itp_term * itp_term
-  | ITP_let of itp_sym * itp_term * itp_term
-  | ITP_wrapI of Z.t * Z.t * itp_term
-  | ITP_arrayshift of itp_term * Z.t * itp_term
-  | ITP_unsupported of string
-  | ITP_forall of itp_sym * itp_bt * itp_term
-  | ITP_Define of itp_sym * itp_term * itp_term
-  | ITP_Constraint_LRT of itp_term * itp_term
-  | ITP_Constraint_LAT of itp_term * itp_term
-  | ITP_LAT_I of itp_term
+  | ITP_recordmember of itp_pure_term * itp_id * (int * int)
+  | ITP_recordupdate of (itp_pure_term * itp_id) * itp_pure_term * (int * int)
+  | ITP_record of itp_pure_term list
+  | ITP_structmember of itp_pure_term * itp_id * (int * int)
+  | ITP_structupdate of (itp_pure_term * itp_id) * itp_pure_term * (int * int)
+  | ITP_cast of itp_bt * itp_pure_term
+  | ITP_apply of itp_sym * itp_pure_term list
+  | ITP_apply_prop of itp_sym * itp_pure_term list
+  (* | ITP_good of itp_pure_term | ITP_good of itp_sym * itp_bt * itp_pure_term *)
+  | ITP_representable of itp_sym * itp_bt * itp_pure_term
+  | ITP_constructor of itp_sym * itp_pure_term list
+  | ITP_nthlist of itp_pure_term * itp_pure_term * itp_pure_term
+  | ITP_arraytolist of itp_pure_term * itp_pure_term * itp_pure_term
+  | ITP_let_pure of itp_sym * itp_pure_term * itp_pure_term
+  | ITP_wrapI of Z.t * Z.t * itp_pure_term
+  | ITP_arrayshift of itp_pure_term * Z.t * itp_pure_term
+  | ITP_good
+  | ITP_unsupported_pure of string
+
+(* Add exists, add construct to embed the above (pure) to the below (iprop) *)
+(* As well as star and wand *)
+type itp_resource_term =
+  | ITP_forall of itp_sym * itp_bt * itp_resource_term
+  | ITP_let_resource of itp_sym * itp_pure_term * itp_resource_term
+  | ITP_Define of itp_sym * itp_pure_term * itp_resource_term
+  | ITP_Constraint_LRT of itp_resource_term * itp_resource_term
+  | ITP_Constraint_LAT of itp_resource_term * itp_resource_term
+  | ITP_LAT_I of itp_pure_term
   | ITP_LRT_I
-  | ITP_LC of itp_term
-  | ITP_Owned_LRT of itp_sym * itp_bt * itp_term * itp_term * itp_term list
-  | ITP_Block_LRT of itp_sym * itp_bt * itp_term * itp_term
-  | ITP_Owned_LAT of itp_sym * itp_bt * itp_term * itp_term * itp_term list
-  | ITP_Block_LAT of itp_sym * itp_bt * itp_term * itp_term
-  | ITP_PName_LAT of itp_sym * itp_sym * itp_bt * itp_term * itp_term list * itp_term
-  | ITP_PName_LRT of itp_sym * itp_sym * itp_bt * itp_term * itp_term list * itp_term
-  | ITP_Each_LAT of itp_sym * itp_sym * itp_bt * itp_term * itp_term * itp_term * itp_term
-  | ITP_Each_LRT of itp_sym * itp_sym * itp_bt * itp_term * itp_term * itp_term * itp_term
+  | ITP_LC of itp_pure_term
+  | ITP_Owned_LRT of itp_sym * itp_bt * itp_resource_term * itp_pure_term * itp_pure_term list
+  | ITP_Block_LRT of itp_sym * itp_bt * itp_resource_term * itp_pure_term
+  | ITP_Owned_LAT of itp_sym * itp_bt * itp_resource_term * itp_pure_term * itp_pure_term list
+  | ITP_Block_LAT of itp_sym * itp_bt * itp_resource_term * itp_pure_term
+  | ITP_PName_LAT of itp_sym * itp_sym * itp_bt * itp_resource_term * itp_pure_term list * itp_pure_term
+  | ITP_PName_LRT of itp_sym * itp_sym * itp_bt * itp_resource_term * itp_pure_term list * itp_pure_term
+  | ITP_Each_LAT of itp_sym * itp_sym * itp_bt * itp_pure_term * itp_pure_term * itp_pure_term * itp_resource_term
+  | ITP_Each_LRT of itp_sym * itp_sym * itp_bt * itp_pure_term * itp_pure_term * itp_pure_term * itp_resource_term
+  | ITP_unsupported_resource of string
+
 
 (* CN datatypes *)
-(* note: this is different from ITP_Datatype in itp_term *)
+(* note: this is different from ITP_Datatype in itp_pure_term *)
 type itp_constr = ITP_constr of itp_sym * itp_bt list
 
 type itp_dt =
@@ -132,8 +140,8 @@ type itp_uninterp =
   | ITP_uninterp_prop
 
 type itp_def =
-  | ITP_def of itp_term
-  | ITP_recdef of itp_term
+  | ITP_def of itp_pure_term
+  | ITP_recdef of itp_pure_term
 
 type itp_fun =
   (* parameters: function name, function body, argument typess, return type*)
@@ -143,7 +151,7 @@ type itp_fun =
 (* CN resource predicates *)
 type itp_clause =
   (* parameters : guard, clause body *)
-  | ITP_clause of itp_term list * itp_term
+  | ITP_clause of itp_pure_term list * itp_resource_term
 
 type itp_resource_pred =
   { name : itp_sym;
@@ -161,7 +169,7 @@ type itp_uinterp_resource_pred = itp_sym * itp_sym * (itp_sym * itp_bt) list * i
 (* CN lemmas *)
 type itp_lemma =
   (* parameters: lemma name, lemma body *)
-  | ITP_lemma of itp_sym * itp_term
+  | ITP_lemma of itp_sym * itp_resource_term
 
 (* The entire CN global typing context, plus lemma statements *)
 type itp_gl =

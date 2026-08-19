@@ -127,14 +127,14 @@ let it_to_itp_ir global it b =
            CI.ITP_const (CI.ITP_bool b)
        | Terms.Z z -> CI.ITP_const (CI.ITP_Z z)
        | Terms.Bits (info, z) -> CI.ITP_const (CI.ITP_bits (BT.normalise_to_range info z))
-       | Terms.Q _ -> CI.ITP_unsupported "Unsupported const Q"
-       | Terms.MemByte _ -> CI.ITP_unsupported "Unsupported const membyte"
-       | Terms.Pointer _ -> CI.ITP_unsupported "Unsupported const pointer"
-       | Terms.Alloc_id _ -> CI.ITP_unsupported "Unsupported const alloc_id"
-       | Terms.Unit -> CI.ITP_unsupported "Unsupported const unit"
+       | Terms.Q _ -> CI.ITP_unsupported_pure "Unsupported const Q"
+       | Terms.MemByte _ -> CI.ITP_unsupported_pure "Unsupported const membyte"
+       | Terms.Pointer _ -> CI.ITP_unsupported_pure "Unsupported const pointer"
+       | Terms.Alloc_id _ -> CI.ITP_unsupported_pure "Unsupported const alloc_id"
+       | Terms.Unit -> CI.ITP_unsupported_pure "Unsupported const unit"
        | Terms.Null -> CI.ITP_const (CI.ITP_Z Z.zero)
-       | Terms.CType_const _ -> CI.ITP_unsupported "Unsupported const ctype"
-       | Terms.Default _ -> CI.ITP_unsupported "Unsupported const default")
+       | Terms.CType_const _ -> CI.ITP_unsupported_pure "Unsupported const ctype"
+       | Terms.Default _ -> CI.ITP_unsupported_pure "Unsupported const default")
     | Terms.Unop (op, a) ->
       let x = aux a in
       (match op with
@@ -145,7 +145,7 @@ let it_to_itp_ir global it b =
            CI.ITP_unop (CI.ITP_neg, x, bt)
        | Terms.BW_FFS_NoSMT -> CI.ITP_unop (CI.ITP_BW_FFS_NoSMT, x, bt)
        | Terms.BW_CTZ_NoSMT -> CI.ITP_unop (CI.ITP_BW_CTZ_NoSMT, x, bt)
-       | _ -> CI.ITP_unsupported "Unsupported unop")
+       | _ -> CI.ITP_unsupported_pure "Unsupported unop")
     | Terms.Binop (op, a, b) ->
       let x = aux a in
       let y = aux b in
@@ -208,7 +208,7 @@ let it_to_itp_ir global it b =
            CI.ITP_binop (CI.ITP_impl_prop, x, y, bt)
          else
            CI.ITP_binop (CI.ITP_impl, x, y, bt)
-       | _ -> CI.ITP_unsupported "Unsupported binop")
+       | _ -> CI.ITP_unsupported_pure "Unsupported binop")
     | Terms.Match (x, cases) ->
       let comp = Some (it, "case-discriminant") in
       let br (pat, rhs) = (pat_to_itp_ir pat, aux rhs) in
@@ -241,13 +241,14 @@ let it_to_itp_ir global it b =
       CI.ITP_structupdate ((aux t, CI.ITP_id m), aux x, ix)
     | Terms.Cast (cbt, t) -> CI.ITP_cast (bt_to_itp_ir global cbt, aux t)
     | Terms.Apply (name, args) -> CI.ITP_apply (CI.ITP_sym name, List.map aux args)
-    | Terms.Good (_, t) -> CI.ITP_good (aux t)
+    (* | Terms.Good (_, t) -> CI.ITP_good (aux t) *)
+    | Terms.Good (_, _) -> CI.ITP_good
     | Terms.Representable (ct, t2) when Option.is_some (Sctypes.is_struct_ctype ct) ->
       (match Sctypes.is_struct_ctype ct with
        | Some s ->
          CI.ITP_representable (CI.ITP_sym s, CI.ITP_Struct (CI.ITP_sym s, []), aux t2)
        | None ->
-         CI.ITP_unsupported "Unsupported representable (why are we in the None case?)")
+         CI.ITP_unsupported_pure "Unsupported representable (why are we in the None case?)")
     | Terms.Constructor (nm, id_args) ->
       let comp = Some (it, "datatype contents") in
       (* assuming here that the id's are in canonical order *)
@@ -256,32 +257,31 @@ let it_to_itp_ir global it b =
       let maxInt = Memory.max_integer_type ity in
       let minInt = Memory.min_integer_type ity in
       CI.ITP_wrapI (maxInt, minInt, aux arg)
-    | Terms.Let ((nm, x), y) -> CI.ITP_let (CI.ITP_sym nm, aux x, aux y)
+    | Terms.Let ((nm, x), y) -> CI.ITP_let_pure (CI.ITP_sym nm, aux x, aux y)
     | Terms.ArrayShift { base; ct; index } ->
       let size_of_ct = Z.of_int @@ Memory.size_of_ctype ct in
       (* do a + b * c*)
       CI.ITP_arrayshift (aux base, size_of_ct, aux index)
-    | Terms.Tuple _ -> CI.ITP_unsupported "Unsupported tuple"
-    | Terms.NthTuple (_, _) -> CI.ITP_unsupported "Unsupported nth tuple"
-    | Terms.Struct (_, _) -> CI.ITP_unsupported "Unsupported struct"
-    | Terms.MemberShift _ -> CI.ITP_unsupported "Unsupported member shift"
-    | Terms.CopyAllocId _ -> CI.ITP_unsupported "Unsupported copy alloc id"
-    | Terms.HasAllocId _ -> CI.ITP_unsupported "Unsupported has alloc id"
-    | Terms.SizeOf _ -> CI.ITP_unsupported "Unsupported size of"
-    | Terms.OffsetOf (_, _) -> CI.ITP_unsupported "Unsupported offset of"
-    | Terms.Nil _ -> CI.ITP_unsupported "Unsupported nil"
-    | Terms.Cons (_, _) -> CI.ITP_unsupported "Unsupported cons"
-    | Terms.Head _ -> CI.ITP_unsupported "Unsupported head"
-    | Terms.Tail _ -> CI.ITP_unsupported "Unsupported tail"
-    | Terms.Representable (_, _) -> CI.ITP_unsupported "Unsupported representable"
-    | Terms.Aligned _ -> CI.ITP_unsupported "Unsupported aligned"
-    | Terms.MapConst (_, _) -> CI.ITP_unsupported "Unsupported map const"
-    | Terms.MapDef (_, _) -> CI.ITP_unsupported "Unsupported map def"
+    | Terms.Tuple _ -> CI.ITP_unsupported_pure "Unsupported tuple"
+    | Terms.NthTuple (_, _) -> CI.ITP_unsupported_pure "Unsupported nth tuple"
+    | Terms.Struct (_, _) -> CI.ITP_unsupported_pure "Unsupported struct"
+    | Terms.MemberShift _ -> CI.ITP_unsupported_pure "Unsupported member shift"
+    | Terms.CopyAllocId _ -> CI.ITP_unsupported_pure "Unsupported copy alloc id"
+    | Terms.HasAllocId _ -> CI.ITP_unsupported_pure "Unsupported has alloc id"
+    | Terms.SizeOf _ -> CI.ITP_unsupported_pure "Unsupported size of"
+    | Terms.OffsetOf (_, _) -> CI.ITP_unsupported_pure "Unsupported offset of"
+    | Terms.Nil _ -> CI.ITP_unsupported_pure "Unsupported nil"
+    | Terms.Cons (_, _) -> CI.ITP_unsupported_pure "Unsupported cons"
+    | Terms.Head _ -> CI.ITP_unsupported_pure "Unsupported head"
+    | Terms.Tail _ -> CI.ITP_unsupported_pure "Unsupported tail"
+    | Terms.Representable (_, _) -> CI.ITP_unsupported_pure "Unsupported representable"
+    | Terms.Aligned _ -> CI.ITP_unsupported_pure "Unsupported aligned"
+    | Terms.MapConst (_, _) -> CI.ITP_unsupported_pure "Unsupported map const"
+    | Terms.MapDef (_, _) -> CI.ITP_unsupported_pure "Unsupported map def"
     | Terms.CN_None _ | Terms.CN_Some _ | Terms.IsSome _ | Terms.GetOpt _ ->
-      CI.ITP_unsupported "Unsupported map def" (* TODO(HK): added for plumbing *)
+      CI.ITP_unsupported_pure "Unsupported map def" (* TODO(HK): added for plumbing *)
   in
   f b it
-
 
 (* unpacking LogicalConstraints *)
 let lc_to_itp_ir (gl : Global.t) (t : LC.t) =
@@ -293,7 +293,7 @@ let lc_to_itp_ir (gl : Global.t) (t : LC.t) =
 
 
 (* TODO(HK): added this auxiliary function for plumbing *)
-let q_step_to_itp_ir (step : Sctypes.t) : CI.itp_term =
+let q_step_to_itp_ir (step : Sctypes.t) : CI.itp_pure_term =
   CI.ITP_const (CI.ITP_Z (Z.of_int (Memory.size_of_ctype step)))
 
 
@@ -307,7 +307,7 @@ let rec lrt_to_itp_ir (gl : Global.t) (t : LRT.t) =
   | LRT.Define ((sym, it), _, t) ->
     let d = lrt_to_itp_ir gl t in
     let l = it_to_itp_ir gl it None in
-    CI.ITP_let (CI.ITP_sym sym, l, d)
+    CI.ITP_let_resource (CI.ITP_sym sym, l, d)
   | LRT.I -> CI.ITP_LRT_I
   | LRT.Resource ((nm, (req, bt)), _, t) ->
     (match req with
@@ -352,7 +352,7 @@ let rec lrt_to_itp_ir (gl : Global.t) (t : LRT.t) =
               it_to_itp_ir gl q.permission None,
               (* permission *)
               lrt_to_itp_ir gl t )
-        | PName _ -> CI.ITP_unsupported "unsupported Qpred PName in LRT"))
+        | PName _ -> CI.ITP_unsupported_resource "unsupported Qpred PName in LRT"))
 
 
 (* Unpacking LogicalArgumentTypes that wrap IndexTerms (i.e. in resource predicates) *)
@@ -397,8 +397,8 @@ let rec it_lat_to_itp_ir (gl : Global.t) (t : Terms.Normal.t LAT.t) =
      (* Can iterated resources even appear here? *)
      | Q q ->
        (match q.name with
-        | Owned _ -> CI.ITP_unsupported "unsupported Qpred Owned in LRT"
-        | PName _ -> CI.ITP_unsupported "unsupported Qpred PName in LRT"))
+        | Owned _ -> CI.ITP_unsupported_resource "unsupported Qpred Owned in LRT"
+        | PName _ -> CI.ITP_unsupported_resource "unsupported Qpred PName in LRT"))
 
 
 (* Unpacking LogicalArgumentTypes that wrap LogicalReturnTypes *)
@@ -465,7 +465,7 @@ let rec lrtlat_to_itp_ir (gl : Global.t) t =
                  lrtlat_to_itp_ir gl t,
                  it_to_itp_ir gl q.pointer None ))
           (* todo: Each stuff*)
-        | PName _ -> ITP_unsupported "unsupported Qpred PName in LRT"))
+        | PName _ -> ITP_unsupported_resource "unsupported Qpred PName in LRT"))
 
 
 (* Main translation function for lemmas *)

@@ -337,15 +337,11 @@ let rec pat_to_itp (pat : CI.itp_pat) =
 
 (* is_clause is true when the translated term is a resource predicate clause,
     this is because resource predicate clauses use different connectives *)
-let term_to_itp (global : Global.t) (t : CI.itp_term) (is_clause : bool) =
+let term_to_itp (global : Global.t) (t : CI.itp_pure_term) =
   let open Pp in
   let rec f (global : Global.t) t =
     let aux t = f global t in
     let abinop s x y = parensM (build [ aux x; rets s; aux y ]) in
-    let map_split f = fun doc -> f (break 1 ^^ doc) in
-    let mk_wand doc doc2 = doc ^^^ !^"-∗" ^^^ doc2 in
-    let mk_star doc doc2 = doc ^^^ !^"∗" ^^^ doc2 in
-    let mk_iris_and doc doc2 = doc ^^^ !^"∧" ^^^ doc2 in
     match t with
     | CI.ITP_sym_term (CI.ITP_sym s) -> Sym.pp s
     | ITP_const c ->
@@ -447,21 +443,32 @@ let term_to_itp (global : Global.t) (t : CI.itp_term) (is_clause : bool) =
     | CI.ITP_arraytolist (arr, i, len) ->
       parensM (build [ rets "CN_Lib.array_to_list"; aux arr; aux i; aux len ])
     | CI.ITP_wrapI (z1, z2, t) -> f_appM "CN_Lib.wrapI" [ enc_z z1; enc_z z2; aux t ]
-    | CI.ITP_let (CI.ITP_sym nm, x, y) -> parensM (pp_let nm (aux x) (aux y))
+    | CI.ITP_let_pure (CI.ITP_sym nm, x, y) -> parensM (pp_let nm (aux x) (aux y))
+    (* | CI.ITP_good _ -> rets "" *)
     | CI.ITP_arrayshift (base, ct, index) ->
       f_appM "arrayshift" [ aux base; enc_z ct; aux index ]
-    | CI.ITP_forall (CI.ITP_sym sym, bt, t) -> pp_forall sym bt (aux t)
-    | CI.ITP_Define (CI.ITP_sym sym, x, y) -> map_split (pp_let sym (aux x)) (aux y)
-    | CI.ITP_Constraint_LRT (t1, t2) ->
-      (match t1 with
-       (* todo: is this right? *)
-       | CI.ITP_good _ -> mk_star (aux t1) (aux t2)
-       | _ -> mk_iris_and (aux t1) (aux t2))
+    | CI.ITP_good -> rets ""
+    | CI.ITP_unsupported_pure msg -> rets ("unsupported ITP_pure_term: " ^ msg)
+      in
+  f global t
+
+let rec resource_to_itp (global : Global.t) (t : CI.itp_resource_term) (is_clause : bool) =
+  let open Pp in
+  let mk_wand doc doc2 = doc ^^^ !^"-∗" ^^^ doc2 in
+  let mk_star doc doc2 = doc ^^^ !^"∗" ^^^ doc2 in
+  let aux t = term_to_itp global t in
+  let aux' t = resource_to_itp global t is_clause in
+  let map_split f = fun doc -> f (break 1 ^^ doc) in
+  match t with
+    | CI.ITP_let_resource (CI.ITP_sym nm, x, y) -> parensM (pp_let nm (aux x) (aux' y))
+    | CI.ITP_forall (CI.ITP_sym sym, bt, t) -> pp_forall sym bt (aux' t)
+    | CI.ITP_Define (CI.ITP_sym sym, x, y) -> map_split (pp_let sym (aux x)) (aux' y)
+    | CI.ITP_Constraint_LRT (t1, t2) -> mk_star (aux' t1) (aux' t2)
     | CI.ITP_Constraint_LAT (t1, t2) ->
       if is_clause then
-        mk_star (aux t1) (aux t2)
+        mk_star (aux' t1) (aux' t2)
       else
-        mk_wand (aux t1) (aux t2)
+        mk_wand (aux' t1) (aux' t2)
     | CI.ITP_LRT_I -> rets "emp"
     (* this is the return value of a resource predicate*)
     | CI.ITP_LAT_I t -> iris_pure (!^(ret_sym ^ " = ") ^^ aux t)
@@ -470,13 +477,13 @@ let term_to_itp (global : Global.t) (t : CI.itp_term) (is_clause : bool) =
         pp_forall
           s
           bt
-          (build [ rets op_nm; aux pointer; rets (Sym.pp_string s); f global t ])
+          (build [ rets op_nm; aux pointer; rets (Sym.pp_string s); aux' t ])
       in
       let exists_owned op_nm =
         pp_iris_exists
           s
           bt
-          (build [ rets op_nm; aux pointer; rets (Sym.pp_string s); f global t ])
+          (build [ rets op_nm; aux pointer; rets (Sym.pp_string s); aux' t ])
       in
       (match bt with
        | CI.ITP_Bits (_, _) ->
@@ -494,7 +501,7 @@ let term_to_itp (global : Global.t) (t : CI.itp_term) (is_clause : bool) =
        | _ -> !^"ITP_Owned_LAT unsupported BT" ^^ bt_to_itp bt)
     | CI.ITP_Block_LAT (CI.ITP_sym s, _, t, _) ->
       let op_nm = "block_" ^ Sym.pp_string s in
-      parensM (build [ rets op_nm; f global t ])
+      parensM (build [ rets op_nm; aux' t ])
     | CI.ITP_Owned_LRT (CI.ITP_sym s, bt, t, pointer, _) ->
       (match bt with
        | CI.ITP_Bits (_, _) ->
@@ -502,18 +509,17 @@ let term_to_itp (global : Global.t) (t : CI.itp_term) (is_clause : bool) =
          pp_iris_exists
            s
            bt
-           (build [ rets op_nm; aux pointer; rets (Sym.pp_string s); f global t ])
+           (build [ rets op_nm; aux pointer; rets (Sym.pp_string s); aux' t ])
        | CI.ITP_Struct (CI.ITP_sym nm, _) ->
          let op_nm = "Owned_" ^ Sym.pp_string nm in
          pp_iris_exists
            s
            bt
-           (build [ rets op_nm; aux pointer; rets (Sym.pp_string s); f global t ])
+           (build [ rets op_nm; aux pointer; rets (Sym.pp_string s); aux' t ])
        | _ -> rets "ITP_Owned_LRT unsupported BT")
     | CI.ITP_Block_LRT (CI.ITP_sym s, _, t, _) ->
       let op_nm = "Block_" ^ Sym.pp_string s in
-      parensM (build [ rets op_nm; f global t ])
-    | CI.ITP_good _ -> rets ""
+      parensM (build [ rets op_nm; aux' t ])
     | CI.ITP_PName_LAT (CI.ITP_sym nm, CI.ITP_sym pname, bt, t, iargs, ptr) ->
       let args = List.map aux iargs in
       if is_clause then
@@ -522,17 +528,19 @@ let term_to_itp (global : Global.t) (t : CI.itp_term) (is_clause : bool) =
              nm
              bt
              (build ((Sym.pp pname :: aux ptr :: args) @ [ Sym.pp nm ])))
-          (aux t)
+          (aux' t)
       else
         mk_wand
           (pp_forall nm bt (build ((Sym.pp pname :: aux ptr :: args) @ [ Sym.pp nm ])))
-          (aux t)
+          (aux' t)
     | CI.ITP_PName_LRT (CI.ITP_sym nm, CI.ITP_sym pname, bt, t, iargs, ptr) ->
       let args = List.map aux iargs in
       mk_star
         (pp_iris_exists nm bt (build ((Sym.pp pname :: aux ptr :: args) @ [ Sym.pp nm ])))
-        (aux t)
-    | CI.ITP_LC t -> (match t with CI.ITP_good _ -> rets "" | _ -> iris_pure (aux t))
+        (aux' t)
+    | CI.ITP_LC t -> (match t with
+      | CI.ITP_good -> aux t
+      | _ -> iris_pure (aux t))
     | CI.ITP_Each_LAT (ITP_sym nm, ITP_sym _, _, ptr, _, perm, pred) ->
       (match perm with
        | ITP_binop
@@ -550,7 +558,7 @@ let term_to_itp (global : Global.t) (t : CI.itp_term) (is_clause : bool) =
              ^^ rets "%nat";
              aux ptr;
              !^(Sym.pp_string nm);
-             aux pred
+             aux' pred
            ]
        | _ -> rets "unsupported ITP_Each_LAT perm")
     | CI.ITP_Each_LRT (ITP_sym nm, ITP_sym _, _, ptr, _, perm, pred) ->
@@ -570,17 +578,15 @@ let term_to_itp (global : Global.t) (t : CI.itp_term) (is_clause : bool) =
              ^^ rets "%nat";
              aux ptr;
              !^(Sym.pp_string nm);
-             aux pred
+             aux' pred
            ]
        | _ -> rets "unsupported ITP_Each_LAT perm")
-    | CI.ITP_unsupported msg -> rets msg
-         in
-  f global t
+    | CI.ITP_unsupported_resource msg -> rets msg
 
 let convert_lemma_defs global (lemmas : CI.itp_lemma list) =
   let lemma_ty (CI.ITP_lemma (CI.ITP_sym nm, tm)) =
     Pp.progress_simple "converting lemma type" (Sym.pp_string nm);
-    let rhs = term_to_itp global tm false in
+    let rhs = resource_to_itp global tm false in
     defn (Sym.pp_string nm ^ "_type") [] (Some (Pp.string "iProp Σ")) rhs false
   in
   let tys = List.map lemma_ty lemmas in
@@ -639,16 +645,16 @@ let translate_pred (gl : Global.t) (preds : CI.itp_resource_pred_group list) =
         let guard_doc =
           match guard with
           | x :: xs ->
-            iris_pure (term_to_itp gl x false)
+            iris_pure (term_to_itp gl x)
             ^^ intersperse
                  ""
                  ""
                  (List.map
-                    (fun y -> !^" ∧ " ^^ iris_pure (!^"~" ^^ term_to_itp gl y false))
+                    (fun y -> !^" ∧ " ^^ iris_pure (!^"~" ^^ term_to_itp gl y))
                     xs)
           | [] -> rets "True"
         in
-        let body_doc = term_to_itp gl body true in
+        let body_doc = resource_to_itp gl body true in
         parensM (build [ guard_doc; rets " ∧ "; body_doc ])
     in
     (* add all previous guards to the beginnig of each clause *)
@@ -1007,7 +1013,7 @@ let translate_fun (gl : Global.t) (funs : CI.itp_fun list list * CI.itp_fun list
     | CI.ITP_fun_def (CI.ITP_sym nm, logical_fun, args, _) ->
       (match logical_fun with
        | CI.ITP_def body ->
-         let itp_body = term_to_itp gl body false in
+         let itp_body = term_to_itp gl body in
          let itp_args =
            List.map
              (fun (CI.ITP_sym arg, bt) ->
@@ -1017,7 +1023,7 @@ let translate_fun (gl : Global.t) (funs : CI.itp_fun list list * CI.itp_fun list
          in
          defn (Sym.pp_string nm) itp_args None itp_body false
        | CI.ITP_recdef body ->
-         let itp_body = term_to_itp gl body false in
+         let itp_body = term_to_itp gl body in
          let itp_args =
            List.map
              (fun (CI.ITP_sym arg, bt) ->
