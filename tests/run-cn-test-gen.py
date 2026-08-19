@@ -221,18 +221,10 @@ def _kill_active_procs():
                 pass
 
 
-# Test files whose generated test code is byte-identical under every alt
-# config (verified by hashing `cn test ... --no-run` output across configs),
-# so running them under more than one config is redundant. Re-verify before
-# adding a file here.
-CONFIG_INSENSITIVE = {
-    "enum1.pass.c",
-    "enum2.pass.c",
-}
-
-# Coverage only affects generated build scripts, so exercising lcov for every
-# file/config is redundant. These small passing fixtures land on opposite
-# build tools under auto selection, covering both Bash and Make in each config.
+# Coverage only affects generated build scripts, so it is exercised only by
+# random config 0. Under auto selection, these fixtures land on opposite build
+# tools; the CI compiler matrix therefore covers Bash and Make with GCC and
+# Clang without requiring coverage tooling in the symbolic workflow.
 COVERAGE_SMOKE = {
     "abs.pass.c",
     "abs_mem.pass.c",
@@ -365,7 +357,7 @@ def run_job(cn_path, test_file, full_config, test_type, memory_limit=None):
         result = 'pass' if ret_code == 0 else 'fail'
         return (test_file, full_config, result, elapsed, output, peak_rss)
 
-    elif test_type in ("FAIL", "BUGGY"):
+    elif test_type == "FAIL":
         ret_code, elapsed, output, oom, peak_rss = _run()
         oom_result = _check_oom(oom, elapsed, output, peak_rss)
         if oom_result:
@@ -485,16 +477,17 @@ def main():
     # carries its engine: abstract-domain flags are only accepted by the lucas
     # engine (lucas = bennet + abstract domains). Under --build-tool=auto, one
     # build tool is selected per passing file/config, distributed so each
-    # config exercises both tools across the suite.
+    # broad-suite config exercises both tools across the suite.
     if args.symbolic:
         if args.solver_type:
             base_config += f" --solver-type={args.solver_type}"
-        # A second darcy config without --symbolic-timeout used to run here,
-        # but both configs generate byte-identical C/H artifacts for every
-        # file. The timeout is only forwarded to the runtime test script; keep
-        # the timed variant to bound Z3 queries and exercise UNKNOWN retries.
+        # Keep the timed config across the broad suite to bound Z3 queries and
+        # exercise UNKNOWN retries. The untimed config is retained only as an
+        # abs.pass.c smoke: an untimed query can eventually return SAT where
+        # all ten bounded attempts return UNKNOWN.
         alt_configs = [
             ("darcy", "--print-backtrack-info --print-satisfaction-info --symbolic-timeout=2000"),
+            ("darcy", "--print-backtrack-info --print-satisfaction-info"),
         ]
     else:
         base_config += " --max-generator-size=16"
@@ -502,7 +495,7 @@ def main():
             ("bennet", "--sizing-strategy=quickcheck --inline=everything --old-style-alloc"),
             ("lucas", "--print-backtrack-info --print-size-info --static-absint --domains=wrapped_interval --inline=semirec --dynamic-arbitrary-domain --smt-pruning-after-absint=slow --runtime-assert-domain --dynamic-assert-domain --local-iterations=15"),
             ("lucas", "--sizing-strategy=uniform --experimental-product-arg-destruction --experimental-return-pruning --experimental-arg-pruning --static-absint --domains=congruence --dynamic-return-propagation --smt-pruning-before-absint=fast"),
-            ("lucas", "--print-satisfaction-info --output-tyche=results.jsonl --inline=nonrec --static-absint --domains=tristate --dynamic-arbitrary-domain --dynamic-arbitrary-propagation --dynamic-assert-domain --runtime-assert-domain --dynamic-return-propagation")
+            ("lucas", "--print-satisfaction-info --inline=nonrec --static-absint --domains=tristate --dynamic-arbitrary-domain --dynamic-arbitrary-propagation --dynamic-assert-domain --runtime-assert-domain --dynamic-return-propagation")
         ]
 
     def build_tools_for(config_idx, test_file, test_type):
@@ -515,8 +508,9 @@ def main():
             return ["bash", "make"]
 
         # Make maps both an expected test failure and a build failure to exit
-        # status 2. Bash preserves the expected test exit status 1, allowing
-        # the runner to reject compiler, linker, and infrastructure failures.
+        # status 2. Bash reserves status 1 for an expected test failure and
+        # reports compiler, linker, and infrastructure failures as status 2,
+        # allowing the runner to distinguish the two outcomes.
         if test_type in ("FAIL", "FLAKY"):
             return ["bash"]
 
@@ -581,8 +575,9 @@ def main():
     jobs = []
     for tf in test_files:
         for config_idx, (engine, alt_config) in enumerate(alt_configs):
-            # Config-insensitive files: run only under the first alt config
-            if config_idx > 0 and Path(tf).name in CONFIG_INSENSITIVE:
+            # The broad Darcy suite uses the timed config; retain one untimed
+            # smoke without restoring the redundant suite-wide cross product.
+            if args.symbolic and config_idx == 1 and Path(tf).name != "abs.pass.c":
                 continue
             test_type = get_test_type(tf, engine)
             if test_type == 'SKIP':
@@ -590,8 +585,20 @@ def main():
             for build_tool in build_tools_for(config_idx, tf, test_type):
                 full_config = f"{engine} {base_config} {alt_config} --build-tool={build_tool}"
 
-                if Path(tf).name in COVERAGE_SMOKE:
+                if (not args.symbolic and config_idx == 0
+                        and Path(tf).name in COVERAGE_SMOKE):
                     full_config += ' --coverage'
+
+                # Keep Tyche output as one focused integration smoke instead
+                # of emitting it for every job in the suite.
+                if (not args.symbolic and config_idx == 3
+                        and Path(tf).name == "abs.pass.c"):
+                    full_config += ' --output-tyche=results.jsonl'
+
+                # This fixture targets tick. Passing CN's file-local selector
+                # here is independent of the runner's --only file filter.
+                if Path(tf).name == "runway.fail.c":
+                    full_config += ' --only=tick'
 
                 if Path(tf).name == "mkm.pass.c":
                     full_config += ' --max-array-length=1024'
