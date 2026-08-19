@@ -42,10 +42,15 @@ jobs:
         uses: actions/cache/restore@v5
         with:
           path: ~/.opam
-          key: ${{ matrix.version }}-${{ hashFiles('cn.opam') }}
+          key: ${{ matrix.version }}-${{ matrix.compiler }}-${{ hashFiles('cn.opam') }}
 
       - name: Setup OPAM
         if: steps.cache-opam-restore.outputs.cache-hit != 'true'
+        env:
+          # Dune compiles C with %{cc}, which comes from `ocamlc -config`'s
+          # c_compiler — fixed when the switch is built, not resolved from
+          # PATH at build time. Bake the matrix compiler into the switch.
+          CC: ${{ matrix.compiler }}
         run: |
           opam init --yes --no-setup --shell=sh --compiler=${{ matrix.version }}
           eval $(opam env --switch=${{ matrix.version }})
@@ -57,12 +62,15 @@ jobs:
         if: steps.cache-opam-restore.outputs.cache-hit != 'true'
         with:
           path: ~/.opam
-          key: ${{ matrix.version }}-${{ hashFiles('cn.opam') }}
+          key: ${{ matrix.version }}-${{ matrix.compiler }}-${{ hashFiles('cn.opam') }}
 
       - name: Build CN
         run: |
           opam switch ${{ matrix.version }}
           eval $(opam env --switch=${{ matrix.version }})
+          # A stale cache or compiler-detection change would silently fall
+          # back to the wrong compiler; fail instead.
+          test "$(ocamlc -config-var c_compiler)" = "${{ matrix.compiler }}"
           dune build cn.install --profile=dev
 
   ounit-tests:
