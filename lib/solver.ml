@@ -312,7 +312,7 @@ module CN_Pointer = struct
   let alloc_id_of_name = "alloc_id_of"
 
   (* TODO: this should probably be renamed to something like raw_addr_to_ptr_name *)
-  let bits_to_ptr_name = "bits_to_ptr"
+  let addr_to_ptr_name = "addr_to_ptr"
 
   let addr_of_name = "addr_of"
 
@@ -366,7 +366,7 @@ module CN_Pointer = struct
              ~null_case:(SMT.atom "null_case")
              ~alloc_id_addr_case:(fun ~alloc_id ~addr:_ -> alloc_id));
         SMT.define_fun
-          bits_to_ptr_name
+          addr_to_ptr_name
           [ ("bits", addr_type ()); ("alloc_id", CN_AllocId.t ()) ]
           t
           (SMT.ite
@@ -394,7 +394,7 @@ module CN_Pointer = struct
 
   let alloc_id_of ~ptr ~null_case = SMT.app_ alloc_id_of_name [ ptr; null_case ]
 
-  let bits_to_ptr ~bits ~alloc_id = SMT.app_ bits_to_ptr_name [ bits; alloc_id ]
+  let addr_to_ptr ~addr ~alloc_id = SMT.app_ addr_to_ptr_name [ addr; alloc_id ]
 
   let addr_of ~ptr = SMT.app_ addr_of_name [ ptr ]
 end
@@ -477,13 +477,13 @@ and get_value gs ctys bt (sexp : SMT.sexp) =
          match get_value gs ctys (Option Alloc_id) salloc_id with
          | CN_None _ -> None
          | CN_Some (IT (Const (Alloc_id z), _, _)) -> Some z
-         | _ -> failwith "Memory byte alloc ID is not bits option"
+         | _ -> failwith "Memory byte alloc ID has wrong type"
        in
        let value =
          match get_value gs ctys (CN_MemByte.value_bt ()) svalue with
          | Const (Bits (_, z)) -> z
          | Const (Z z) -> z
-         | _ -> failwith "Memory byte value is not bits"
+         | _ -> failwith "Memory byte value has wrong type"
        in
        Const (MemByte { alloc_id; value })
      | _ -> failwith "MemByte")
@@ -496,7 +496,7 @@ and get_value gs ctys bt (sexp : SMT.sexp) =
          match get_value gs ctys Memory.uintptr_bt saddr with
          | Const (Bits (_, z)) -> z
          | Const (Z z) -> z
-         | _ -> failwith "Pointer value is not bits"
+         | _ -> failwith "Pointer value has wrong type"
        in
        Const (Pointer { alloc_id = base; addr })
      | _ -> failwith "Loc")
@@ -981,12 +981,12 @@ let rec translate_term s iterm =
          else
            bv_cast ~to_:Memory.uintptr_bt ~from:(get_bt t) smt_term
        in
-       CN_Pointer.bits_to_ptr ~bits:addr ~alloc_id:(default Alloc_id)
+       CN_Pointer.addr_to_ptr ~addr ~alloc_id:(default Alloc_id)
      | Integer, Loc () ->
        (* copied and simplified from above *)
        assert (not !cnBV);
        let addr = smt_term in
-       CN_Pointer.bits_to_ptr ~bits:addr ~alloc_id:(default Alloc_id)
+       CN_Pointer.addr_to_ptr ~addr ~alloc_id:(default Alloc_id)
      | Loc (), Bits _ ->
        assert !cnBV;
        let maybe_cast x =
