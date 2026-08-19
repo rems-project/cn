@@ -286,10 +286,12 @@ let it_to_itp_ir global it b =
 (* unpacking LogicalConstraints *)
 let lc_to_itp_ir (gl : Global.t) (t : LC.t) =
   match t with
-  | LC.T t -> CI.ITP_LC (it_to_itp_ir gl t None)
+  | LC.T t -> (match (it_to_itp_ir gl t None) with
+    | CI.ITP_good -> CI.ITP_Good
+    | _ -> CI.ITP_Pure (it_to_itp_ir gl t None))
   | LC.Forall ((sym, bt), it) ->
-    CI.ITP_forall
-      (CI.ITP_sym sym, bt_to_itp_ir gl bt, CI.ITP_LC (it_to_itp_ir gl it None))
+    CI.ITP_Forall
+      (CI.ITP_sym sym, bt_to_itp_ir gl bt, CI.ITP_Pure (it_to_itp_ir gl it None))
 
 
 (* TODO(HK): added this auxiliary function for plumbing *)
@@ -303,59 +305,60 @@ let rec lrt_to_itp_ir (gl : Global.t) (t : LRT.t) =
   | LRT.Constraint (lc, _, t) ->
     let d = lrt_to_itp_ir gl t in
     let c = lc_to_itp_ir gl lc in
-    CI.ITP_Constraint_LRT (c, d)
+    CI.ITP_Star (c, d)
   | LRT.Define ((sym, it), _, t) ->
     let d = lrt_to_itp_ir gl t in
     let l = it_to_itp_ir gl it None in
-    CI.ITP_let_resource (CI.ITP_sym sym, l, d)
-  | LRT.I -> CI.ITP_LRT_I
+    CI.ITP_Let_Resource (CI.ITP_sym sym, l, d)
+  | LRT.I -> CI.ITP_Empty_Heap
   | LRT.Resource ((nm, (req, bt)), _, t) ->
     (match req with
      | P p ->
        (match p.name with
         | Owned (_, init) ->
           (match init with
-           | Init ->
-             ITP_Owned_LRT
-               ( CI.ITP_sym nm,
-                 bt_to_itp_ir gl bt,
-                 lrt_to_itp_ir gl t,
-                 it_to_itp_ir gl p.pointer None,
-                 List.map (fun x -> it_to_itp_ir gl x None) p.iargs )
+           | Init -> let op_nm = 
+              (match bt with
+                | BaseTypes.Bits _ -> "Owned_int" 
+                | BaseTypes.Struct nm -> "Owned_" ^ Sym.pp_string nm
+                | _ -> "Unsupported owned_LRT type"
+              ) in
+              CI.ITP_Exists (CI.ITP_sym nm, 
+                bt_to_itp_ir gl bt, 
+                ITP_Owned (op_nm, 
+                          it_to_itp_ir gl p.pointer None, 
+                          CI.ITP_sym nm, 
+                          lrt_to_itp_ir gl t))
            | Uninit ->
-             ITP_Block_LRT
+             ITP_Block
                ( CI.ITP_sym nm,
                  bt_to_itp_ir gl bt,
                  lrt_to_itp_ir gl t,
                  it_to_itp_ir gl p.pointer None ))
-        | PName p_nm ->
-          ITP_PName_LRT
-            ( CI.ITP_sym nm,
-              CI.ITP_sym p_nm,
-              bt_to_itp_ir gl bt,
-              lrt_to_itp_ir gl t,
-              List.map (fun x -> it_to_itp_ir gl x None) p.iargs,
-              it_to_itp_ir gl p.pointer None ))
+        | PName p_nm -> CI.ITP_Star
+            (CI.ITP_Exists (CI.ITP_sym nm, 
+                  bt_to_itp_ir gl bt, 
+                  ITP_PName (CI.ITP_sym nm, 
+                            CI.ITP_sym p_nm, 
+                            List.map (fun x -> it_to_itp_ir gl x None) p.iargs,
+                            it_to_itp_ir gl p.pointer None)),
+            lrt_to_itp_ir gl t))
      | Q q ->
        (match q.name with
         | Owned _ ->
-          CI.ITP_Each_LRT
+          CI.ITP_Each
             ( CI.ITP_sym nm,
               CI.ITP_sym (fst q.q),
-              (* q name *)
-              bt_to_itp_ir gl (snd q.q),
-              (* q value type *)
-              it_to_itp_ir gl q.pointer None,
               (* pointer *)
               q_step_to_itp_ir q.step,
-              (* step *)
-              it_to_itp_ir gl q.permission None,
               (* permission *)
-              lrt_to_itp_ir gl t )
-        | PName _ -> CI.ITP_unsupported_resource "unsupported Qpred PName in LRT"))
+              lrt_to_itp_ir gl t,
+              false)
+        | PName _ -> CI.ITP_Unsupported_Resource "unsupported Qpred PName in LRT"))
 
 
 (* Unpacking LogicalArgumentTypes that wrap IndexTerms (i.e. in resource predicates) *)
+(* everything here is a clause! *)
 let rec it_lat_to_itp_ir (gl : Global.t) (t : Terms.Normal.t LAT.t) =
   match t with
   | LAT.Define ((sym, it), _, t) ->
@@ -365,40 +368,52 @@ let rec it_lat_to_itp_ir (gl : Global.t) (t : Terms.Normal.t LAT.t) =
   | LAT.Constraint (lc, _, t) ->
     let c = lc_to_itp_ir gl lc in
     let d = it_lat_to_itp_ir gl t in
-    CI.ITP_Constraint_LAT (c, d)
-  | LAT.I t -> CI.ITP_LAT_I (it_to_itp_ir gl t None)
+    CI.ITP_Star (c, d)
+  | LAT.I t -> 
+      CI.ITP_Pure 
+        (CI.ITP_binop 
+          (CI.ITP_eq_prop, CI.ITP_retsym, (it_to_itp_ir gl t None), CI.ITP_Bool))
   | LAT.Resource ((nm, (req, bt)), _, t) ->
     (match req with
      | P p ->
        (match p.name with
         | Owned (_, init) ->
           (match init with
-           | Init ->
-             ITP_Owned_LAT
-               ( CI.ITP_sym nm,
-                 bt_to_itp_ir gl bt,
-                 it_lat_to_itp_ir gl t,
-                 it_to_itp_ir gl p.pointer None,
-                 List.map (fun x -> it_to_itp_ir gl x None) p.iargs )
+           | Init -> let op_nm = 
+              (match bt with
+                | BaseTypes.Bits _ -> "Owned_int" 
+                | BaseTypes.Loc _ -> "Owned_int"
+                | BaseTypes.Map _ -> "Owned_int"
+                | BaseTypes.Struct nm -> "Owned_" ^ Sym.pp_string nm
+                | _ -> "Unsupported owned_LRT type"
+              ) in
+              CI.ITP_Exists (CI.ITP_sym nm, 
+                bt_to_itp_ir gl bt, 
+                ITP_Owned (op_nm, 
+                          it_to_itp_ir gl p.pointer None, 
+                          CI.ITP_sym nm, 
+                          it_lat_to_itp_ir gl t))
+              (* TODO: forall case if if_clause is false? *)
            | Uninit ->
-             ITP_Block_LAT
+             ITP_Block
                ( CI.ITP_sym nm,
                  bt_to_itp_ir gl bt,
                  it_lat_to_itp_ir gl t,
                  it_to_itp_ir gl p.pointer None ))
         | PName p_nm ->
-          ITP_PName_LAT
-            ( CI.ITP_sym nm,
-              CI.ITP_sym p_nm,
-              bt_to_itp_ir gl bt,
-              it_lat_to_itp_ir gl t,
-              List.map (fun x -> it_to_itp_ir gl x None) p.iargs,
-              it_to_itp_ir gl p.pointer None ))
+          CI.ITP_Star
+            (CI.ITP_Exists (CI.ITP_sym nm, 
+                  bt_to_itp_ir gl bt, 
+                  ITP_PName (CI.ITP_sym nm, 
+                            CI.ITP_sym p_nm, 
+                            List.map (fun x -> it_to_itp_ir gl x None) p.iargs,
+                            it_to_itp_ir gl p.pointer None)),
+            it_lat_to_itp_ir gl t))
      (* Can iterated resources even appear here? *)
      | Q q ->
        (match q.name with
-        | Owned _ -> CI.ITP_unsupported_resource "unsupported Qpred Owned in LRT"
-        | PName _ -> CI.ITP_unsupported_resource "unsupported Qpred PName in LRT"))
+        | Owned _ -> CI.ITP_Unsupported_Resource "unsupported Qpred Owned in LRT"
+        | PName _ -> CI.ITP_Unsupported_Resource "unsupported Qpred PName in LRT"))
 
 
 (* Unpacking LogicalArgumentTypes that wrap LogicalReturnTypes *)
@@ -411,7 +426,7 @@ let rec lrtlat_to_itp_ir (gl : Global.t) t =
   | LAT.Constraint (lc, _, t) ->
     let c = lc_to_itp_ir gl lc in
     let d = lrtlat_to_itp_ir gl t in
-    CI.ITP_Constraint_LAT (c, d)
+    CI.ITP_Wand(c, d)
   | LAT.I t -> lrt_to_itp_ir gl t
   | LAT.Resource ((nm, (req, bt)), _, t) ->
     (match req with
@@ -420,52 +435,56 @@ let rec lrtlat_to_itp_ir (gl : Global.t) t =
         | Owned (_, init) ->
           (match init with
            | Init ->
-             ITP_Owned_LAT
-               ( CI.ITP_sym nm,
-                 bt_to_itp_ir gl bt,
-                 lrtlat_to_itp_ir gl t,
-                 it_to_itp_ir gl p.pointer None,
-                 List.map (fun x -> it_to_itp_ir gl x None) p.iargs )
+             let op_nm = 
+              (match bt with
+                | BaseTypes.Bits _ -> "Owned_int" 
+                | BaseTypes.Loc _ -> "Owned_int"
+                | BaseTypes.Map _ -> "Owned_int"
+                | BaseTypes.Struct nm -> "Owned_" ^ Sym.pp_string nm
+                | _ -> "Unsupported owned_LRT type"
+              ) in
+              CI.ITP_Forall (CI.ITP_sym nm, 
+                bt_to_itp_ir gl bt, 
+                ITP_Owned (op_nm, 
+                          it_to_itp_ir gl p.pointer None, 
+                          CI.ITP_sym nm, 
+                          lrtlat_to_itp_ir gl t))
            | Uninit ->
-             ITP_Block_LAT
+             ITP_Block
                ( CI.ITP_sym nm,
                  bt_to_itp_ir gl bt,
                  lrtlat_to_itp_ir gl t,
                  it_to_itp_ir gl p.pointer None ))
         | PName p_nm ->
-          ITP_PName_LAT
-            ( CI.ITP_sym nm,
-              CI.ITP_sym p_nm,
-              bt_to_itp_ir gl bt,
-              lrtlat_to_itp_ir gl t,
-              List.map (fun x -> it_to_itp_ir gl x None) p.iargs,
-              it_to_itp_ir gl p.pointer None ))
+          CI.ITP_Wand
+            (CI.ITP_Forall (CI.ITP_sym nm, 
+                  bt_to_itp_ir gl bt, 
+                  ITP_PName (CI.ITP_sym nm, 
+                            CI.ITP_sym p_nm, 
+                            List.map (fun x -> it_to_itp_ir gl x None) p.iargs,
+                            it_to_itp_ir gl p.pointer None)),
+            lrtlat_to_itp_ir gl t))
      | Q q ->
        (match q.name with
         | Owned (_, init) ->
           (match init with
            | Init ->
-             CI.ITP_Each_LAT
+             CI.ITP_Each
                ( CI.ITP_sym nm,
                  CI.ITP_sym (fst q.q),
-                 (* q name *)
-                 bt_to_itp_ir gl (snd q.q),
-                 (* q value type *)
-                 it_to_itp_ir gl q.pointer None,
                  (* pointer *)
                  q_step_to_itp_ir q.step,
-                 (* step *)
-                 it_to_itp_ir gl q.permission None,
                  (* permission *)
-                 lrtlat_to_itp_ir gl t )
+                 lrtlat_to_itp_ir gl t,
+                 true )
            | Uninit ->
-             ITP_Block_LAT
+             ITP_Block
                ( CI.ITP_sym nm,
                  bt_to_itp_ir gl bt,
                  lrtlat_to_itp_ir gl t,
                  it_to_itp_ir gl q.pointer None ))
           (* todo: Each stuff*)
-        | PName _ -> ITP_unsupported_resource "unsupported Qpred PName in LRT"))
+        | PName _ -> ITP_Unsupported_Resource "unsupported Qpred PName in LRT"))
 
 
 (* Main translation function for lemmas *)
@@ -473,7 +492,7 @@ let rec lemmat_to_itp_ir (gl : Global.t) (ftyp : AT.lemmat) =
   match ftyp with
   | AT.Computational ((sym, bt), _, t) | AT.Ghost ((sym, bt), _, t) ->
     let d = lemmat_to_itp_ir gl t in
-    CI.ITP_forall (CI.ITP_sym sym, bt_to_itp_ir gl bt, d)
+    CI.ITP_Forall (CI.ITP_sym sym, bt_to_itp_ir gl bt, d)
   | AT.L t -> lrtlat_to_itp_ir gl t
 
 

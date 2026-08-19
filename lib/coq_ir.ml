@@ -93,7 +93,6 @@ type itp_pure_term =
   | ITP_cast of itp_bt * itp_pure_term
   | ITP_apply of itp_sym * itp_pure_term list
   | ITP_apply_prop of itp_sym * itp_pure_term list
-  (* | ITP_good of itp_pure_term | ITP_good of itp_sym * itp_bt * itp_pure_term *)
   | ITP_representable of itp_sym * itp_bt * itp_pure_term
   | ITP_constructor of itp_sym * itp_pure_term list
   | ITP_nthlist of itp_pure_term * itp_pure_term * itp_pure_term
@@ -102,28 +101,27 @@ type itp_pure_term =
   | ITP_wrapI of Z.t * Z.t * itp_pure_term
   | ITP_arrayshift of itp_pure_term * Z.t * itp_pure_term
   | ITP_good
+  | ITP_retsym
   | ITP_unsupported_pure of string
 
-(* Add exists, add construct to embed the above (pure) to the below (iprop) *)
-(* As well as star and wand *)
 type itp_resource_term =
-  | ITP_forall of itp_sym * itp_bt * itp_resource_term
-  | ITP_let_resource of itp_sym * itp_pure_term * itp_resource_term
+  | ITP_Forall of itp_sym * itp_bt * itp_resource_term
+  | ITP_Exists of itp_sym * itp_bt * itp_resource_term
+  | ITP_Star of itp_resource_term * itp_resource_term
+  | ITP_Wand of itp_resource_term * itp_resource_term
+  | ITP_Pure of itp_pure_term
+  (* Todo: make this disappear *)
+  | ITP_Good
+  | ITP_Let_Resource of itp_sym * itp_pure_term * itp_resource_term
   | ITP_Define of itp_sym * itp_pure_term * itp_resource_term
-  | ITP_Constraint_LRT of itp_resource_term * itp_resource_term
-  | ITP_Constraint_LAT of itp_resource_term * itp_resource_term
-  | ITP_LAT_I of itp_pure_term
-  | ITP_LRT_I
-  | ITP_LC of itp_pure_term
-  | ITP_Owned_LRT of itp_sym * itp_bt * itp_resource_term * itp_pure_term * itp_pure_term list
-  | ITP_Block_LRT of itp_sym * itp_bt * itp_resource_term * itp_pure_term
-  | ITP_Owned_LAT of itp_sym * itp_bt * itp_resource_term * itp_pure_term * itp_pure_term list
-  | ITP_Block_LAT of itp_sym * itp_bt * itp_resource_term * itp_pure_term
-  | ITP_PName_LAT of itp_sym * itp_sym * itp_bt * itp_resource_term * itp_pure_term list * itp_pure_term
-  | ITP_PName_LRT of itp_sym * itp_sym * itp_bt * itp_resource_term * itp_pure_term list * itp_pure_term
-  | ITP_Each_LAT of itp_sym * itp_sym * itp_bt * itp_pure_term * itp_pure_term * itp_pure_term * itp_resource_term
-  | ITP_Each_LRT of itp_sym * itp_sym * itp_bt * itp_pure_term * itp_pure_term * itp_pure_term * itp_resource_term
-  | ITP_unsupported_resource of string
+  | ITP_Empty_Heap
+  (* Name of owned function, pointer, name of return argument, term*)
+  | ITP_Owned of string * itp_pure_term * itp_sym * itp_resource_term
+  | ITP_Block of itp_sym * itp_bt * itp_resource_term * itp_pure_term
+  | ITP_PName of itp_sym * itp_sym * itp_pure_term list * itp_pure_term
+  (* TODO: bool is a placeholder for lrt/lat distinction, get rid of it later *)
+  | ITP_Each of itp_sym * itp_sym * itp_pure_term * itp_resource_term * bool
+  | ITP_Unsupported_Resource of string
 
 
 (* CN datatypes *)

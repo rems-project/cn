@@ -302,7 +302,7 @@ let pp_forall sym bt doc =
   !^"∀" ^^^ parens (typ (Sym.pp sym) itp_bt) ^^ !^"," ^^ break 1 ^^ doc
 
 
-let pp_iris_exists sym bt doc =
+let pp_exists sym bt doc =
   let open Pp in
   let itp_bt = bt_to_itp bt in
   !^"∃" ^^^ parens (typ (Sym.pp sym) itp_bt) ^^ !^"," ^^ break 1 ^^ doc
@@ -335,8 +335,6 @@ let rec pat_to_itp (pat : CI.itp_pat) =
     parensM (build ([ Sym.pp s ] @ List.map pat_to_itp l))
 
 
-(* is_clause is true when the translated term is a resource predicate clause,
-    this is because resource predicate clauses use different connectives *)
 let term_to_itp (global : Global.t) (t : CI.itp_pure_term) =
   let open Pp in
   let rec f (global : Global.t) t =
@@ -444,111 +442,46 @@ let term_to_itp (global : Global.t) (t : CI.itp_pure_term) =
       parensM (build [ rets "CN_Lib.array_to_list"; aux arr; aux i; aux len ])
     | CI.ITP_wrapI (z1, z2, t) -> f_appM "CN_Lib.wrapI" [ enc_z z1; enc_z z2; aux t ]
     | CI.ITP_let_pure (CI.ITP_sym nm, x, y) -> parensM (pp_let nm (aux x) (aux y))
-    (* | CI.ITP_good _ -> rets "" *)
     | CI.ITP_arrayshift (base, ct, index) ->
       f_appM "arrayshift" [ aux base; enc_z ct; aux index ]
     | CI.ITP_good -> rets ""
+    | CI.ITP_retsym -> rets ret_sym
     | CI.ITP_unsupported_pure msg -> rets ("unsupported ITP_pure_term: " ^ msg)
       in
   f global t
 
-let rec resource_to_itp (global : Global.t) (t : CI.itp_resource_term) (is_clause : bool) =
+let rec resource_to_itp (global : Global.t) (t : CI.itp_resource_term) =
   let open Pp in
   let mk_wand doc doc2 = doc ^^^ !^"-∗" ^^^ doc2 in
   let mk_star doc doc2 = doc ^^^ !^"∗" ^^^ doc2 in
   let aux t = term_to_itp global t in
-  let aux' t = resource_to_itp global t is_clause in
+  let aux' t = resource_to_itp global t in
   let map_split f = fun doc -> f (break 1 ^^ doc) in
   match t with
-    | CI.ITP_let_resource (CI.ITP_sym nm, x, y) -> parensM (pp_let nm (aux x) (aux' y))
-    | CI.ITP_forall (CI.ITP_sym sym, bt, t) -> pp_forall sym bt (aux' t)
+    | CI.ITP_Let_Resource (CI.ITP_sym nm, x, y) -> parensM (pp_let nm (aux x) (aux' y))
+    | CI.ITP_Forall (CI.ITP_sym sym, bt, t) -> pp_forall sym bt (aux' t)
+    | CI.ITP_Exists (CI.ITP_sym sym, bt, t) -> pp_exists sym bt (aux' t)
+    | CI.ITP_Star (t1 , t2) ->  mk_star (aux' t1) (aux' t2)
+    | CI.ITP_Wand (t1, t2) -> mk_wand (aux' t1) (aux' t2)
+    | CI.ITP_Pure t -> iris_pure (aux t)
     | CI.ITP_Define (CI.ITP_sym sym, x, y) -> map_split (pp_let sym (aux x)) (aux' y)
-    | CI.ITP_Constraint_LRT (t1, t2) -> mk_star (aux' t1) (aux' t2)
-    | CI.ITP_Constraint_LAT (t1, t2) ->
-      if is_clause then
-        mk_star (aux' t1) (aux' t2)
-      else
-        mk_wand (aux' t1) (aux' t2)
-    | CI.ITP_LRT_I -> rets "emp"
-    (* this is the return value of a resource predicate*)
-    | CI.ITP_LAT_I t -> iris_pure (!^(ret_sym ^ " = ") ^^ aux t)
-    | CI.ITP_Owned_LAT (CI.ITP_sym s, bt, t, pointer, _) ->
-      let forall_owned op_nm =
-        pp_forall
-          s
-          bt
-          (build [ rets op_nm; aux pointer; rets (Sym.pp_string s); aux' t ])
-      in
-      let exists_owned op_nm =
-        pp_iris_exists
-          s
-          bt
-          (build [ rets op_nm; aux pointer; rets (Sym.pp_string s); aux' t ])
-      in
-      (match bt with
-       | CI.ITP_Bits (_, _) ->
-         let op_nm = "Owned_int" in
-         if is_clause then exists_owned op_nm else forall_owned op_nm
-       | CI.ITP_Loc ->
-         let op_nm = "Owned_int" in
-         if is_clause then exists_owned op_nm else forall_owned op_nm
-       | CI.ITP_Struct (CI.ITP_sym nm, _) ->
-         let op_nm = "Owned_" ^ Sym.pp_string nm in
-         if is_clause then exists_owned op_nm else forall_owned op_nm
-       | CI.ITP_Map (_, _) ->
-         let op_nm = "Owned_int" in
-         if is_clause then exists_owned op_nm else forall_owned op_nm
-       | _ -> !^"ITP_Owned_LAT unsupported BT" ^^ bt_to_itp bt)
-    | CI.ITP_Block_LAT (CI.ITP_sym s, _, t, _) ->
-      let op_nm = "block_" ^ Sym.pp_string s in
-      parensM (build [ rets op_nm; aux' t ])
-    | CI.ITP_Owned_LRT (CI.ITP_sym s, bt, t, pointer, _) ->
-      (match bt with
-       | CI.ITP_Bits (_, _) ->
-         let op_nm = "Owned_int" in
-         pp_iris_exists
-           s
-           bt
-           (build [ rets op_nm; aux pointer; rets (Sym.pp_string s); aux' t ])
-       | CI.ITP_Struct (CI.ITP_sym nm, _) ->
-         let op_nm = "Owned_" ^ Sym.pp_string nm in
-         pp_iris_exists
-           s
-           bt
-           (build [ rets op_nm; aux pointer; rets (Sym.pp_string s); aux' t ])
-       | _ -> rets "ITP_Owned_LRT unsupported BT")
-    | CI.ITP_Block_LRT (CI.ITP_sym s, _, t, _) ->
+    | CI.ITP_Empty_Heap -> rets "emp"
+    | CI.ITP_Block (CI.ITP_sym s, _, t, _) ->
       let op_nm = "Block_" ^ Sym.pp_string s in
       parensM (build [ rets op_nm; aux' t ])
-    | CI.ITP_PName_LAT (CI.ITP_sym nm, CI.ITP_sym pname, bt, t, iargs, ptr) ->
+    | CI.ITP_Owned (op_nm , ptr, CI.ITP_sym rt, t) ->
+      (build [ rets op_nm; aux ptr; rets (Sym.pp_string rt); aux' t ])
+    | CI.ITP_PName (CI.ITP_sym nm, CI.ITP_sym pname, iargs, ptr) ->
       let args = List.map aux iargs in
-      if is_clause then
-        mk_star
-          (pp_iris_exists
-             nm
-             bt
-             (build ((Sym.pp pname :: aux ptr :: args) @ [ Sym.pp nm ])))
-          (aux' t)
-      else
-        mk_wand
-          (pp_forall nm bt (build ((Sym.pp pname :: aux ptr :: args) @ [ Sym.pp nm ])))
-          (aux' t)
-    | CI.ITP_PName_LRT (CI.ITP_sym nm, CI.ITP_sym pname, bt, t, iargs, ptr) ->
-      let args = List.map aux iargs in
-      mk_star
-        (pp_iris_exists nm bt (build ((Sym.pp pname :: aux ptr :: args) @ [ Sym.pp nm ])))
-        (aux' t)
-    | CI.ITP_LC t -> (match t with
-      | CI.ITP_good -> aux t
-      | _ -> iris_pure (aux t))
-    | CI.ITP_Each_LAT (ITP_sym nm, ITP_sym _, _, ptr, _, perm, pred) ->
+        (build ((Sym.pp pname :: aux ptr :: args) @ [ Sym.pp nm ]))
+    | CI.ITP_Each (ITP_sym nm, ITP_sym ptr, perm, pred, b) ->
       (match perm with
        | ITP_binop
            (ITP_and_prop, ITP_binop (_, min_term, _, _), ITP_binop (_, _, max_term, _), _)
          ->
          let min_doc a = parens (rets "Z.to_nat " ^^ a) in
          build
-           [ pp_each_int nm true;
+           [ pp_each_int nm b;
              min_doc (aux min_term);
              parens
                (rets "Z.to_nat "
@@ -556,37 +489,18 @@ let rec resource_to_itp (global : Global.t) (t : CI.itp_resource_term) (is_claus
                 ^^ rets " - "
                 ^^ min_doc (aux min_term))
              ^^ rets "%nat";
-             aux ptr;
+             Sym.pp ptr;
              !^(Sym.pp_string nm);
              aux' pred
            ]
        | _ -> rets "unsupported ITP_Each_LAT perm")
-    | CI.ITP_Each_LRT (ITP_sym nm, ITP_sym _, _, ptr, _, perm, pred) ->
-      (match perm with
-       | ITP_binop
-           (ITP_and_prop, ITP_binop (_, min_term, _, _), ITP_binop (_, _, max_term, _), _)
-         ->
-         let min_doc a = parens (rets "Z.to_nat " ^^ a) in
-         build
-           [ pp_each_int nm false;
-             min_doc (aux min_term);
-             parens
-               (rets "Z.to_nat "
-                ^^ parens (aux max_term)
-                ^^ rets " - "
-                ^^ min_doc (aux min_term))
-             ^^ rets "%nat";
-             aux ptr;
-             !^(Sym.pp_string nm);
-             aux' pred
-           ]
-       | _ -> rets "unsupported ITP_Each_LAT perm")
-    | CI.ITP_unsupported_resource msg -> rets msg
+    | CI.ITP_Good -> rets ""
+    | CI.ITP_Unsupported_Resource msg -> rets msg
 
 let convert_lemma_defs global (lemmas : CI.itp_lemma list) =
   let lemma_ty (CI.ITP_lemma (CI.ITP_sym nm, tm)) =
     Pp.progress_simple "converting lemma type" (Sym.pp_string nm);
-    let rhs = resource_to_itp global tm false in
+    let rhs = resource_to_itp global tm in
     defn (Sym.pp_string nm ^ "_type") [] (Some (Pp.string "iProp Σ")) rhs false
   in
   let tys = List.map lemma_ty lemmas in
@@ -654,7 +568,7 @@ let translate_pred (gl : Global.t) (preds : CI.itp_resource_pred_group list) =
                     xs)
           | [] -> rets "True"
         in
-        let body_doc = resource_to_itp gl body true in
+        let body_doc = resource_to_itp gl body in
         parensM (build [ guard_doc; rets " ∧ "; body_doc ])
     in
     (* add all previous guards to the beginnig of each clause *)
