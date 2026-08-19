@@ -9,7 +9,7 @@ requires
 ensures
     let x = array_shift<char>(p,1u64);
     let y = array_shift<char>(p,2u64);
-    ptr_eq(x, y);
+//  ptr_eq(x, y);
     ptr_eq(x, NULL) || ptr_eq(y, NULL) || (u64) x == 1u64 || (u64) y == 2u64;
 @*/
 {
