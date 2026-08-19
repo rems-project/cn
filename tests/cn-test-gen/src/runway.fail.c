@@ -1,7 +1,5 @@
 /*@ function (i32) INACTIVE () { 0i32 } @*/
-static int c_INACTIVE() { return 0; }
 /*@ function (i32) ACTIVE () { 1i32 } @*/
-static int c_ACTIVE() { return 1; }
 
 struct State {
   int ModeA;
