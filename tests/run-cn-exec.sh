@@ -101,7 +101,7 @@ SUCCESS=$(find cn -name '*.c' \
 )
 
 # Include files which cause error for proof but not testing
-SUCCESS+=("cn/merging_arrays.error.c" "cn/pointer_to_char_cast.error.c" "cn/pointer_to_unsigned_int_cast.error.c" "cn/memcpy_2.error.c")
+SUCCESS+=("cn/merging_arrays.error.c" "cn/pointer_to_char_cast.error.c" "cn/pointer_to_unsigned_int_cast.error.c" "cn/memcpy_2.error.c" "cn/spec_null_shift.error.c")
 
 NO_MAIN="\
        cn/b_or.c \
@@ -148,6 +148,7 @@ BUGGY="\
        cn/has_alloc_id_shift.c \
        cn/ptr_diff2.c \
        cn/has_alloc_id_ptr_neq.c \
+       cn/spec_null_shift.error.c \
        cn/alloc_token.c \
        cn/ptr_diff.c \
        cn/ptr_relop.c \
@@ -172,6 +173,7 @@ SHOULD_FAIL=$(find cn -name '*.error.c' \
   ! -name "partial_init_bytes.error.c" \
   ! -name "before_to_bytes.error.c" \
   ! -name "memcpy_2.error.c" \
+  ! -name "spec_null_shift.error.c"
 )
 
 FAILED=""
