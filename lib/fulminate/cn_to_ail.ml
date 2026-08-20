@@ -4609,9 +4609,14 @@ let cn_to_ail_loop_inv
     let cn_ownership_leak_check_call =
       A.AilSexpr (mk_expr (AilEcall (mk_expr (AilEident OE.cn_loop_leak_check_sym), [])))
     in
+    let loop_leak_upd_s = generate_error_msg_info_update_stats () in
+    let loop_leak_pop_s = generate_cn_pop_msg_info () in
     let stats =
       (bump_alloc_assign :: loop_ownership_state.assign :: cond_ss)
-      @ (if with_loop_leak_checks then [ cn_ownership_leak_check_call ] else [])
+      @ (if with_loop_leak_checks then
+           loop_leak_upd_s @ (cn_ownership_leak_check_call :: loop_leak_pop_s)
+         else
+           [])
       @ [ cn_loop_put_call; dummy_expr_as_stat ]
     in
     let ail_gcc_stat_as_expr = A.(AilEgcc_statement ([], List.map mk_stmt stats)) in
