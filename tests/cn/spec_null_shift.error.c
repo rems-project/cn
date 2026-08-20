@@ -2,7 +2,7 @@
 // pointers as an unspecified pointer value, rather than NULL or
 // converting to the offset with an empty provenance or the previous
 // default value. Users should not be shifting NULL in their specs
-void f(int *p, int *q)
+void f(int *p)
 /*@
 requires
     is_null(p);
@@ -11,4 +11,9 @@ ensures
     ptr_eq(x, NULL) || (u64) x == 1u64;
 @*/
 {
+}
+
+int main()
+{
+    f(0);
 }
