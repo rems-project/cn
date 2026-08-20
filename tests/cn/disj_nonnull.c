@@ -4,6 +4,7 @@ int y = 2;
 void globals()
 /*@ accesses x; accesses y; @*/
 {
+  /*@ derive_constraints(RW<int>(&x), RW<int>(&y)); @*/
 
   /*@ assert((u64) &x != (u64) &y); @*/
 
@@ -22,6 +23,8 @@ int main()
 {
     int p = 1;
     int q = 2;
+
+  /*@ derive_constraints(RW<int>(&p), RW<int>(&q)); @*/
 
   /*@ assert((u64) &p != (u64) &q); @*/
 

@@ -143,9 +143,9 @@ let it_to_itp_ir global it b =
            CI.ITP_unop (CI.ITP_neg_prop, x, bt)
          else
            CI.ITP_unop (CI.ITP_neg, x, bt)
-       | Terms.BW_FFS_NoSMT -> CI.ITP_unop (CI.ITP_BW_FFS_NoSMT, x, bt)
-       | Terms.BW_CTZ_NoSMT -> CI.ITP_unop (CI.ITP_BW_CTZ_NoSMT, x, bt)
-       | _ -> CI.ITP_unsupported_pure "Unsupported unop")
+       | Terms.BW_FFS -> CI.ITP_unop (CI.ITP_BW_FFS, x, bt)
+       | Terms.BW_CTZ -> CI.ITP_unop (CI.ITP_BW_CTZ, x, bt)
+       | _ -> CI.ITP_unsupported "Unsupported unop")
     | Terms.Binop (op, a, b) ->
       let x = aux a in
       let y = aux b in
@@ -153,15 +153,11 @@ let it_to_itp_ir global it b =
        | Add -> CI.ITP_binop (CI.ITP_add, x, y, bt)
        | Sub -> CI.ITP_binop (CI.ITP_sub, x, y, bt)
        | Mul -> CI.ITP_binop (CI.ITP_mul, x, y, bt)
-       | MulNoSMT -> CI.ITP_binop (CI.ITP_mul, x, y, bt)
        | Div -> CI.ITP_binop (CI.ITP_div, x, y, bt)
-       | DivNoSMT -> CI.ITP_binop (CI.ITP_div, x, y, bt)
        | Mod -> CI.ITP_binop (CI.ITP_mod, x, y, bt)
-       | ModNoSMT -> CI.ITP_binop (CI.ITP_mod, x, y, bt)
        (* TODO: this can't be right: mod and rem aren't the same
-      - maybe they have the same semantics as ITP Z.modulo/Z.rem *)
+      - maybe they have the same semantics as Coq Z.modulo/Z.rem *)
        | Rem -> CI.ITP_binop (CI.ITP_rem, x, y, bt)
-       | RemNoSMT -> CI.ITP_binop (CI.ITP_mod, x, y, bt)
        | LT ->
          if enc_prop then
            CI.ITP_binop (CI.ITP_lt_prop, x, y, bt)
@@ -173,7 +169,6 @@ let it_to_itp_ir global it b =
          else
            CI.ITP_binop (CI.ITP_le, x, y, bt)
        | Exp -> CI.ITP_binop (CI.ITP_exp, x, y, bt)
-       | ExpNoSMT -> CI.ITP_binop (CI.ITP_exp, x, y, bt)
        | BW_Xor -> CI.ITP_binop (CI.ITP_bwxor, x, y, bt)
        | BW_And -> CI.ITP_binop (CI.ITP_bwand, x, y, bt)
        | BW_Or -> CI.ITP_binop (CI.ITP_bwor, x, y, bt)

@@ -31,10 +31,10 @@ Inductive const : Type :=
 Inductive unop : Type :=
   | Not : unop
   | Negate : unop
-  | BW_CLZ_NoSMT : unop
-  | BW_CTZ_NoSMT : unop
-  | BW_FFS_NoSMT : unop
-  | BW_FLS_NoSMT : unop
+  | BW_CLZ : unop
+  | BW_CTZ : unop
+  | BW_FFS : unop
+  | BW_FLS : unop
   | BW_Compl : unop.
 
 (* Binary operators *)
@@ -45,15 +45,10 @@ Inductive binop : Type :=
   | Add : binop
   | Sub : binop
   | Mul : binop
-  | MulNoSMT : binop
   | Div : binop
-  | DivNoSMT : binop
   | Exp : binop
-  | ExpNoSMT : binop
   | Rem : binop
-  | RemNoSMT : binop
   | Mod : binop
-  | ModNoSMT : binop
   | BW_Xor : binop
   | BW_And : binop
   | BW_Or : binop

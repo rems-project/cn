@@ -340,8 +340,8 @@ let term_to_itp (global : Global.t) (t : CI.itp_pure_term) =
         (match op with
          | CI.ITP_neg -> f_appM "negb" [ aux x ]
          | CI.ITP_neg_prop -> f_appM "~" [ aux x ]
-         | CI.ITP_BW_FFS_NoSMT -> f_appM "CN_Lib.find_first_set_z" [ aux x ]
-         | CI.ITP_BW_CTZ_NoSMT -> f_appM "CN_Lib.count_trailing_zeroes_z" [ aux x ])
+         | CI.ITP_BW_FFS -> f_appM "CN_Lib.find_first_set_z" [ aux x ]
+         | CI.ITP_BW_CTZ -> f_appM "CN_Lib.count_trailing_zeroes_z" [ aux x ])
     | CI.ITP_binop (op, x, y, bt) ->
       norm_bv_op
         bt
@@ -760,6 +760,23 @@ let translate_pred (gl : Global.t) (preds : CI.itp_resource_pred_group list) =
     in
     s ^^ proof
   in
+  let unfold_predicate_bodies predicates statement =
+    let body_names =
+      separate (comma ^^ space) (List.map (fun pred -> !^(get_body_name pred)) predicates)
+    in
+    !^"ltac:"
+    ^^ parens
+         (align
+            (!^"let T := constr:"
+             ^^ parens statement
+             ^^^ !^"in"
+             ^^ hardline
+             ^^ !^"let T' := eval unfold"
+             ^^^ body_names
+             ^^^ !^"in T in"
+             ^^ hardline
+             ^^ !^"exact T'"))
+  in
   let make_induction_lemma index (predicates : CI.itp_resource_pred_group) =
     let make_assumption predicates (pred : CI.itp_resource_pred) =
       (* □ (∀ (p : Ptr) (ν : forest), IsForest_body Φ_IsForest Φ_IsTree p ν -∗ Φ_IsForest p ν) -∗ *)
@@ -848,7 +865,9 @@ let translate_pred (gl : Global.t) (preds : CI.itp_resource_pred_group list) =
       ^^^ nest 2 (hardline ^^ flow hardline [ name; arg1; arg2; arg3 ])
     in
     let args = List.map (fun p -> p |> make_induction_lemma_arg |> parens) predicates in
-    let statement = make_induction_lemma_statement predicates in
+    let statement =
+      make_induction_lemma_statement predicates |> unfold_predicate_bodies predicates
+    in
     let proof = make_induction_lemma_proof index predicates in
     let names = List.map (fun p -> Sym.pp (get_pred_name p)) predicates in
     let proof_name = separate underscore names ^^ underscore ^^ !^"induction" in
@@ -873,7 +892,7 @@ let translate_pred (gl : Global.t) (preds : CI.itp_resource_pred_group list) =
             :: List.map (fun p -> Sym.pp (get_pred_name p)) predicates)
         @ List.map fst args
       in
-      infix 2 1 !^"⊣⊢" body1 body2
+      infix 2 1 !^"⊣⊢" body1 body2 |> unfold_predicate_bodies [ pred ]
     in
     let proof =
       let rewrites = List.map (fun p -> !^"/" ^^ Sym.pp (get_pred_name p)) predicates in
@@ -888,13 +907,20 @@ let translate_pred (gl : Global.t) (preds : CI.itp_resource_pred_group list) =
       statement
       proof
   in
+  let make_opaque (predicates : CI.itp_resource_pred_group) =
+    !^"Global Opaque"
+    ^^^ build (List.map (fun pred -> Sym.pp (get_pred_name pred)) predicates)
+    ^^ dot
+    ^^ hardline
+  in
   let unpack_group index (predicates : CI.itp_resource_pred_group) =
     let group_type = make_group_type index predicates in
     let pred_defs = List.map (unpack_body predicates) predicates in
     let fixpoint = make_fixpoints index predicates in
     let induction_lemma = make_induction_lemma index predicates in
     let unfold_lemmata = List.map (make_unfold_lemma index predicates) predicates in
-    (group_type, pred_defs @ (fixpoint :: induction_lemma :: unfold_lemmata))
+    let opaque = make_opaque predicates in
+    (group_type, pred_defs @ (fixpoint :: induction_lemma :: unfold_lemmata) @ [ opaque ])
   in
   let groups = List.mapi unpack_group preds in
   (List.map fst groups, List.concat_map snd groups)

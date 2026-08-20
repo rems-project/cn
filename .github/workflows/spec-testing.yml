@@ -35,9 +35,17 @@ jobs:
         run: |
           sudo apt-get install build-essential libgmp-dev z3 opam cmake lcov
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: requirements.txt
+
       - name: Install Python dependencies
         run: |
-          pip install -r requirements.txt
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
 
       - name: Install Clang
         if: ${{ matrix.compiler != 'gcc' }}

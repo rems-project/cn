@@ -24,7 +24,7 @@ int main()
           uintptr_t_width == 64u64;
           (0i32 <= k) && (k <= 64i32);
           let k_mask = shift_left(1u64, (u64) k) - 1u64;
-          j == bw_and_uf(i, k_mask);
+          j == i & k_mask;
   @*/
   {
     bit = (i & (((uintptr_t)1) << k)) >> k;

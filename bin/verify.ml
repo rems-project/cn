@@ -17,7 +17,6 @@ let verify
       json
       json_trace
       output_dir
-      diag
       lemmata
       coq_export_file
       coq_mucore
@@ -39,7 +38,7 @@ let verify
       no_inherit_loc
       magic_comment_char_dollar
       allow_split_magic_comments
-      disable_resource_derived_constraints
+      disable_derived_lc1
       try_hard
       disable_unfold_multiclause_preds
       check_consistency (* integermode *)
@@ -69,8 +68,7 @@ let verify
   Solver.inc_timeout := solver_inc_timeout;
   MakeTerm.use_vip := not dont_use_vip;
   Check.fail_fast := fail_fast;
-  Diagnostics.diag_string := diag;
-  Resource.disable_resource_derived_constraints := disable_resource_derived_constraints;
+  Resource.disable_derived_lc1 := disable_derived_lc1;
   (* Set the prooflog flag based on --coq-proof-log *)
   Prooflog.set_enabled coq_proof_log;
   Typing.unfold_multiclause_preds := not disable_unfold_multiclause_preds;
@@ -217,8 +215,8 @@ module Flags = struct
       & info ~docs:s_verification [ "output-dir" ] ~docv:"DIR" ~doc)
 
 
-  let disable_resource_derived_constraints =
-    let doc = "disable resource-derived constraints" in
+  let disable_derived_lc1 =
+    let doc = "disable constraints derived from ownership of individual resources" in
     Arg.(
       value
       & flag
@@ -301,7 +299,6 @@ let verify_t : unit Term.t =
   $ Flags.json
   $ Flags.json_trace
   $ Flags.output_dir
-  $ Common.Flags.diag
   $ Lemma_flags.lemmata
   $ CoqExport_flags.coq_export
   $ CoqMucore_flags.coq_mucore
@@ -323,7 +320,7 @@ let verify_t : unit Term.t =
   $ Common.Flags.no_inherit_loc
   $ Common.Flags.magic_comment_char_dollar
   $ Common.Flags.allow_split_magic_comments
-  $ Flags.disable_resource_derived_constraints
+  $ Flags.disable_derived_lc1
   $ Flags.try_hard
   $ Flags.disable_unfold_multiclause_preds
   $ Flags.check_consistency

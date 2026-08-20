@@ -249,10 +249,10 @@ let json_of_unop : Terms.unop -> json =
   function
   | Not -> unit_variant "Not"
   | Negate -> unit_variant "Negate"
-  | BW_CLZ_NoSMT -> unit_variant "BwClz"
-  | BW_CTZ_NoSMT -> unit_variant "BwCtz"
-  | BW_FFS_NoSMT -> unit_variant "BwFfs"
-  | BW_FLS_NoSMT -> unit_variant "BwFls"
+  | BW_CLZ -> unit_variant "BwClz"
+  | BW_CTZ -> unit_variant "BwCtz"
+  | BW_FFS -> unit_variant "BwFfs"
+  | BW_FLS -> unit_variant "BwFls"
   | BW_Compl -> unit_variant "BwCompl"
 
 
@@ -264,11 +264,11 @@ let json_of_binop : Terms.binop -> json =
   | Implies -> unit_variant "Implies"
   | Add -> unit_variant "Add"
   | Sub -> unit_variant "Sub"
-  | Mul | MulNoSMT -> unit_variant "Mul"
-  | Div | DivNoSMT -> unit_variant "Div"
-  | Exp | ExpNoSMT -> unit_variant "Exp"
-  | Rem | RemNoSMT -> unit_variant "Rem"
-  | Mod | ModNoSMT -> unit_variant "Mod"
+  | Mul -> unit_variant "Mul"
+  | Div -> unit_variant "Div"
+  | Exp -> unit_variant "Exp"
+  | Rem -> unit_variant "Rem"
+  | Mod -> unit_variant "Mod"
   | BW_Xor -> unit_variant "BwXor"
   | BW_And -> unit_variant "BwAnd"
   | BW_Or -> unit_variant "BwOr"
@@ -583,8 +583,7 @@ let json_of_datatype (name : Sym.t) (dt : Mucore.datatype) : json =
 
 (* AustenTest's `CType` is its own type, distinct from `Sctype`: the C
    signature as the shim needs it, and internally tagged
-   ({"kind": "int", "bits": 32, "signed": true}). Only void / bool / int /
-   pointer / named are expressible. *)
+   ({"kind": "int", "bits": 32, "signed": true}). *)
 let rec json_of_ctype (ct : Sctypes.t) : json =
   match ct with
   | Sctypes.Void -> obj [ ("kind", `String "void") ]
@@ -602,14 +601,26 @@ let rec json_of_ctype (ct : Sctypes.t) : json =
     obj [ ("kind", `String "pointer"); ("pointee", json_of_ctype ct') ]
   | Sctypes.Array (ct', _) ->
     (* Decay, which is what the C ABI does to an array parameter anyway. A
-       struct *field* of array type is rejected by the caller instead:
-       dropping it would corrupt the layout AustenTest sizes heap writes
+       struct *field* instead goes through [json_of_field_ctype] below, so its
+       fixed bound remains part of the layout AustenTest sizes heap writes
        with. *)
     obj [ ("kind", `String "pointer"); ("pointee", json_of_ctype ct') ]
   | Sctypes.Struct tag ->
     obj [ ("kind", `String "named"); ("name", `String (Sym.pp_string_no_nums tag)) ]
   | Sctypes.Function _ -> raise (Unrepresentable "a function type")
   | Sctypes.Byte -> raise (Unrepresentable "the `byte` type")
+
+
+let rec json_of_field_ctype (ct : Sctypes.t) : json =
+  match ct with
+  | Sctypes.Array (ct', Some length) ->
+    obj
+      [ ("kind", `String "array");
+        ("element", json_of_field_ctype ct');
+        ("length", `Int length)
+      ]
+  | Sctypes.Array (_, None) -> raise (Unrepresentable "an unsized array field")
+  | _ -> json_of_ctype ct
 
 
 (* ------------------------------------------------------------ collectors *)
@@ -632,14 +643,7 @@ let json_of_structs (prog5 : unit Mucore.file) : json list =
          let fields =
            List.map
              (fun (id, ct) ->
-                let ty =
-                  match ct with
-                  (* A field, not a parameter: nothing decays, and a dropped
-                   field would silently change every later member's offset. *)
-                  | Sctypes.Array _ ->
-                    raise (Unrepresentable ("an array field (" ^ Id.get_string id ^ ")"))
-                  | _ -> json_of_ctype ct
-                in
+                let ty = json_of_field_ctype ct in
                 obj [ ("name", `String (Id.get_string id)); ("type", ty) ])
              (Memory.member_types layout)
          in
@@ -697,13 +701,146 @@ let c_signature sigma (fn : Sym.t) : (string * Sctypes.t) list * Sctypes.t =
   | _ -> raise (Unrepresentable "no C declaration")
 
 
+let test_name filename (test : Test.t) : string =
+  if test.is_static then
+    Fulminate.Utils.static_prefix filename ^ "_" ^ Sym.pp_string test.fn
+  else
+    Sym.pp_string test.fn
+
+
+(* A global object has two identities which must not be conflated. [address]
+   is the logical symbol occurring in CN terms, while [c_name] is the source
+   identifier the target linker exposes (or which AustenTest promotes for an
+   internal-linkage object). *)
+let global_c_name (sym : Sym.t) : string =
+  match Sym.description sym with
+  | Cerb_frontend.Symbol.SD_ObjectAddress name -> name
+  | _ ->
+    raise
+      (Unrepresentable
+         ("global " ^ Sym.pp_string_no_nums sym ^ " has no C object-address identifier"))
+
+
+let has_external_linkage sigma (sym : Sym.t) : bool =
+  Pmap.fold
+    (fun _ (candidate, _) found -> found || Sym.equal sym candidate)
+    sigma.Cerb_frontend.AilSyntax.extern_idmap
+    false
+
+
+let rec validate_global_type_with find_tag (ct : Sctypes.t) : unit =
+  match ct with
+  | Sctypes.Integer _ | Sctypes.Pointer _ -> ()
+  | Sctypes.Array (_, None) -> raise (Unrepresentable "an incomplete global array")
+  | Sctypes.Array (_, Some n) when n <= 0 ->
+    raise (Unrepresentable "a zero-sized global array")
+  | Sctypes.Array (elem, Some _) -> validate_global_type_with find_tag elem
+  | Sctypes.Struct tag ->
+    (match find_tag tag with
+     | Some (Mucore.StructDef _) -> ()
+     | Some Mucore.UnionDef ->
+       raise (Unrepresentable ("global " ^ Sym.pp_string_no_nums tag ^ " has union type"))
+     | None ->
+       raise
+         (Unrepresentable
+            ("global " ^ Sym.pp_string_no_nums tag ^ " has incomplete struct type")))
+  | Sctypes.Void -> raise (Unrepresentable "a void global")
+  | Sctypes.Function _ -> raise (Unrepresentable "a function global")
+  | Sctypes.Byte -> raise (Unrepresentable "a byte-typed global")
+
+
+let validate_global_type (prog5 : unit Mucore.file) =
+  validate_global_type_with (fun tag -> Pmap.lookup tag prog5.tagDefs)
+
+
+let json_of_global_linkage ~is_external ~owner ~c_name =
+  if is_external then
+    obj [ ("kind", `String "external") ]
+  else (
+    match owner with
+    | Some owner -> obj [ ("kind", `String "internal"); ("owner", `String owner) ]
+    | None ->
+      raise
+        (Unrepresentable
+           ("internal global " ^ c_name ^ " has no exported non-static owner function")))
+
+
+let first_non_static_owner candidates =
+  List.find_map
+    (fun (is_static, name) -> if is_static then None else Some name)
+    candidates
+
+
+let global_declaration sigma prog5 (sym : Sym.t) (ct : Sctypes.t) =
+  let open Cerb_frontend in
+  match List.assoc_opt Sym.equal sym sigma.AilSyntax.declarations with
+  | Some (_, _, AilSyntax.Decl_object ((AilSyntax.Thread, _), _, _, _)) ->
+    raise (Unrepresentable ("thread-local global " ^ global_c_name sym))
+  | Some (_, _, AilSyntax.Decl_object ((AilSyntax.Automatic, _), _, _, _)) ->
+    raise
+      (Unrepresentable ("automatic object " ^ global_c_name sym ^ " used as a global"))
+  | Some (_, _, AilSyntax.Decl_object ((AilSyntax.Static, true), _, _, _)) ->
+    raise (Unrepresentable ("register object " ^ global_c_name sym ^ " used as a global"))
+  | Some (_, _, AilSyntax.Decl_object ((AilSyntax.Static, false), _, quals, ail_ct)) ->
+    if quals.const then
+      raise (Unrepresentable ("const global " ^ global_c_name sym));
+    if quals.volatile then
+      raise (Unrepresentable ("volatile global " ^ global_c_name sym));
+    (match Sctypes.of_ctype ail_ct with
+     | None ->
+       raise
+         (Unrepresentable
+            ("global " ^ global_c_name sym ^ " has an atomic, floating, or union type"))
+     | Some _ -> ());
+    validate_global_type prog5 ct;
+    quals
+  | Some (_, _, AilSyntax.Decl_function _) ->
+    raise (Unrepresentable ("function " ^ global_c_name sym ^ " used as a global object"))
+  | None ->
+    raise (Unrepresentable ("global " ^ global_c_name sym ^ " has no C declaration"))
+
+
+(* Symbol numbers are the identity in both CN and AustenTest. Looking for the
+   emitted serde symbol record means this collector automatically covers every
+   exported term position, including postconditions and logical functions,
+   without maintaining a second free-variable walk beside the serializer. *)
+let rec json_mentions_sym (sym : Sym.t) (j : json) : bool =
+  match j with
+  | `Assoc fields ->
+    let here =
+      match List.assoc_opt String.equal "num" fields with
+      | Some (`Int n) -> Int.equal n (Sym.num sym)
+      | _ -> false
+    in
+    here || List.exists (fun (_, value) -> json_mentions_sym sym value) fields
+  | `List values -> List.exists (json_mentions_sym sym) values
+  | _ -> false
+
+
+let json_of_global sigma prog5 owner (surface : json) (sym, glob) : json option =
+  if not (json_mentions_sym sym surface) then
+    None
+  else (
+    let ct = match glob with Mucore.GlobalDef (ct, _) | Mucore.GlobalDecl ct -> ct in
+    let quals = global_declaration sigma prog5 sym ct in
+    let linkage =
+      json_of_global_linkage
+        ~is_external:(has_external_linkage sigma sym)
+        ~owner
+        ~c_name:(global_c_name sym)
+    in
+    Some
+      (obj
+         [ ("address", json_of_sym sym);
+           ("c_name", `String (global_c_name sym));
+           ("type", json_of_sct ct);
+           ("linkage", linkage);
+           ("qualifiers", json_of_quals quals)
+         ]))
+
+
 let json_of_test filename sigma (test : Test.t) : json =
-  let name =
-    if test.is_static then
-      Fulminate.Utils.static_prefix filename ^ "_" ^ Sym.pp_string test.fn
-    else
-      Sym.pp_string test.fn
-  in
+  let name = test_name filename test in
   let params, ret = c_signature sigma test.fn in
   let post, _fn_body = AT.get_return test.internal in
   obj
@@ -750,17 +887,20 @@ let rec max_sym_num (j : json) : int =
 
 (* ----------------------------------------------------------------- entry *)
 
-(* One `SpecModule`, covering one translation unit and one function under
-   test.
-
-   One file per *function*, not per translation unit, even though the shape
-   would hold several: AustenTest's harness always dispatches specification
-   function index 0, so a module naming several functions would generate
-   arguments for one and call another. Putting each first in its own file
-   sidesteps that, and it matches how CN's own corpus is laid out
-   (`sorted_list.insert.pass.c` beside `sorted_list.cons.fail.c`). *)
-let json_of_module ~filename sigma (prog5 : unit Mucore.file) (test : Test.t) : json =
-  let fields =
+(* One `SpecModule`, covering one translation unit and every representable
+   function under test. The order of `functions` is the selector ABI:
+   AustenTest prefixes each input with the exact zero-based position of its
+   target in this array. `functions_under_test` supplies CN's deterministic
+   test-discovery order, and the filtering in [save] retains the relative
+   order of every survivor. *)
+let json_of_module
+      ~filename
+      sigma
+      (prog5 : unit Mucore.file)
+      (functions : (Test.t * string * json) list)
+  : json
+  =
+  let surface_fields =
     [ ("filename", `String (Filename.basename filename));
       ("types", `List (json_of_structs prog5));
       ( "predicates",
@@ -774,58 +914,89 @@ let json_of_module ~filename sigma (prog5 : unit Mucore.file) (test : Test.t) : 
           (List.map
              (fun (name, f) -> json_of_logical_function name f)
              prog5.logical_predicates) );
-      ("functions", `List [ json_of_test filename sigma test ])
+      ("functions", `List (List.map (fun (_, _, json) -> json) functions))
     ]
   in
+  let surface = obj surface_fields in
+  let owner =
+    first_non_static_owner
+      (List.map (fun (test, name, _) -> (test.Test.is_static, name)) functions)
+  in
+  let globals = List.filter_map (json_of_global sigma prog5 owner surface) prog5.globs in
+  let fields = ("globals", `List globals) :: surface_fields in
   obj (("next_sym", `Int (max_sym_num (obj fields) + 1)) :: fields)
 
 
-(* Write the specification module for the *first* function under test.
-
-   One function, not all of them, and never more than one file: AustenTest's
-   harness always dispatches specification function index 0, so a module
-   naming several functions would generate arguments for one and call
-   another. Exporting only the first keeps that impossible by construction,
-   and keeps one source file mapped to exactly one exported spec, which is
-   what the ladder registers.
-
-   The rest are named in a warning rather than dropped silently — they are
-   real coverage this export does not reach, and CN's corpus has several
-   files whose interesting entry point is not the first.
+(* Write one ordered specification module for the translation unit.
 
    A function whose signature AustenTest cannot represent is skipped with a
    warning rather than failing the run: the point of a corpus export is to
-   get as much across as possible and say plainly what did not make it. *)
+   get as much across as possible and say plainly what did not make it. Its
+   removal necessarily closes the selector array around it; the exact IDs are
+   the positions in the module that is actually written, never positions in
+   CN's pre-filter list.
+
+   In contrast, exceeding the one-byte selector capacity or producing
+   duplicate exported names refuses the entire module. Truncating would hide
+   otherwise supported roots, while duplicate names would make
+   AustenTest's --function filter ambiguous. *)
 let save ~path ~filename sigma prog5 (tests : Test.t list) : unit =
-  match tests with
+  let functions =
+    List.filter_map
+      (fun (test : Test.t) ->
+         match json_of_test filename sigma test with
+         | function_json -> Some (test, test_name filename test, function_json)
+         | exception Unrepresentable what ->
+           Pp.warn_noloc
+             (Pp.string
+                ("not exporting "
+                 ^ Sym.pp_string_no_nums test.fn
+                 ^ " from "
+                 ^ Filename.basename filename
+                 ^ ": AustenTest cannot represent "
+                 ^ what));
+           None)
+      tests
+  in
+  let rec duplicate_name seen = function
+    | [] -> None
+    | (_, name, _) :: rest ->
+      if List.exists (String.equal name) seen then
+        Some name
+      else
+        duplicate_name (name :: seen) rest
+  in
+  match functions with
   | [] -> ()
-  | test :: rest ->
-    (match rest with
-     | [] -> ()
-     | _ ->
-       Pp.warn_noloc
-         (Pp.string
-            ("exporting only "
-             ^ Sym.pp_string_no_nums test.fn
-             ^ " from "
-             ^ Filename.basename filename
-             ^ "; AustenTest dispatches one function per specification, so "
-             ^ String.concat
-                 ", "
-                 (List.map (fun (t : Test.t) -> Sym.pp_string_no_nums t.fn) rest)
-             ^ " are not exported")));
-    (match json_of_module ~filename sigma prog5 test with
-     | j ->
-       let oc = open_out path in
-       output_string oc (Yojson.Safe.pretty_to_string j);
-       output_char oc '\n';
-       close_out oc
-     | exception Unrepresentable what ->
+  | _ when List.length functions > 256 ->
+    Pp.warn_noloc
+      (Pp.string
+         ("not exporting "
+          ^ Filename.basename filename
+          ^ ": AustenTest's one-byte function selector supports at most 256 functions, \
+             but "
+          ^ string_of_int (List.length functions)
+          ^ " are representable"))
+  | _ ->
+    (match duplicate_name [] functions with
+     | Some name ->
        Pp.warn_noloc
          (Pp.string
             ("not exporting "
-             ^ Sym.pp_string_no_nums test.fn
-             ^ " from "
              ^ Filename.basename filename
-             ^ ": AustenTest cannot represent "
-             ^ what)))
+             ^ ": more than one function has the exported name "
+             ^ name))
+     | None ->
+       (match json_of_module ~filename sigma prog5 functions with
+        | j ->
+          let oc = open_out path in
+          output_string oc (Yojson.Safe.pretty_to_string j);
+          output_char oc '\n';
+          close_out oc
+        | exception Unrepresentable what ->
+          Pp.warn_noloc
+            (Pp.string
+               ("not exporting "
+                ^ Filename.basename filename
+                ^ ": AustenTest cannot represent "
+                ^ what))))

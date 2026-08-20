@@ -186,9 +186,6 @@ let signed_int_ty = Memory.bt_of_sct (Sctypes.Integer signed_int_ity)
 
 let is_two_pow it =
   match T.get_term it with
-  | Terms.Binop (Terms.ExpNoSMT, x, y)
-    when Option.equal Z.equal (Terms.get_num_z x) (Some (Z.of_int 2)) ->
-    Some (`Two_loc (Terms.get_loc x), `Exp y)
   | Terms.Binop (Terms.Exp, x, y)
     when Option.equal Z.equal (Terms.get_num_z x) (Some (Z.of_int 2)) ->
     Some (`Two_loc (Terms.get_loc x), `Exp y)
@@ -289,16 +286,8 @@ let rec symb_exec_pexpr ctxt var_map pexpr =
       match op with
       | OpAdd -> MT.add_ (x_v, y_v) loc
       | OpSub -> MT.sub_ (x_v, y_v) loc
-      | OpMul ->
-        if is_const_num x_v || is_const_num y_v then
-          MT.mul_ (x_v, y_v) loc
-        else
-          MT.mul_no_smt_ (x_v, y_v) loc
-      | OpDiv ->
-        if is_const_num y_v then
-          MT.div_ (x_v, y_v) loc
-        else
-          MT.div_no_smt_ (x_v, y_v) loc
+      | OpMul -> MT.mul_ (x_v, y_v) loc
+      | OpDiv -> MT.div_ (x_v, y_v) loc
       | OpEq -> MT.eq_ (x_v, y_v) loc
       | OpLt -> MT.lt_ (x_v, y_v) loc
       | OpLe -> MT.le_ (x_v, y_v) loc
@@ -306,21 +295,9 @@ let rec symb_exec_pexpr ctxt var_map pexpr =
       | OpGe -> MT.ge_ (x_v, y_v) loc
       | OpAnd -> MT.and_ [ x_v; y_v ] loc
       | OpOr -> MT.or_ [ x_v; y_v ] loc
-      | OpExp ->
-        if is_const_num x_v && is_const_num y_v then
-          MT.exp_ (x_v, y_v) loc
-        else
-          MT.exp_no_smt_ (x_v, y_v) loc
-      | OpRem_f ->
-        if is_const_num y_v then
-          MT.rem_ (x_v, y_v) loc
-        else
-          MT.rem_no_smt_ (x_v, y_v) loc
-      | OpRem_t ->
-        if is_const_num y_v then
-          MT.mod_ (x_v, y_v) loc
-        else
-          MT.mod_no_smt_ (x_v, y_v) loc
+      | OpExp -> MT.exp_ (x_v, y_v) loc
+      | OpRem_f -> MT.rem_ (x_v, y_v) loc
+      | OpRem_t -> MT.mod_ (x_v, y_v) loc
     in
     (match (op, x_v, is_two_pow y_v) with
      | OpMul, _, Some (`Two_loc two_loc, `Exp exp) ->
@@ -580,10 +557,7 @@ let rec symb_exec_expr ctxt state_vars expr =
   | Eproc (Impl (BuiltinFunction (("ctz" | "generic_ffs") as fn)), [ pe1 ]) ->
     let@ x = symb_exec_pexpr ctxt var_map pe1 in
     let unop =
-      match fn with
-      | "ctz" -> Terms.BW_CTZ_NoSMT
-      | "generic_ffs" -> BW_FFS_NoSMT
-      | _ -> assert false
+      match fn with "ctz" -> Terms.BW_CTZ | "generic_ffs" -> BW_FFS | _ -> assert false
     in
     let t = MT.arith_unop unop x loc in
     let@ v = simp_const loc (lazy (Pp_mucore.pp_pexpr pe1)) t in
@@ -625,14 +599,10 @@ let rec symb_exec_expr ctxt state_vars expr =
       | Some s ->
         let wrap_int x = MT.wrapI_ (signed_int_ity, x) in
         if String.equal s "ctz_proxy" then
-          rcval
-            (wrap_int (MT.arith_unop Terms.BW_CTZ_NoSMT (List.hd args_its) loc) loc)
-            state
+          rcval (wrap_int (MT.arith_unop Terms.BW_CTZ (List.hd args_its) loc) loc) state
         else if List.exists (String.equal s) [ "ffs_proxy"; "ffsl_proxy"; "ffsll_proxy" ]
         then
-          rcval
-            (wrap_int (MT.arith_unop Terms.BW_FFS_NoSMT (List.hd args_its) loc) loc)
-            state
+          rcval (wrap_int (MT.arith_unop Terms.BW_FFS (List.hd args_its) loc) loc) state
         else
           bail)
   | CN_progs _ -> rcval (MT.unit_ loc) state

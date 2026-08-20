@@ -18,3 +18,4 @@ type situation =
   | Access of access
   | Call of call_situation
   | Unpacking
+  | Derive_constraints

@@ -15,5 +15,6 @@ int main()
 {
     int x = 0;
     int y = 1;
+    /*@ derive_constraints(RW<int>(&x), RW<int>(&y)); @*/
     f(&x, &y);
 }

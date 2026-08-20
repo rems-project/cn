@@ -402,14 +402,17 @@ let set_movable_indices ixs : unit m = modify (fun s -> { s with movable_indices
 
 let add_c_internal lc =
   let@ s = get_typing_context () in
-  let@ solver = get_solver () in
-  let@ simp_ctxt = simp_ctxt () in
-  let lc = Simplify.LogicalConstraints.simp simp_ctxt lc in
-  let s = Context.add_c lc s in
-  let () = Solver.assume solver lc in
-  let@ _ = add_sym_eqs (List.filter_map LC.is_sym_lhs_equality [ lc ]) in
-  let@ () = set_typing_context s in
-  return ()
+  if LC.Set.mem lc s.constraints then
+    return ()
+  else
+    let@ solver = get_solver () in
+    let@ simp_ctxt = simp_ctxt () in
+    let lc = Simplify.LogicalConstraints.simp simp_ctxt lc in
+    let s = Context.add_c lc s in
+    let () = Solver.assume solver lc in
+    let@ _ = add_sym_eqs (List.filter_map LC.is_sym_lhs_equality [ lc ]) in
+    let@ () = set_typing_context s in
+    return ()
 
 
 let add_r_internal ?(derive_constraints = true) loc (r, Res.O oargs) =
@@ -418,10 +421,7 @@ let add_r_internal ?(derive_constraints = true) loc (r, Res.O oargs) =
   let r = Simplify.Request.simp simp_ctxt r in
   let oargs = Simplify.Terms.simp simp_ctxt oargs in
   let pointer_facts =
-    if derive_constraints then
-      Res.pointer_facts ~new_resource:(r, Res.O oargs) ~old_resources:(Context.get_rs s)
-    else
-      []
+    if derive_constraints then Res.derived_lc1 (r, Res.O oargs) else []
   in
   let@ () = set_typing_context (Context.add_r loc (r, O oargs) s) in
   iterM (fun x -> add_c_internal (LC.T x)) pointer_facts

@@ -31,11 +31,19 @@ jobs:
 
       - name: System dependencies (ubuntu)
         run: |
-          sudo apt-get install build-essential libgmp-dev z3 opam cmake lcov
+          sudo apt-get install build-essential libgmp-dev z3 opam cmake
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: requirements.txt
 
       - name: Install Python dependencies
         run: |
-          pip install -r requirements.txt
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
 
       - name: Install Clang
         if: ${{ matrix.compiler != 'gcc' }}
@@ -44,12 +52,8 @@ jobs:
           sudo add-apt-repository "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-22 main"
           sudo add-apt-repository "deb-src http://apt.llvm.org/jammy/ llvm-toolchain-jammy-22 main"
           sudo apt-get update
-          sudo apt-get install clang-22 llvm-22
+          sudo apt-get install clang-22
           sudo ln -sf "$(command -v clang-22)" /usr/local/bin/clang
-          # Shadow gcov with LLVM's gcov-compatible tool so lcov's `--gcov-tool gcov`
-          # can read clang's coverage data (/usr/local/bin precedes /usr/bin on PATH).
-          printf '#!/bin/sh\nexec llvm-cov-22 gcov "$@"\n' | sudo tee /usr/local/bin/gcov > /dev/null
-          sudo chmod +x /usr/local/bin/gcov
 
       - name: Restore OPAM cache
         id: cache-opam-restore

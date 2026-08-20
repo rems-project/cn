@@ -1358,9 +1358,7 @@ let all_empty loc _original_resources =
   (* there will be a model available if at least one resource persisted *)
   match remaining_resources with
   | [] -> return ()
-  | (resource, constr, model) :: _ ->
-    let@ simp_ctxt = simp_ctxt () in
-    RI.debug_constraint_failure_diagnostics 6 model simp_ctxt constr;
+  | (resource, _constr, model) :: _ ->
     fail (fun ctxt ->
       (* let ctxt = { ctxt with resources = original_resources } in *)
       { loc; msg = Unused_resource { resource; ctxt; model } })
@@ -2057,8 +2055,8 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : T.t -> unit m) : unit m =
          check_pexpr pe1 (fun vt1 ->
            let unop =
              match fn with
-             | "ctz" -> Terms.BW_CTZ_NoSMT
-             | "generic_ffs" -> BW_FFS_NoSMT
+             | "ctz" -> Terms.BW_CTZ
+             | "generic_ffs" -> BW_FFS
              | _ -> assert false
            in
            k (arith_unop unop vt1 loc))
@@ -2190,8 +2188,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : T.t -> unit m) : unit m =
       (* copying bits of code from elsewhere in check.ml *)
       match stmt with
       | Cnstatement.Pack_unpack (Unpack, Predicate pred) ->
-        let@ req = WellTyped.request loc (P pred) in
-        let pred = match req with Req.P pred -> pred | Req.Q _ -> assert false in
+        let req = Req.P pred in
         let@ pred, o =
           let@ found = RI.General.predicate_request_scan loc pred in
           match found with
@@ -2210,7 +2207,6 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : T.t -> unit m) : unit m =
         do_unpack (pred, o)
       | Cnstatement.Pack_unpack (Unpack, PredicateName pn) ->
         let pn = match pn with Owned _ -> assert false | PName pn -> pn in
-        let@ _def = Global.get_resource_predicate_def loc pn in
         let@ found =
           let open Request in
           map_and_fold_resources
@@ -2226,12 +2222,43 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : T.t -> unit m) : unit m =
       | Cnstatement.Pack_unpack (Pack, _pt) ->
         warn loc !^"Explicit pack unsupported.";
         return ()
+      | Cnstatement.Derive_constraints preds ->
+        let preds, pred_names =
+          List.partition_map
+            (function
+              | Cnstatement.Predicate pred -> Left pred
+              | Cnstatement.PredicateName pn -> Right pn)
+            preds
+        in
+        let@ pred_rs =
+          ListM.mapM
+            (fun pred ->
+               let@ pred, o =
+                 RI.Special.predicate_request loc Derive_constraints (pred, None)
+               in
+               return (Request.P pred, o))
+            preds
+        in
+        let@ pred_name_rs =
+          ListM.fold_leftM
+            (fun acc pn ->
+               map_and_fold_resources
+                 loc
+                 (fun (re, o) acc ->
+                    match re with
+                    | P p when Request.equal_name p.name pn -> (Deleted, (re, o) :: acc)
+                    | P _ -> (Unchanged, acc)
+                    | Q _ -> (Unchanged, acc))
+                 acc)
+            []
+            pred_names
+        in
+        let rs = pred_rs @ pred_name_rs in
+        let@ () = add_rs loc rs in
+        add_cs loc (List.map (fun t -> LC.T t) (Resource.derived_lc2 rs))
       | To_from_bytes ((To | From), { name = PName _; _ }) ->
         fail (fun _ -> { loc; msg = Byte_conv_needs_owned })
       | To_from_bytes (To, { name = Owned (ct, init); pointer; _ }) ->
-        let ctxt = match init with Init -> `RW | Uninit -> `W in
-        let@ () = WellTyped.err_if_ct_void loc ctxt ct in
-        let@ pointer = WellTyped.check_term loc (BT.Loc ()) pointer in
         let@ _, O value =
           RI.Special.predicate_request
             loc
@@ -2257,9 +2284,6 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : T.t -> unit m) : unit m =
            let@ constr = bytes_constraints loc To ~value ~byte_arr ct in
            add_c loc (LC.T constr))
       | To_from_bytes (From, { name = Owned (ct, init); pointer; _ }) ->
-        let ctxt = match init with Init -> `RW | Uninit -> `W in
-        let@ () = WellTyped.err_if_ct_void loc ctxt ct in
-        let@ pointer = WellTyped.check_term loc (BT.Loc ()) pointer in
         let q_sym = Sym.fresh "from_bytes" in
         let@ _, O byte_arr =
           RI.Special.qpredicate_request
@@ -2281,24 +2305,18 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : T.t -> unit m) : unit m =
          | Init ->
            let@ constr = bytes_constraints loc From ~value ~byte_arr ct in
            add_c loc (LC.T constr))
-      | Have lc ->
-        let@ _lc = WellTyped.logical_constraint loc lc in
+      | Have _lc ->
         fail (fun _ ->
           { loc;
             msg = Generic !^"todo: 'have' not implemented yet" [@alert "-deprecated"]
           })
       | Instantiate (to_instantiate, it) ->
-        let@ filter =
+        let filter =
           match to_instantiate with
-          | I_Everything -> return (fun _ -> true)
-          | I_Function f ->
-            let@ _ = Global.get_logical_function_def loc f in
-            return (Terms.mentions_call f)
-          | I_Good ct ->
-            let@ () = WellTyped.check_ct loc ct in
-            return (Terms.mentions_good ct)
+          | I_Everything -> fun _ -> true
+          | I_Function f -> Terms.mentions_call f
+          | I_Good ct -> Terms.mentions_good ct
         in
-        let@ it = WellTyped.infer_term it in
         instantiate loc filter it
       | Split_case _ -> assert false
       | Extract (attrs, to_extract, it) ->
@@ -2310,20 +2328,13 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : T.t -> unit m) : unit m =
           | E_Pred (CN_owned None) ->
             let msg = "'extract' requires a C-type annotation for 'Owned'" in
             fail (fun _ -> { loc; msg = Generic !^msg [@alert "-deprecated"] })
-          | E_Pred (CN_owned (Some ct)) ->
-            let@ () = WellTyped.check_ct loc ct in
-            return (Request.Owned (ct, Init))
+          | E_Pred (CN_owned (Some ct)) -> return (Request.Owned (ct, Init))
           | E_Pred (CN_block None) ->
             let msg = "'extract' requires a C-type annotation for 'Block'" in
             fail (fun _ -> { loc; msg = Generic !^msg [@alert "-deprecated"] })
-          | E_Pred (CN_block (Some ct)) ->
-            let@ () = WellTyped.check_ct loc ct in
-            return (Request.Owned (ct, Uninit))
-          | E_Pred (CN_named pn) ->
-            let@ _ = Global.get_resource_predicate_def loc pn in
-            return (Request.PName pn)
+          | E_Pred (CN_block (Some ct)) -> return (Request.Owned (ct, Uninit))
+          | E_Pred (CN_named pn) -> return (Request.PName pn)
         in
-        let@ it = WellTyped.infer_term it in
         let@ original_rs = all_resources loc in
         (* let verbose = List.exists (Id.is_str "verbose") attrs in *)
         let quiet = List.exists (Id.equal_string "quiet") attrs in
@@ -2336,16 +2347,6 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : T.t -> unit m) : unit m =
         return ()
       | Unfold (f, args) ->
         let@ def = Global.get_logical_function_def loc f in
-        let has_args, expect_args = (List.length args, List.length def.args) in
-        let@ () =
-          WellTyped.ensure_same_argument_number loc `Other has_args ~expect:expect_args
-        in
-        let@ args =
-          ListM.map2M
-            (fun has_arg (_, def_arg_bt) -> WellTyped.check_term loc def_arg_bt has_arg)
-            args
-            def.args
-        in
         (match Definition.Function.unroll_once def args with
          | None ->
            let msg =
@@ -2365,15 +2366,11 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : T.t -> unit m) : unit m =
              let@ () = bind_logical_return loc prefix lrt in
              return ())
       | Assert lc ->
-        let@ lc = WellTyped.logical_constraint loc lc in
         let@ provable = provable loc in
         (match provable lc with
          | `True -> return ()
          | `False ->
            let@ model = model () in
-           let@ simp_ctxt = simp_ctxt () in
-           RI.debug_constraint_failure_diagnostics 6 model simp_ctxt lc;
-           let@ () = Diagnostics.investigate model lc in
            fail (fun ctxt ->
              { loc;
                msg =
@@ -2382,7 +2379,6 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : T.t -> unit m) : unit m =
              }))
       | Inline _nms -> return ()
       | Print it ->
-        let@ it = WellTyped.infer_term it in
         let@ simp_ctxt = simp_ctxt () in
         let it = Simplify.Terms.simp simp_ctxt it in
         print stdout (item "printed" (T.pp it));
@@ -2393,10 +2389,12 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : T.t -> unit m) : unit m =
       | [] -> k (unit_ loc)
       | cn_prog :: cn_progs ->
         let@ loc, cn_statement = cn_prog_sub_let Cnstatement.subst cn_prog in
+        (* The individual statement-well-formedness checks above can be omitted
+           if we do the following here. *)
+        let@ cn_statement = WellTyped.check_cn_statement loc cn_statement in
         (match cn_statement with
          | Cnstatement.Split_case lc ->
            Pp.debug 5 (lazy (Pp.headline "checking split_case"));
-           let@ lc = WellTyped.logical_constraint loc lc in
            let@ it =
              match lc with
              | T it -> return it
@@ -2927,9 +2925,7 @@ let ctz_proxy_ft =
   let neq_0 = LC.T (MT.not_ (MT.eq_ (n, MT.int_lit_ 0 (T.get_bt n) here) here) here) in
   let eq_ctz =
     LC.T
-      (MT.eq_
-         (ret, cast_ (T.get_bt ret) (MT.arith_unop Terms.BW_CTZ_NoSMT n here) here)
-         here)
+      (MT.eq_ (ret, cast_ (T.get_bt ret) (MT.arith_unop Terms.BW_CTZ n here) here) here)
   in
   let rt =
     RT.mComputational
@@ -2953,8 +2949,7 @@ let ffs_proxy_ft sz =
   let n_sym, n = MT.fresh_named bt "n_" here in
   let ret_sym, ret = MT.fresh_named ret_bt "return" here in
   let eq_ffs =
-    LC.T
-      (MT.eq_ (ret, MT.cast_ ret_bt (MT.arith_unop Terms.BW_FFS_NoSMT n here) here) here)
+    LC.T (MT.eq_ (ret, MT.cast_ ret_bt (MT.arith_unop Terms.BW_FFS n here) here) here)
   in
   let rt =
     RT.mComputational ((ret_sym, ret_bt), info) (LRT.mConstraint (eq_ffs, info) LRT.I)

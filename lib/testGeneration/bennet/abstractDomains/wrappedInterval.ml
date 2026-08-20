@@ -1020,7 +1020,7 @@ module WrappedIntervalBasis = struct
         else
           Some { bt = b1.bt; is_bottom = false; start; stop }
       | Mul -> Some (wrapped_multiplication b1.bt b1 b2)
-      | Div | DivNoSMT ->
+      | Div ->
         let is_signed =
           match BT.is_bits_bt b1.bt with
           | Some (Signed, _) -> true

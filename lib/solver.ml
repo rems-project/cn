@@ -309,10 +309,8 @@ module CN_Pointer = struct
 
   let copy_alloc_id_name = "copy_alloc_id"
 
-  let alloc_id_of_name = "alloc_id_of"
-
   (* TODO: this should probably be renamed to something like raw_addr_to_ptr_name *)
-  let bits_to_ptr_name = "bits_to_ptr"
+  let addr_to_ptr_name = "addr_to_ptr"
 
   let addr_of_name = "addr_of"
 
@@ -334,39 +332,26 @@ module CN_Pointer = struct
           ];
         SMT.define_fun
           ptr_shift_name
-          [ ("p", t); ("offset", addr_type ()); ("null_case", t) ]
+          [ ("p", t); ("offset", addr_type ()) ]
           t
-          (match_ptr
-             (SMT.atom "p")
-             ~null_case:(SMT.atom "null_case")
-             ~alloc_id_addr_case:(fun ~alloc_id ~addr ->
-               con_aia
-                 ~alloc_id
-                 ~addr:
-                   (if !cnBV then
-                      SMT.bv_add addr (SMT.atom "offset")
-                    else
-                      SMT.num_add addr (SMT.atom "offset"))));
+          (con_aia
+             ~alloc_id:(SMT.app_ alloc_id_name [ SMT.atom "p" ])
+             ~addr:
+               (let addr = SMT.app_ addr_name [ SMT.atom "p" ] in
+                if !cnBV then
+                  SMT.bv_add addr (SMT.atom "offset")
+                else
+                  SMT.num_add addr (SMT.atom "offset")));
         (* TODO: these do not behave the same unless the typing rules have bounds checks *)
         SMT.define_fun
           copy_alloc_id_name
-          [ ("p", t); ("new_addr", addr_type ()); ("null_case", t) ]
+          [ ("p", t); ("new_addr", addr_type ()) ]
           t
-          (match_ptr
-             (SMT.atom "p")
-             ~null_case:(SMT.atom "null_case")
-             ~alloc_id_addr_case:(fun ~alloc_id ~addr:_ ->
-               con_aia ~alloc_id ~addr:(SMT.atom "new_addr")));
+          (con_aia
+             ~alloc_id:(SMT.app_ alloc_id_name [ SMT.atom "p" ])
+             ~addr:(SMT.atom "new_addr"));
         SMT.define_fun
-          alloc_id_of_name
-          [ ("p", t); ("null_case", CN_AllocId.t ()) ]
-          (CN_AllocId.t ())
-          (match_ptr
-             (SMT.atom "p")
-             ~null_case:(SMT.atom "null_case")
-             ~alloc_id_addr_case:(fun ~alloc_id ~addr:_ -> alloc_id));
-        SMT.define_fun
-          bits_to_ptr_name
+          addr_to_ptr_name
           [ ("bits", addr_type ()); ("alloc_id", CN_AllocId.t ()) ]
           t
           (SMT.ite
@@ -384,17 +369,13 @@ module CN_Pointer = struct
       ]
 
 
-  let ptr_shift ~ptr ~offset ~null_case =
-    SMT.app_ ptr_shift_name [ ptr; offset; null_case ]
+  let ptr_shift ~ptr ~offset = SMT.app_ ptr_shift_name [ ptr; offset ]
 
+  let copy_alloc_id ~ptr ~addr = SMT.app_ copy_alloc_id_name [ ptr; addr ]
 
-  let copy_alloc_id ~ptr ~addr ~null_case =
-    SMT.app_ copy_alloc_id_name [ ptr; addr; null_case ]
+  let alloc_id_of ~ptr = SMT.app_ alloc_id_name [ ptr ]
 
-
-  let alloc_id_of ~ptr ~null_case = SMT.app_ alloc_id_of_name [ ptr; null_case ]
-
-  let bits_to_ptr ~bits ~alloc_id = SMT.app_ bits_to_ptr_name [ bits; alloc_id ]
+  let addr_to_ptr ~addr ~alloc_id = SMT.app_ addr_to_ptr_name [ addr; alloc_id ]
 
   let addr_of ~ptr = SMT.app_ addr_of_name [ ptr ]
 end
@@ -477,13 +458,13 @@ and get_value gs ctys bt (sexp : SMT.sexp) =
          match get_value gs ctys (Option Alloc_id) salloc_id with
          | CN_None _ -> None
          | CN_Some (IT (Const (Alloc_id z), _, _)) -> Some z
-         | _ -> failwith "Memory byte alloc ID is not bits option"
+         | _ -> failwith "Memory byte alloc ID has wrong type"
        in
        let value =
          match get_value gs ctys (CN_MemByte.value_bt ()) svalue with
          | Const (Bits (_, z)) -> z
          | Const (Z z) -> z
-         | _ -> failwith "Memory byte value is not bits"
+         | _ -> failwith "Memory byte value has wrong type"
        in
        Const (MemByte { alloc_id; value })
      | _ -> failwith "MemByte")
@@ -496,7 +477,7 @@ and get_value gs ctys bt (sexp : SMT.sexp) =
          match get_value gs ctys Memory.uintptr_bt saddr with
          | Const (Bits (_, z)) -> z
          | Const (Z z) -> z
-         | _ -> failwith "Pointer value is not bits"
+         | _ -> failwith "Pointer value has wrong type"
        in
        Const (Pointer { alloc_id = base; addr })
      | _ -> failwith "Loc")
@@ -667,17 +648,15 @@ let rec translate_term s iterm =
   | Sym x -> SMT.atom (CN_Names.fn_name x)
   | Unop (op, e1) ->
     (match op with
-     | BW_FFS_NoSMT ->
+     | BW_FFS ->
        (* NOTE: This desugaring duplicates e1 *)
        let intl i = MT.int_lit_ i (get_bt e1) loc in
        translate_term
          s
          (ite_
-            ( eq_ (e1, intl 0) loc,
-              intl 0,
-              add_ (arith_unop BW_CTZ_NoSMT e1 loc, intl 1) loc )
+            (eq_ (e1, intl 0) loc, intl 0, add_ (arith_unop BW_CTZ e1 loc, intl 1) loc)
             loc)
-     | BW_FLS_NoSMT ->
+     | BW_FLS ->
        (* copying and adjusting BW_FFS_NoSMT rule *)
        (* NOTE: This desugaring duplicates e1 *)
        let sz = match get_bt e1 with Bits (_sign, n) -> n | _ -> assert false in
@@ -685,9 +664,7 @@ let rec translate_term s iterm =
        translate_term
          s
          (ite_
-            ( eq_ (e1, intl 0) loc,
-              intl 0,
-              sub_ (intl sz, arith_unop BW_CLZ_NoSMT e1 loc) loc )
+            (eq_ (e1, intl 0) loc, intl 0, sub_ (intl sz, arith_unop BW_CLZ e1 loc) loc)
             loc)
      | Not -> SMT.bool_not (translate_term s e1)
      | Negate ->
@@ -699,11 +676,11 @@ let rec translate_term s iterm =
        (match get_bt iterm with
         | BT.Bits _ -> SMT.bv_compl (translate_term s e1)
         | _ -> failwith (__LOC__ ^ ":Unop (BW_Compl, _)"))
-     | BW_CLZ_NoSMT ->
+     | BW_CLZ ->
        (match get_bt iterm with
         | BT.Bits (_, w) -> maybe_name (translate_term s e1) (bv_clz w w)
         | _ -> failwith "solver: BW_CLZ_NoSMT: not a bitwise type")
-     | BW_CTZ_NoSMT ->
+     | BW_CTZ ->
        (match get_bt iterm with
         | BT.Bits (_, w) -> maybe_name (translate_term s e1) (bv_ctz w w)
         | _ -> failwith "solver: BW_CTZ_NoSMT: not a bitwise type"))
@@ -711,7 +688,7 @@ let rec translate_term s iterm =
     let s1 = translate_term s e1 in
     let s2 = translate_term s e2 in
     (* binary uninterpreted function, same type for arguments and result. *)
-    let uninterp_same_type k =
+    let _uninterp_same_type k =
       let bt = get_bt iterm in
       SMT.app (Atom (k bt)) [ s1; s2 ]
     in
@@ -734,34 +711,34 @@ let rec translate_term s iterm =
         | BT.Bits _ -> SMT.bv_mul s1 s2
         | BT.Integer | BT.Real -> SMT.num_mul s1 s2
         | _ -> failwith "Mul")
-     | MulNoSMT -> uninterp_same_type CN_Names.mul
+     (* | MulNoSMT -> uninterp_same_type CN_Names.mul *)
      | Div ->
        (match get_bt iterm with
         | BT.Bits (BT.Signed, _) -> SMT.bv_sdiv s1 s2
         | BT.Bits (BT.Unsigned, _) -> SMT.bv_udiv s1 s2
         | BT.Integer | BT.Real -> SMT.num_div s1 s2
         | _ -> failwith "Div")
-     | DivNoSMT -> uninterp_same_type CN_Names.div
+     (* | DivNoSMT -> uninterp_same_type CN_Names.div *)
      | Exp ->
        (match (get_num_z e1, get_num_z e2) with
         | Some z1, Some z2 when Z.fits_int z2 ->
           translate_term s (num_lit_ (Z.pow z1 (Z.to_int z2)) (get_bt e1) loc)
         | _, _ -> failwith "Exp")
-     | ExpNoSMT -> uninterp_same_type CN_Names.exp
+     (* | ExpNoSMT -> uninterp_same_type CN_Names.exp *)
      | Rem ->
        (match get_bt iterm with
         | BT.Bits (BT.Signed, _) -> SMT.bv_srem s1 s2
         | BT.Bits (BT.Unsigned, _) -> SMT.bv_urem s1 s2
         | BT.Integer -> SMT.num_rem s1 s2 (* CVC5 ?? *)
         | _ -> failwith "Rem")
-     | RemNoSMT -> uninterp_same_type CN_Names.rem
+     (* | RemNoSMT -> uninterp_same_type CN_Names.rem *)
      | Mod ->
        (match get_bt iterm with
         | BT.Bits (BT.Signed, _) -> SMT.bv_smod s1 s2
         | BT.Bits (BT.Unsigned, _) -> SMT.bv_urem s1 s2
         | BT.Integer -> SMT.num_mod s1 s2
         | _ -> failwith "Mod")
-     | ModNoSMT -> uninterp_same_type CN_Names.mod'
+     (* | ModNoSMT -> uninterp_same_type CN_Names.mod' *)
      | BW_Xor ->
        (match get_bt iterm with BT.Bits _ -> SMT.bv_xor s1 s2 | _ -> failwith "BW_Xor")
      | BW_And ->
@@ -890,20 +867,15 @@ let rec translate_term s iterm =
   | MemberShift (t, tag, member) ->
     CN_Pointer.ptr_shift
       ~ptr:(translate_term s t)
-      ~null_case:(default (Loc ()))
       ~offset:(translate_term s (IT (OffsetOf (tag, member), Memory.uintptr_bt, loc)))
   | ArrayShift { base; ct; index } ->
     CN_Pointer.ptr_shift
       ~ptr:(translate_term s base)
-      ~null_case:(default (Loc ()))
       ~offset:
         (let el_size = int_lit_ (Memory.size_of_ctype ct) Memory.uintptr_bt loc in
          translate_term s (mul_ (el_size, index) loc))
   | CopyAllocId { addr; loc } ->
-    CN_Pointer.copy_alloc_id
-      ~ptr:(translate_term s loc)
-      ~null_case:(default (Loc ()))
-      ~addr:(translate_term s addr)
+    CN_Pointer.copy_alloc_id ~ptr:(translate_term s loc) ~addr:(translate_term s addr)
   | HasAllocId loc -> SMT.is_con CN_Pointer.alloc_id_addr_name (translate_term s loc)
   (* Lists *)
   | Nil bt -> CN_List.nil (translate_base_type bt)
@@ -985,12 +957,12 @@ let rec translate_term s iterm =
          else
            bv_cast ~to_:Memory.uintptr_bt ~from:(get_bt t) smt_term
        in
-       CN_Pointer.bits_to_ptr ~bits:addr ~alloc_id:(default Alloc_id)
+       CN_Pointer.addr_to_ptr ~addr ~alloc_id:(default Alloc_id)
      | Integer, Loc () ->
        (* copied and simplified from above *)
        assert (not !cnBV);
        let addr = smt_term in
-       CN_Pointer.bits_to_ptr ~bits:addr ~alloc_id:(default Alloc_id)
+       CN_Pointer.addr_to_ptr ~addr ~alloc_id:(default Alloc_id)
      | Loc (), Bits _ ->
        assert !cnBV;
        let maybe_cast x =
@@ -1004,8 +976,7 @@ let rec translate_term s iterm =
        (* copied and simplified from above *)
        assert (not !cnBV);
        CN_Pointer.addr_of ~ptr:smt_term
-     | Loc (), Alloc_id ->
-       CN_Pointer.alloc_id_of ~ptr:smt_term ~null_case:(default Alloc_id)
+     | Loc (), Alloc_id -> CN_Pointer.alloc_id_of ~ptr:smt_term
      | MemByte, Bits _ ->
        assert !cnBV;
        let maybe_cast x =

@@ -66,8 +66,8 @@ let add_records_to_map_from_lc = function
 let add_records_to_map_from_cn_statement = function
   | Cnstatement.Assert lc -> add_records_to_map_from_lc lc
   (* All other CN statements are (currently) no-ops at runtime *)
-  | Pack_unpack _ | To_from_bytes _ | Have _ | Instantiate _ | Split_case _ | Extract _
-  | Unfold _ | Apply _ | Inline _ | Print _ ->
+  | Pack_unpack _ | Derive_constraints _ | To_from_bytes _ | Have _ | Instantiate _
+  | Split_case _ | Extract _ | Unfold _ | Apply _ | Inline _ | Print _ ->
     ()
 
 

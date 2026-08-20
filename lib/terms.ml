@@ -24,10 +24,10 @@ type const =
 type unop =
   | Not
   | Negate
-  | BW_CLZ_NoSMT
-  | BW_CTZ_NoSMT
-  | BW_FFS_NoSMT
-  | BW_FLS_NoSMT
+  | BW_CLZ
+  | BW_CTZ
+  | BW_FFS
+  | BW_FLS
   | BW_Compl
 [@@deriving eq, ord, show]
 
@@ -38,15 +38,10 @@ type binop =
   | Add
   | Sub
   | Mul
-  | MulNoSMT
   | Div
-  | DivNoSMT
   | Exp
-  | ExpNoSMT
   | Rem
-  | RemNoSMT
   | Mod
-  | ModNoSMT
   | BW_Xor
   | BW_And
   | BW_Or
@@ -230,10 +225,10 @@ let pp
     | Unop (uop, it1) ->
       let prefix x op p = wrap_after x (!^op ^^ aux p it1) in
       (match uop with
-       | BW_CLZ_NoSMT -> c_app !^"bw_clz_uf" [ aux 0 it1 ]
-       | BW_CTZ_NoSMT -> c_app !^"bw_ctz_uf" [ aux 0 it1 ]
-       | BW_FFS_NoSMT -> c_app !^"bw_ffs_uf" [ aux 0 it1 ]
-       | BW_FLS_NoSMT -> c_app !^"bw_fls_uf" [ aux 0 it1 ]
+       | BW_CLZ -> c_app !^"bw_clz" [ aux 0 it1 ]
+       | BW_CTZ -> c_app !^"bw_ctz" [ aux 0 it1 ]
+       | BW_FFS -> c_app !^"bw_ffs" [ aux 0 it1 ]
+       | BW_FLS -> c_app !^"bw_fls" [ aux 0 it1 ]
        | Not ->
          let infix p op l r =
            wrap_after p (flow (break 1 ^^ op ^^ space) [ aux p l; aux p r ])
@@ -257,15 +252,10 @@ let pp
        | Add -> infix 12 !^"+" 12 12
        | Sub -> infix 12 !^"-" 12 13
        | Mul -> infix 13 !^"*" 13 13
-       | MulNoSMT -> prefix "mul_uf"
        | Div -> infix 13 slash 14 14
-       | DivNoSMT -> prefix "div_uf"
        | Exp -> prefix "power"
-       | ExpNoSMT -> prefix "power_uf"
        | Rem -> infix 13 !^"%" 14 14
-       | RemNoSMT -> prefix "rem_uf"
        | Mod -> prefix "mod"
-       | ModNoSMT -> prefix "mod_uf"
        | EQ -> infix 9 (equals ^^ equals) 9 9
        | LT -> infix 10 (langle ()) 10 10
        | LE -> infix 10 (langle () ^^ equals) 10 10

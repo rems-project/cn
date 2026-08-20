@@ -1,5 +1,7 @@
 module Private : sig
   module Bennet = Bennet
+  module BuildScripts = BuildScripts
+  module SpecExport = SpecExport
 end
 
 module Config = TestGenConfig

@@ -796,15 +796,10 @@ let pp_binop = function
   | Terms.Add -> pp_constructor0 "Terms.Add"
   | Terms.Sub -> pp_constructor0 "Terms.Sub"
   | Terms.Mul -> pp_constructor0 "Terms.Mul"
-  | Terms.MulNoSMT -> pp_constructor0 "Terms.MulNoSMT"
   | Terms.Div -> pp_constructor0 "Terms.Div"
-  | Terms.DivNoSMT -> pp_constructor0 "Terms.DivNoSMT"
   | Terms.Exp -> pp_constructor0 "Terms.Exp"
-  | Terms.ExpNoSMT -> pp_constructor0 "Terms.ExpNoSMT"
   | Terms.Rem -> pp_constructor0 "Terms.Rem"
-  | Terms.RemNoSMT -> pp_constructor0 "Terms.RemNoSMT"
   | Terms.Mod -> pp_constructor0 "Terms.Mod"
-  | Terms.ModNoSMT -> pp_constructor0 "Terms.ModNoSMT"
   | Terms.BW_Xor -> pp_constructor0 "Terms.BW_Xor"
   | Terms.BW_And -> pp_constructor0 "Terms.BW_And"
   | Terms.BW_Or -> pp_constructor0 "Terms.BW_Or"
@@ -1131,10 +1126,10 @@ let pp_trusted = function
 let pp_unop = function
   | Terms.Not -> pp_constructor0 "Not"
   | Negate -> pp_constructor0 "Negate"
-  | BW_CLZ_NoSMT -> pp_constructor0 "BW_CLZ_NoSMT"
-  | BW_CTZ_NoSMT -> pp_constructor0 "BW_CTZ_NoSMT"
-  | BW_FFS_NoSMT -> pp_constructor0 "BW_FFS_NoSMT"
-  | BW_FLS_NoSMT -> pp_constructor0 "BW_FLS_NoSMT"
+  | BW_CLZ -> pp_constructor0 "BW_CLZ"
+  | BW_CTZ -> pp_constructor0 "BW_CTZ"
+  | BW_FFS -> pp_constructor0 "BW_FFS"
+  | BW_FLS -> pp_constructor0 "BW_FLS"
   | BW_Compl -> pp_constructor0 "BW_Compl"
 
 
@@ -1735,6 +1730,15 @@ let pp_cnprogs_extract (ids, extract, term) =
 let pp_cnprog_statement = function
   | Cnstatement.Pack_unpack (pu, Predicate pred) ->
     pp_constructor "CNProgs.Pack_unpack" [ pp_pack_unpack pu; pp_request_ppredicate pred ]
+  | Cnstatement.Derive_constraints preds ->
+    let preds =
+      List.map
+        (function
+          | Cnstatement.Predicate pred -> pp_request_ppredicate pred
+          | Cnstatement.PredicateName _pn -> failwith "todo")
+        preds
+    in
+    pp_constructor "CNProgs.Derive_constraints" preds
   | Cnstatement.Pack_unpack (_pu, PredicateName _) -> failwith "todo"
   | To_from_bytes (tf, pred) ->
     pp_constructor "CNProgs.To_from_bytes" [ pp_to_from tf; pp_request_ppredicate pred ]
@@ -1785,6 +1789,16 @@ let rec pp_cn_statement ppfa ppfty (CF.Cn.CN_statement (loc, stmt)) =
                  pp_list (pp_cn_expr ppfa ppfty) exprs
                ]
            ]
+       | CN_derive_constraints preds_iargs ->
+         pp_constructor2
+           "CN_derive_constraints"
+           (List.map
+              (fun (pred, iargs) ->
+                 pp_tuple
+                   [ pp_cn_pred ppfa ppfty pred;
+                     pp_option (pp_list (pp_cn_expr ppfa ppfty)) iargs
+                   ])
+              preds_iargs)
        | CN_to_from_bytes (tf, pred, exprs) ->
          pp_constructor2
            "CN_to_from_bytes"
@@ -2070,6 +2084,7 @@ let pp_situation (s : Error_common.situation) =
   | Error_common.Access a -> pp_constructor "ErrorCommon.Access" [ pp_access a ]
   | Error_common.Call c -> pp_constructor "ErrorCommon.Call" [ pp_call_situation c ]
   | Error_common.Unpacking -> failwith "todo: pp_situation Unpacking"
+  | Error_common.Derive_constraints -> pp_constructor "ErrorCommon.Derive_constraints" []
 
 
 let pp_init = function
