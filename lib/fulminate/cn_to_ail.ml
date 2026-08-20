@@ -148,7 +148,7 @@ let generate_error_msg_info_update_stats ?(cn_source_loc_opt = None) () =
 
 let cn_pop_msg_info_sym = Sym.fresh "cn_pop_msg_info"
 
-let generate_cn_pop_msg_info =
+let generate_cn_pop_msg_info () =
   let expr_ = A.(AilEcall (mk_expr (AilEident cn_pop_msg_info_sym), [])) in
   [ A.(AilSexpr (mk_expr expr_)) ]
 
@@ -727,7 +727,7 @@ let dest_with_unit_check
         let upd_s =
           generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) ()
         in
-        let pop_s = generate_cn_pop_msg_info in
+        let pop_s = generate_cn_pop_msg_info () in
         upd_s @ (assert_stmt :: pop_s)
       | None -> []
     in
@@ -3748,7 +3748,7 @@ let rec cn_to_ail_lat
     (b1 @ b2 @ [ binding ], (decl :: s1) @ s2)
   | LAT.Resource ((name, (ret, _bt)), (loc, _str_opt), lat) ->
     let upd_s = generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) () in
-    let pop_s = generate_cn_pop_msg_info in
+    let pop_s = generate_cn_pop_msg_info () in
     let free_vars_in_rest = LAT.free_vars TN.free_vars lat in
     let is_used = Sym.Set.mem name free_vars_in_rest in
     let b1, s1 =
@@ -3785,7 +3785,7 @@ let rec cn_to_ail_lat
         let upd_s =
           generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) ()
         in
-        let pop_s = generate_cn_pop_msg_info in
+        let pop_s = generate_cn_pop_msg_info () in
         upd_s @ s @ (assert_stmt :: pop_s)
       | None -> s
     in
@@ -3977,7 +3977,7 @@ let rec cn_to_ail_post_aux
     let new_name = generate_sym_with_suffix ~suffix:"_cn" name in
     let new_lrt = LogicalReturnTypes.subst (ESE.sym_subst (name, bt, new_name)) t in
     let upd_s = generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) () in
-    let pop_s = generate_cn_pop_msg_info in
+    let pop_s = generate_cn_pop_msg_info () in
     let b1, s1 =
       cn_to_ail_resource
         ~is_used
@@ -4011,7 +4011,7 @@ let rec cn_to_ail_post_aux
         let upd_s =
           generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) ()
         in
-        let pop_s = generate_cn_pop_msg_info in
+        let pop_s = generate_cn_pop_msg_info () in
         upd_s @ s @ (assert_stmt :: pop_s)
       | None -> s
     in
@@ -4116,7 +4116,7 @@ let rec cn_to_ail_cnprog_aux ~without_lemma_checks filename dts globals spec_mod
       ((b1 @ (binding :: b2), s @ (ail_stat_ :: ss)), false)
   | Pure (loc, stmt) ->
     let upd_s = generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) () in
-    let pop_s = generate_cn_pop_msg_info in
+    let pop_s = generate_cn_pop_msg_info () in
     (match stmt with
      | Cnstatement.Apply _ ->
        let (bs, ss, e), no_op =
@@ -4179,7 +4179,7 @@ let rec cn_to_ail_cnprog_ghost_arg filename dts globals spec_mode_opt i = functi
     (b1 @ (binding :: b2), s @ (ail_stat_ :: ss))
   | Pure (loc, ghost_it) ->
     let upd_s = generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) () in
-    let pop_s = generate_cn_pop_msg_info in
+    let pop_s = generate_cn_pop_msg_info () in
     let bs, ss, e = cn_to_ail_expr filename dts globals spec_mode_opt ghost_it PassBack in
     let add_arg_to_ghost_frame_call =
       mk_expr
@@ -4301,7 +4301,7 @@ let cn_to_ail_statements
       (loc, cn_progs)
   =
   let upd_s = generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) () in
-  let pop_s = generate_cn_pop_msg_info in
+  let pop_s = generate_cn_pop_msg_info () in
   let bs_and_ss =
     List.map
       (fun prog ->
@@ -4344,7 +4344,7 @@ let rec cn_to_ail_lat_internal_loop
     (b1 @ b2 @ [ binding ], (decl :: s1) @ s2)
   | LAT.Resource ((name, (ret, _bt)), (loc, _str_opt), lat) ->
     let upd_s = generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) () in
-    let pop_s = generate_cn_pop_msg_info in
+    let pop_s = generate_cn_pop_msg_info () in
     let free_vars_in_rest_of_inv = LAT.free_vars ESE.statements_free_vars lat in
     let free_vars_in_cn_stats = ESE.statements_free_vars cn_stats in
     let is_used =
@@ -4386,7 +4386,7 @@ let rec cn_to_ail_lat_internal_loop
         let upd_s =
           generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) ()
         in
-        let pop_s = generate_cn_pop_msg_info in
+        let pop_s = generate_cn_pop_msg_info () in
         upd_s @ s @ (assert_stmt :: pop_s)
       | None -> s
     in
@@ -4699,7 +4699,7 @@ let rec cn_to_ail_lat_2
     let new_lat = ESE.fn_largs_and_body_subst (ESE.sym_subst (name, bt, new_name)) lat in
     let spec_mode_opt = Some Pre in
     let upd_s = generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) () in
-    let pop_s = generate_cn_pop_msg_info in
+    let pop_s = generate_cn_pop_msg_info () in
     let b1, s1 =
       cn_to_ail_resource
         ~is_used
@@ -4737,7 +4737,7 @@ let rec cn_to_ail_lat_2
         let upd_s =
           generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) ()
         in
-        let pop_s = generate_cn_pop_msg_info in
+        let pop_s = generate_cn_pop_msg_info () in
         upd_s @ s @ (assert_stmt :: pop_s)
       | None -> s
     in
@@ -4831,11 +4831,19 @@ let rec cn_to_ail_lat_2
     let ownership_stats_ =
       if without_ownership_checking then
         []
-      else
+      else (
+        let sym_to_fcall_stat_ =
+          fun fn_sym -> A.AilSexpr (mk_expr (AilEcall (mk_expr (AilEident fn_sym), [])))
+        in
+        let stack_depth_decr_stat_ = sym_to_fcall_stat_ OE.cn_stack_depth_decr_sym in
+        let postcondition_leak_check_stat_ =
+          sym_to_fcall_stat_ OE.cn_postcondition_leak_check_sym
+        in
+        let upd_s = generate_error_msg_info_update_stats () in
+        let pop_s = generate_cn_pop_msg_info () in
         List.map
-          (fun fn_sym ->
-             mk_stmt (A.AilSexpr (mk_expr (AilEcall (mk_expr (AilEident fn_sym), [])))))
-          OE.[ cn_stack_depth_decr_sym; cn_postcondition_leak_check_sym ]
+          mk_stmt
+          ((stack_depth_decr_stat_ :: upd_s) @ (postcondition_leak_check_stat_ :: pop_s)))
     in
     let block =
       A.(

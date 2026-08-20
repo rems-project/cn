@@ -126,6 +126,7 @@ void print_error_msg_info_single(struct cn_error_message_info* info) {
       cn_printf(
           CN_LOGGING_ERROR, "original source location: \n%s\n\n", info->cn_source_loc);
     } else {
+      // TODO: introduce new --source-locs-mode, so --exec-c-locs-mode is the default
       cn_printf(CN_LOGGING_ERROR,
           "no source location found (try running with --exec-c-locs-mode enabled)")
     }
@@ -295,11 +296,12 @@ void cn_postcondition_leak_check(void) {
   rmap_range_res_t res = rmap_find_range(0UL, -1UL, cn_ownership_global_ghost_state);
   if (res.max > cn_stack_depth) {
     print_error_msg_info(global_error_msg_info);
-    // XXX TODO: scan for the failing address
-    // cn_printf(CN_LOGGING_ERROR,
-    //     "Postcondition leak check failed, ownership leaked for pointer " FMT_PTR "\n",
-    //     (uintptr_t)*key);
-    cn_failure(CN_FAILURE_OWNERSHIP_LEAK, POST);
+    cn_printf(CN_LOGGING_ERROR, "Postcondition leak check failed.\n")
+        // XXX TODO: scan for the failing address
+        // cn_printf(CN_LOGGING_ERROR,
+        //     "Postcondition leak check failed, ownership leaked for pointer " FMT_PTR "\n",
+        //     (uintptr_t)*key);
+        cn_failure(CN_FAILURE_OWNERSHIP_LEAK, POST);
   }
 }
 
