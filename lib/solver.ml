@@ -309,8 +309,6 @@ module CN_Pointer = struct
 
   let copy_alloc_id_name = "copy_alloc_id"
 
-  let alloc_id_of_name = "alloc_id_of"
-
   (* TODO: this should probably be renamed to something like raw_addr_to_ptr_name *)
   let addr_to_ptr_name = "addr_to_ptr"
 
@@ -334,37 +332,24 @@ module CN_Pointer = struct
           ];
         SMT.define_fun
           ptr_shift_name
-          [ ("p", t); ("offset", addr_type ()); ("null_case", t) ]
+          [ ("p", t); ("offset", addr_type ()) ]
           t
-          (match_ptr
-             (SMT.atom "p")
-             ~null_case:(SMT.atom "null_case")
-             ~alloc_id_addr_case:(fun ~alloc_id ~addr ->
-               con_aia
-                 ~alloc_id
-                 ~addr:
-                   (if !cnBV then
-                      SMT.bv_add addr (SMT.atom "offset")
-                    else
-                      SMT.num_add addr (SMT.atom "offset"))));
+          (con_aia
+             ~alloc_id:(SMT.app_ alloc_id_name [ SMT.atom "p" ])
+             ~addr:
+               (let addr = SMT.app_ addr_name [ SMT.atom "p" ] in
+                if !cnBV then
+                  SMT.bv_add addr (SMT.atom "offset")
+                else
+                  SMT.num_add addr (SMT.atom "offset")));
         (* TODO: these do not behave the same unless the typing rules have bounds checks *)
         SMT.define_fun
           copy_alloc_id_name
-          [ ("p", t); ("new_addr", addr_type ()); ("null_case", t) ]
+          [ ("p", t); ("new_addr", addr_type ()) ]
           t
-          (match_ptr
-             (SMT.atom "p")
-             ~null_case:(SMT.atom "null_case")
-             ~alloc_id_addr_case:(fun ~alloc_id ~addr:_ ->
-               con_aia ~alloc_id ~addr:(SMT.atom "new_addr")));
-        SMT.define_fun
-          alloc_id_of_name
-          [ ("p", t); ("null_case", CN_AllocId.t ()) ]
-          (CN_AllocId.t ())
-          (match_ptr
-             (SMT.atom "p")
-             ~null_case:(SMT.atom "null_case")
-             ~alloc_id_addr_case:(fun ~alloc_id ~addr:_ -> alloc_id));
+          (con_aia
+             ~alloc_id:(SMT.app_ alloc_id_name [ SMT.atom "p" ])
+             ~addr:(SMT.atom "new_addr"));
         SMT.define_fun
           addr_to_ptr_name
           [ ("bits", addr_type ()); ("alloc_id", CN_AllocId.t ()) ]
@@ -384,15 +369,11 @@ module CN_Pointer = struct
       ]
 
 
-  let ptr_shift ~ptr ~offset ~null_case =
-    SMT.app_ ptr_shift_name [ ptr; offset; null_case ]
+  let ptr_shift ~ptr ~offset = SMT.app_ ptr_shift_name [ ptr; offset ]
 
+  let copy_alloc_id ~ptr ~addr = SMT.app_ copy_alloc_id_name [ ptr; addr ]
 
-  let copy_alloc_id ~ptr ~addr ~null_case =
-    SMT.app_ copy_alloc_id_name [ ptr; addr; null_case ]
-
-
-  let alloc_id_of ~ptr ~null_case = SMT.app_ alloc_id_of_name [ ptr; null_case ]
+  let alloc_id_of ~ptr = SMT.app_ alloc_id_name [ ptr ]
 
   let addr_to_ptr ~addr ~alloc_id = SMT.app_ addr_to_ptr_name [ addr; alloc_id ]
 
@@ -886,20 +867,15 @@ let rec translate_term s iterm =
   | MemberShift (t, tag, member) ->
     CN_Pointer.ptr_shift
       ~ptr:(translate_term s t)
-      ~null_case:(default (Loc ()))
       ~offset:(translate_term s (IT (OffsetOf (tag, member), Memory.uintptr_bt, loc)))
   | ArrayShift { base; ct; index } ->
     CN_Pointer.ptr_shift
       ~ptr:(translate_term s base)
-      ~null_case:(default (Loc ()))
       ~offset:
         (let el_size = int_lit_ (Memory.size_of_ctype ct) Memory.uintptr_bt loc in
          translate_term s (mul_ (el_size, index) loc))
   | CopyAllocId { addr; loc } ->
-    CN_Pointer.copy_alloc_id
-      ~ptr:(translate_term s loc)
-      ~null_case:(default (Loc ()))
-      ~addr:(translate_term s addr)
+    CN_Pointer.copy_alloc_id ~ptr:(translate_term s loc) ~addr:(translate_term s addr)
   | HasAllocId loc -> SMT.is_con CN_Pointer.alloc_id_addr_name (translate_term s loc)
   (* Lists *)
   | Nil bt -> CN_List.nil (translate_base_type bt)
@@ -1000,8 +976,7 @@ let rec translate_term s iterm =
        (* copied and simplified from above *)
        assert (not !cnBV);
        CN_Pointer.addr_of ~ptr:smt_term
-     | Loc (), Alloc_id ->
-       CN_Pointer.alloc_id_of ~ptr:smt_term ~null_case:(default Alloc_id)
+     | Loc (), Alloc_id -> CN_Pointer.alloc_id_of ~ptr:smt_term
      | MemByte, Bits _ ->
        assert !cnBV;
        let maybe_cast x =
