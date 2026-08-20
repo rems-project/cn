@@ -1,7 +1,7 @@
-// This tests surfaces the implementation choice for shifting NULL pointers
-// as an unknown pointer value (rather than NULL, or converting to the offset with
-// an empty provenance, or the previous default value).
-// Users should not be shifting NULL in their specs
+// This tests surfaces the implementation choice for shifting NULL
+// pointers as an unspecified pointer value, rather than NULL or
+// converting to the offset with an empty provenance or the previous
+// default value. Users should not be shifting NULL in their specs
 void f(int *p)
 /*@
 requires
