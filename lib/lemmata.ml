@@ -290,10 +290,12 @@ let rec bt_to_itp (bt : CI.itp_bt) =
     tuple_itp_ty !^"" enc_fld_bts
   | CI.ITP_Set _bt2 -> rets "unsupported BT set"
 
+
 (* Let and forall occur in both pure and resource terms*)
 let pp_let sym rhs_doc doc =
   let open Pp in
   !^"let" ^^^ Sym.pp sym ^^^ !^":=" ^^^ rhs_doc ^^^ !^"in" ^^^ doc
+
 
 let pp_forall (sym : Sym.t) (bt : CI.itp_bt) (doc : Pp.document) =
   let open Pp in
@@ -433,8 +435,9 @@ let term_to_itp (global : Global.t) (t : CI.itp_pure_term) =
     | CI.ITP_good -> rets ""
     | CI.ITP_retsym -> rets ret_sym
     | CI.ITP_unsupported_pure msg -> rets ("unsupported ITP_pure_term: " ^ msg)
-      in
+  in
   f global t
+
 
 let rec resource_to_itp (global : Global.t) (t : CI.itp_resource_term) =
   let open Pp in
@@ -444,45 +447,46 @@ let rec resource_to_itp (global : Global.t) (t : CI.itp_resource_term) =
   let aux' t = resource_to_itp global t in
   let map_split f = fun doc -> f (break 1 ^^ doc) in
   match t with
-    | CI.ITP_Let_Resource (CI.ITP_sym nm, x, y) -> parensM (pp_let nm (aux x) (aux' y))
-    | CI.ITP_Forall (CI.ITP_sym sym, bt, t) -> pp_forall sym bt (aux' t)
-    | CI.ITP_Exists (CI.ITP_sym sym, bt, t) -> 
-      !^"∃" ^^^ parens (typ (Sym.pp sym) (bt_to_itp bt)) ^^ !^"," ^^ break 1 ^^ (aux' t)
-    | CI.ITP_Star (t1 , t2) ->  mk_star (aux' t1) (aux' t2)
-    | CI.ITP_Wand (t1, t2) -> mk_wand (aux' t1) (aux' t2)
-    | CI.ITP_Pure t -> iris_pure (aux t)
-    | CI.ITP_Define (CI.ITP_sym sym, x, y) -> map_split (pp_let sym (aux x)) (aux' y)
-    | CI.ITP_Empty_Heap -> rets "emp"
-    | CI.ITP_Block (CI.ITP_sym s, _, t, _) ->
-      let op_nm = "Block_" ^ Sym.pp_string s in
-      parensM (build [ rets op_nm; aux' t ])
-    | CI.ITP_Owned (op_nm , ptr, CI.ITP_sym rt, t) ->
-      (build [ rets op_nm; aux ptr; rets (Sym.pp_string rt); aux' t ])
-    | CI.ITP_PName (CI.ITP_sym nm, CI.ITP_sym pname, iargs, ptr) ->
-      let args = List.map aux iargs in
-        (build ((Sym.pp pname :: aux ptr :: args) @ [ Sym.pp nm ]))
-    | CI.ITP_Each (ITP_sym nm, ptr, perm, pred) ->
-      (match perm with
-       | ITP_binop
-           (ITP_and_prop, ITP_binop (_, min_term, _, _), ITP_binop (_, _, max_term, _), _)
-         ->
-         let min_doc a = parens (rets "Z.to_nat " ^^ a) in
-         build
-           [ rets "each_int ";
-             min_doc (aux min_term);
-             parens
-               (rets "Z.to_nat "
-                ^^ parens (aux max_term)
-                ^^ rets " - "
-                ^^ min_doc (aux min_term))
-             ^^ rets "%nat";
-             aux ptr;
-             !^(Sym.pp_string nm);
-             aux' pred
-           ]
-       | _ -> rets "unsupported ITP_Each_LAT perm")
-    | CI.ITP_Good -> rets ""
-    | CI.ITP_Unsupported_Resource msg -> rets msg
+  | CI.ITP_Let_Resource (CI.ITP_sym nm, x, y) -> parensM (pp_let nm (aux x) (aux' y))
+  | CI.ITP_Forall (CI.ITP_sym sym, bt, t) -> pp_forall sym bt (aux' t)
+  | CI.ITP_Exists (CI.ITP_sym sym, bt, t) ->
+    !^"∃" ^^^ parens (typ (Sym.pp sym) (bt_to_itp bt)) ^^ !^"," ^^ break 1 ^^ aux' t
+  | CI.ITP_Star (t1, t2) -> mk_star (aux' t1) (aux' t2)
+  | CI.ITP_Wand (t1, t2) -> mk_wand (aux' t1) (aux' t2)
+  | CI.ITP_Pure t -> iris_pure (aux t)
+  | CI.ITP_Define (CI.ITP_sym sym, x, y) -> map_split (pp_let sym (aux x)) (aux' y)
+  | CI.ITP_Empty_Heap -> rets "emp"
+  | CI.ITP_Block (CI.ITP_sym s, _, t, _) ->
+    let op_nm = "Block_" ^ Sym.pp_string s in
+    parensM (build [ rets op_nm; aux' t ])
+  | CI.ITP_Owned (op_nm, ptr, CI.ITP_sym rt, t) ->
+    build [ rets op_nm; aux ptr; rets (Sym.pp_string rt); aux' t ]
+  | CI.ITP_PName (CI.ITP_sym nm, CI.ITP_sym pname, iargs, ptr) ->
+    let args = List.map aux iargs in
+    build ((Sym.pp pname :: aux ptr :: args) @ [ Sym.pp nm ])
+  | CI.ITP_Each (ITP_sym nm, ptr, perm, pred) ->
+    (match perm with
+     | ITP_binop
+         (ITP_and_prop, ITP_binop (_, min_term, _, _), ITP_binop (_, _, max_term, _), _)
+       ->
+       let min_doc a = parens (rets "Z.to_nat " ^^ a) in
+       build
+         [ rets "each_int ";
+           min_doc (aux min_term);
+           parens
+             (rets "Z.to_nat "
+              ^^ parens (aux max_term)
+              ^^ rets " - "
+              ^^ min_doc (aux min_term))
+           ^^ rets "%nat";
+           aux ptr;
+           !^(Sym.pp_string nm);
+           aux' pred
+         ]
+     | _ -> rets "unsupported ITP_Each_LAT perm")
+  | CI.ITP_Good -> rets ""
+  | CI.ITP_Unsupported_Resource msg -> rets msg
+
 
 let convert_lemma_defs global (lemmas : CI.itp_lemma list) =
   let lemma_ty (CI.ITP_lemma (CI.ITP_sym nm, tm)) =
@@ -550,9 +554,7 @@ let translate_pred (gl : Global.t) (preds : CI.itp_resource_pred_group list) =
             ^^ intersperse
                  ""
                  ""
-                 (List.map
-                    (fun y -> !^" ∧ " ^^ iris_pure (!^"~" ^^ term_to_itp gl y))
-                    xs)
+                 (List.map (fun y -> !^" ∧ " ^^ iris_pure (!^"~" ^^ term_to_itp gl y)) xs)
           | [] -> rets "True"
         in
         let body_doc = resource_to_itp gl body in

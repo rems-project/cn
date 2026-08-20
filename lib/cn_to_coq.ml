@@ -20,6 +20,7 @@ let rec pat_to_itp_ir pat =
   | Terms.Pat (Terms.PConstructor (c_nm, id_ps), _, _) ->
     CI.ITP_pConstructor (CI.ITP_sym c_nm, List.map (fun x -> pat_to_itp_ir (snd x)) id_ps)
 
+
 let struct_layout_field_bts xs =
   let open Memory in
   let xs2 =
@@ -243,7 +244,8 @@ let it_to_itp_ir global it b =
        | Some s ->
          CI.ITP_representable (CI.ITP_sym s, CI.ITP_Struct (CI.ITP_sym s, []), aux t2)
        | None ->
-         CI.ITP_unsupported_pure "Unsupported representable (why are we in the None case?)")
+         CI.ITP_unsupported_pure
+           "Unsupported representable (why are we in the None case?)")
     | Terms.Constructor (nm, id_args) ->
       let comp = Some (it, "datatype contents") in
       (* assuming here that the id's are in canonical order *)
@@ -278,12 +280,14 @@ let it_to_itp_ir global it b =
   in
   f b it
 
+
 (* unpacking LogicalConstraints *)
 let lc_to_itp_ir (gl : Global.t) (t : LC.t) =
   match t with
-  | LC.T t -> (match (it_to_itp_ir gl t None) with
-    | CI.ITP_good -> CI.ITP_Good
-    | _ -> CI.ITP_Pure (it_to_itp_ir gl t None))
+  | LC.T t ->
+    (match it_to_itp_ir gl t None with
+     | CI.ITP_good -> CI.ITP_Good
+     | _ -> CI.ITP_Pure (it_to_itp_ir gl t None))
   | LC.Forall ((sym, bt), it) ->
     CI.ITP_Forall
       (CI.ITP_sym sym, bt_to_itp_ir gl bt, CI.ITP_Pure (it_to_itp_ir gl it None))
@@ -312,45 +316,51 @@ let rec lrt_to_itp_ir (gl : Global.t) (t : LRT.t) =
        (match p.name with
         | Owned (_, init) ->
           (match init with
-           | Init -> let op_nm = 
-              (match bt with
-                | BaseTypes.Bits _ -> "Owned_int" 
-                | BaseTypes.Struct nm -> "Owned_" ^ Sym.pp_string nm
-                | _ -> "Unsupported owned_LRT type"
-              ) in
-              CI.ITP_Exists (CI.ITP_sym nm, 
-                bt_to_itp_ir gl bt, 
-                ITP_Owned (op_nm, 
-                          it_to_itp_ir gl p.pointer None, 
-                          CI.ITP_sym nm, 
-                          lrt_to_itp_ir gl t))
+           | Init ->
+             let op_nm =
+               match bt with
+               | BaseTypes.Bits _ -> "Owned_int"
+               | BaseTypes.Struct nm -> "Owned_" ^ Sym.pp_string nm
+               | _ -> "Unsupported owned_LRT type"
+             in
+             CI.ITP_Exists
+               ( CI.ITP_sym nm,
+                 bt_to_itp_ir gl bt,
+                 ITP_Owned
+                   ( op_nm,
+                     it_to_itp_ir gl p.pointer None,
+                     CI.ITP_sym nm,
+                     lrt_to_itp_ir gl t ) )
            | Uninit ->
              ITP_Block
                ( CI.ITP_sym nm,
                  bt_to_itp_ir gl bt,
                  lrt_to_itp_ir gl t,
                  it_to_itp_ir gl p.pointer None ))
-        | PName p_nm -> CI.ITP_Star
-            (CI.ITP_Exists (CI.ITP_sym nm, 
-              bt_to_itp_ir gl bt, 
-              ITP_PName (CI.ITP_sym nm, 
-                        CI.ITP_sym p_nm, 
-                        List.map (fun x -> it_to_itp_ir gl x None) p.iargs,
-                        it_to_itp_ir gl p.pointer None)),
-            lrt_to_itp_ir gl t))
+        | PName p_nm ->
+          CI.ITP_Star
+            ( CI.ITP_Exists
+                ( CI.ITP_sym nm,
+                  bt_to_itp_ir gl bt,
+                  ITP_PName
+                    ( CI.ITP_sym nm,
+                      CI.ITP_sym p_nm,
+                      List.map (fun x -> it_to_itp_ir gl x None) p.iargs,
+                      it_to_itp_ir gl p.pointer None ) ),
+              lrt_to_itp_ir gl t ))
      | Q q ->
        (match q.name with
         | Owned _ ->
           CI.ITP_Exists
-          ( CI.ITP_sym nm,
-            ITP_List (ITP_Integer),
-            CI.ITP_Each
             ( CI.ITP_sym nm,
-              it_to_itp_ir gl q.pointer None,
-              (* permission *)
-              it_to_itp_ir gl q.permission None,
-              (* term *)
-              lrt_to_itp_ir gl t))
+              ITP_List ITP_Integer,
+              CI.ITP_Each
+                ( CI.ITP_sym nm,
+                  it_to_itp_ir gl q.pointer None,
+                  (* permission *)
+                  it_to_itp_ir gl q.permission None,
+                  (* term *)
+                  lrt_to_itp_ir gl t ) )
         | PName _ -> CI.ITP_Unsupported_Resource "unsupported Qpred PName in LRT"))
 
 
@@ -366,31 +376,33 @@ let rec it_lat_to_itp_ir (gl : Global.t) (t : Terms.Normal.t LAT.t) =
     let c = lc_to_itp_ir gl lc in
     let d = it_lat_to_itp_ir gl t in
     CI.ITP_Star (c, d)
-  | LAT.I t -> 
-      CI.ITP_Pure 
-        (CI.ITP_binop 
-          (CI.ITP_eq_prop, CI.ITP_retsym, (it_to_itp_ir gl t None), CI.ITP_Bool))
+  | LAT.I t ->
+    CI.ITP_Pure
+      (CI.ITP_binop (CI.ITP_eq_prop, CI.ITP_retsym, it_to_itp_ir gl t None, CI.ITP_Bool))
   | LAT.Resource ((nm, (req, bt)), _, t) ->
     (match req with
      | P p ->
        (match p.name with
         | Owned (_, init) ->
           (match init with
-           | Init -> let op_nm = 
-              (match bt with
-                | BaseTypes.Bits _ -> "Owned_int" 
-                | BaseTypes.Loc _ -> "Owned_int"
-                | BaseTypes.Map _ -> "Owned_int"
-                | BaseTypes.Struct nm -> "Owned_" ^ Sym.pp_string nm
-                | _ -> "Unsupported owned_LRT type"
-              ) in
-              CI.ITP_Exists (CI.ITP_sym nm, 
-                bt_to_itp_ir gl bt, 
-                ITP_Owned (op_nm, 
-                          it_to_itp_ir gl p.pointer None, 
-                          CI.ITP_sym nm, 
-                          it_lat_to_itp_ir gl t))
-              (* TODO: forall case if if_clause is false? *)
+           | Init ->
+             let op_nm =
+               match bt with
+               | BaseTypes.Bits _ -> "Owned_int"
+               | BaseTypes.Loc _ -> "Owned_int"
+               | BaseTypes.Map _ -> "Owned_int"
+               | BaseTypes.Struct nm -> "Owned_" ^ Sym.pp_string nm
+               | _ -> "Unsupported owned_LRT type"
+             in
+             CI.ITP_Exists
+               ( CI.ITP_sym nm,
+                 bt_to_itp_ir gl bt,
+                 ITP_Owned
+                   ( op_nm,
+                     it_to_itp_ir gl p.pointer None,
+                     CI.ITP_sym nm,
+                     it_lat_to_itp_ir gl t ) )
+             (* TODO: forall case if if_clause is false? *)
            | Uninit ->
              ITP_Block
                ( CI.ITP_sym nm,
@@ -399,13 +411,15 @@ let rec it_lat_to_itp_ir (gl : Global.t) (t : Terms.Normal.t LAT.t) =
                  it_to_itp_ir gl p.pointer None ))
         | PName p_nm ->
           CI.ITP_Star
-            (CI.ITP_Exists (CI.ITP_sym nm, 
-                  bt_to_itp_ir gl bt, 
-                  ITP_PName (CI.ITP_sym nm, 
-                            CI.ITP_sym p_nm, 
-                            List.map (fun x -> it_to_itp_ir gl x None) p.iargs,
-                            it_to_itp_ir gl p.pointer None)),
-            it_lat_to_itp_ir gl t))
+            ( CI.ITP_Exists
+                ( CI.ITP_sym nm,
+                  bt_to_itp_ir gl bt,
+                  ITP_PName
+                    ( CI.ITP_sym nm,
+                      CI.ITP_sym p_nm,
+                      List.map (fun x -> it_to_itp_ir gl x None) p.iargs,
+                      it_to_itp_ir gl p.pointer None ) ),
+              it_lat_to_itp_ir gl t ))
      (* Can iterated resources even appear here? *)
      | Q q ->
        (match q.name with
@@ -423,7 +437,7 @@ let rec lrtlat_to_itp_ir (gl : Global.t) t =
   | LAT.Constraint (lc, _, t) ->
     let c = lc_to_itp_ir gl lc in
     let d = lrtlat_to_itp_ir gl t in
-    CI.ITP_Wand(c, d)
+    CI.ITP_Wand (c, d)
   | LAT.I t -> lrt_to_itp_ir gl t
   | LAT.Resource ((nm, (req, bt)), _, t) ->
     (match req with
@@ -432,20 +446,22 @@ let rec lrtlat_to_itp_ir (gl : Global.t) t =
         | Owned (_, init) ->
           (match init with
            | Init ->
-             let op_nm = 
-              (match bt with
-                | BaseTypes.Bits _ -> "Owned_int" 
-                | BaseTypes.Loc _ -> "Owned_int"
-                | BaseTypes.Map _ -> "Owned_int"
-                | BaseTypes.Struct nm -> "Owned_" ^ Sym.pp_string nm
-                | _ -> "Unsupported owned_LRT type"
-              ) in
-              CI.ITP_Forall (CI.ITP_sym nm, 
-                bt_to_itp_ir gl bt, 
-                ITP_Owned (op_nm, 
-                          it_to_itp_ir gl p.pointer None, 
-                          CI.ITP_sym nm, 
-                          lrtlat_to_itp_ir gl t))
+             let op_nm =
+               match bt with
+               | BaseTypes.Bits _ -> "Owned_int"
+               | BaseTypes.Loc _ -> "Owned_int"
+               | BaseTypes.Map _ -> "Owned_int"
+               | BaseTypes.Struct nm -> "Owned_" ^ Sym.pp_string nm
+               | _ -> "Unsupported owned_LRT type"
+             in
+             CI.ITP_Forall
+               ( CI.ITP_sym nm,
+                 bt_to_itp_ir gl bt,
+                 ITP_Owned
+                   ( op_nm,
+                     it_to_itp_ir gl p.pointer None,
+                     CI.ITP_sym nm,
+                     lrtlat_to_itp_ir gl t ) )
            | Uninit ->
              ITP_Block
                ( CI.ITP_sym nm,
@@ -454,28 +470,30 @@ let rec lrtlat_to_itp_ir (gl : Global.t) t =
                  it_to_itp_ir gl p.pointer None ))
         | PName p_nm ->
           CI.ITP_Wand
-            (CI.ITP_Forall (CI.ITP_sym nm, 
-                  bt_to_itp_ir gl bt, 
-                  ITP_PName (CI.ITP_sym nm, 
-                            CI.ITP_sym p_nm, 
-                            List.map (fun x -> it_to_itp_ir gl x None) p.iargs,
-                            it_to_itp_ir gl p.pointer None)),
-            lrtlat_to_itp_ir gl t))
+            ( CI.ITP_Forall
+                ( CI.ITP_sym nm,
+                  bt_to_itp_ir gl bt,
+                  ITP_PName
+                    ( CI.ITP_sym nm,
+                      CI.ITP_sym p_nm,
+                      List.map (fun x -> it_to_itp_ir gl x None) p.iargs,
+                      it_to_itp_ir gl p.pointer None ) ),
+              lrtlat_to_itp_ir gl t ))
      | Q q ->
        (match q.name with
         | Owned (_, init) ->
           (match init with
            | Init ->
-            CI.ITP_Forall
-            ( CI.ITP_sym nm,
-              ITP_List (ITP_Integer),
-              CI.ITP_Each
-              ( CI.ITP_sym nm,
-                it_to_itp_ir gl q.pointer None,
-                (* permission *)
-                it_to_itp_ir gl q.permission None,
-                (* term *)
-                lrtlat_to_itp_ir gl t))
+             CI.ITP_Forall
+               ( CI.ITP_sym nm,
+                 ITP_List ITP_Integer,
+                 CI.ITP_Each
+                   ( CI.ITP_sym nm,
+                     it_to_itp_ir gl q.pointer None,
+                     (* permission *)
+                     it_to_itp_ir gl q.permission None,
+                     (* term *)
+                     lrtlat_to_itp_ir gl t ) )
            | Uninit ->
              ITP_Block
                ( CI.ITP_sym nm,
@@ -503,7 +521,7 @@ let fun_to_itp_ir (gl : Global.t) nm =
   match def.body with
   | Uninterp ->
     CI.ITP_fun_uninterp
-      ( CI.ITP_sym nm, CI.ITP_uninterp, arg_tys, bt_to_itp_ir gl def.return_bt)
+      (CI.ITP_sym nm, CI.ITP_uninterp, arg_tys, bt_to_itp_ir gl def.return_bt)
   | Def body ->
     CI.ITP_fun_def
       ( CI.ITP_sym nm,
