@@ -337,11 +337,11 @@ let rec lrt_to_itp_ir (gl : Global.t) (t : LRT.t) =
                  it_to_itp_ir gl p.pointer None ))
         | PName p_nm -> CI.ITP_Star
             (CI.ITP_Exists (CI.ITP_sym nm, 
-                  bt_to_itp_ir gl bt, 
-                  ITP_PName (CI.ITP_sym nm, 
-                            CI.ITP_sym p_nm, 
-                            List.map (fun x -> it_to_itp_ir gl x None) p.iargs,
-                            it_to_itp_ir gl p.pointer None)),
+              bt_to_itp_ir gl bt, 
+              ITP_PName (CI.ITP_sym nm, 
+                        CI.ITP_sym p_nm, 
+                        List.map (fun x -> it_to_itp_ir gl x None) p.iargs,
+                        it_to_itp_ir gl p.pointer None)),
             lrt_to_itp_ir gl t))
      | Q q ->
        (match q.name with
@@ -358,7 +358,7 @@ let rec lrt_to_itp_ir (gl : Global.t) (t : LRT.t) =
 
 
 (* Unpacking LogicalArgumentTypes that wrap IndexTerms (i.e. in resource predicates) *)
-(* everything here is a clause! *)
+(* These are clauses, e.g. they are existentials connected with star, rather than foralls with wands *)
 let rec it_lat_to_itp_ir (gl : Global.t) (t : Terms.Normal.t LAT.t) =
   match t with
   | LAT.Define ((sym, it), _, t) ->

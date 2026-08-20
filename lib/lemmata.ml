@@ -290,28 +290,14 @@ let rec bt_to_itp (bt : CI.itp_bt) =
     tuple_itp_ty !^"" enc_fld_bts
   | CI.ITP_Set _bt2 -> rets "unsupported BT set"
 
-
+(* Let and forall occur in both pure and resource terms*)
 let pp_let sym rhs_doc doc =
   let open Pp in
   !^"let" ^^^ Sym.pp sym ^^^ !^":=" ^^^ rhs_doc ^^^ !^"in" ^^^ doc
 
-
-let pp_forall sym bt doc =
+let pp_forall (sym : Sym.t) (bt : CI.itp_bt) (doc : Pp.document) =
   let open Pp in
-  let itp_bt = bt_to_itp bt in
-  !^"∀" ^^^ parens (typ (Sym.pp sym) itp_bt) ^^ !^"," ^^ break 1 ^^ doc
-
-
-let pp_exists sym bt doc =
-  let open Pp in
-  let itp_bt = bt_to_itp bt in
-  !^"∃" ^^^ parens (typ (Sym.pp sym) itp_bt) ^^ !^"," ^^ break 1 ^^ doc
-
-
-let pp_each_int (nm : Sym.t) (forall : bool) =
-  let quantifier = if forall then "∀" else "∃" in
-  let open Pp in
-  !^(quantifier ^ " ( ") ^^ Sym.pp nm ^^ !^" : list Z), each_int "
+  !^"∀" ^^^ parens (typ (Sym.pp sym) (bt_to_itp bt)) ^^ !^"," ^^ break 1 ^^ doc
 
 
 let norm_bv_op bt doc_f =
@@ -460,7 +446,8 @@ let rec resource_to_itp (global : Global.t) (t : CI.itp_resource_term) =
   match t with
     | CI.ITP_Let_Resource (CI.ITP_sym nm, x, y) -> parensM (pp_let nm (aux x) (aux' y))
     | CI.ITP_Forall (CI.ITP_sym sym, bt, t) -> pp_forall sym bt (aux' t)
-    | CI.ITP_Exists (CI.ITP_sym sym, bt, t) -> pp_exists sym bt (aux' t)
+    | CI.ITP_Exists (CI.ITP_sym sym, bt, t) -> 
+      !^"∃" ^^^ parens (typ (Sym.pp sym) (bt_to_itp bt)) ^^ !^"," ^^ break 1 ^^ (aux' t)
     | CI.ITP_Star (t1 , t2) ->  mk_star (aux' t1) (aux' t2)
     | CI.ITP_Wand (t1, t2) -> mk_wand (aux' t1) (aux' t2)
     | CI.ITP_Pure t -> iris_pure (aux t)
@@ -480,8 +467,9 @@ let rec resource_to_itp (global : Global.t) (t : CI.itp_resource_term) =
            (ITP_and_prop, ITP_binop (_, min_term, _, _), ITP_binop (_, _, max_term, _), _)
          ->
          let min_doc a = parens (rets "Z.to_nat " ^^ a) in
+         let quantifier = if b then "∀" else "∃" in
          build
-           [ pp_each_int nm b;
+           [ !^(quantifier ^ " ( ") ^^ Sym.pp nm ^^ !^" : list Z), each_int ";
              min_doc (aux min_term);
              parens
                (rets "Z.to_nat "

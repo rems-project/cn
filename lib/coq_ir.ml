@@ -110,17 +110,16 @@ type itp_resource_term =
   | ITP_Star of itp_resource_term * itp_resource_term
   | ITP_Wand of itp_resource_term * itp_resource_term
   | ITP_Pure of itp_pure_term
-  (* Todo: make this disappear *)
   | ITP_Good
   | ITP_Let_Resource of itp_sym * itp_pure_term * itp_resource_term
   | ITP_Define of itp_sym * itp_pure_term * itp_resource_term
-  | ITP_Empty_Heap
-  (* Name of owned function, pointer, name of return argument, term*)
+  (* Name of ownership function (e.g. "Owned_int"), pointer, name of return argument, term*)
   | ITP_Owned of string * itp_pure_term * itp_sym * itp_resource_term
   | ITP_Block of itp_sym * itp_bt * itp_resource_term * itp_pure_term
   | ITP_PName of itp_sym * itp_sym * itp_pure_term list * itp_pure_term
-  (* TODO: bool is a placeholder for lrt/lat distinction, get rid of it later *)
+  (* TODO: bool is a flag for lrt/lat, would be nice to factor out later *)
   | ITP_Each of itp_sym * itp_sym * itp_pure_term * itp_resource_term * bool
+  | ITP_Empty_Heap
   | ITP_Unsupported_Resource of string
 
 
