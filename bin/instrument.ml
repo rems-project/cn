@@ -80,6 +80,7 @@ let generate_executable_specs
       only
       skip
       csv_times
+      stdout_times
       astprints
       dont_use_vip
       fail_fast
@@ -140,6 +141,7 @@ let generate_executable_specs
     ~coq_proof_log:false
     ~coq_check_proof_log:false
     ~csv_times
+    ~stdout_times
     ~astprints
     ~no_inherit_loc
     ~magic_comment_char_dollar
@@ -410,6 +412,7 @@ let cmd =
     $ Flags.only
     $ Flags.skip
     $ Common.Flags.csv_times
+    $ Common.Flags.stdout_times
     $ Common.Flags.astprints
     $ Common.Flags.dont_use_vip
     $ Common.Flags.fail_fast

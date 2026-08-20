@@ -144,6 +144,7 @@ let with_well_formedness_check
       ~coq_proof_log
       ~coq_check_proof_log
       ~csv_times
+      ~(stdout_times : bool)
       ~astprints
       ~no_inherit_loc
       ~magic_comment_char_dollar
@@ -180,6 +181,7 @@ let with_well_formedness_check
   Cerb_debug.maybe_open_csv_timing_file ();
   Pp.maybe_open_times_channel
     (match csv_times with Some times -> Some (times, "csv") | _ -> None);
+  Pp.stdout_times := stdout_times;
   try
     let result =
       let open Or_TypeError in
@@ -434,6 +436,11 @@ module Flags = struct
   let csv_times =
     let doc = "file in which to output csv timing information" in
     Arg.(value & opt (some string) None & info ~docs:s_cn [ "times" ] ~docv:"FILE" ~doc)
+
+
+  let stdout_times =
+    let doc = "print timing information to stdout, interleaved with other output" in
+    Arg.(value & flag & info ~docs:s_cn [ "stdout_times" ] ~doc)
 
 
   (* copy-pasting from backend/driver/main.ml *)
