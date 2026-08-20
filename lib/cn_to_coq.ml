@@ -145,7 +145,7 @@ let it_to_itp_ir global it b =
            CI.ITP_unop (CI.ITP_neg, x, bt)
        | Terms.BW_FFS -> CI.ITP_unop (CI.ITP_BW_FFS, x, bt)
        | Terms.BW_CTZ -> CI.ITP_unop (CI.ITP_BW_CTZ, x, bt)
-       | _ -> CI.ITP_unsupported "Unsupported unop")
+       | _ -> CI.ITP_unsupported_pure "Unsupported unop")
     | Terms.Binop (op, a, b) ->
       let x = aux a in
       let y = aux b in

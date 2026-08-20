@@ -78,8 +78,7 @@ type itp_pure_term =
   | ITP_sym_term of itp_sym
   | ITP_const of itp_const
   | ITP_unop of itp_unop * itp_pure_term * itp_bt
-  | ITP_binop of itp_binop * 
-  * itp_pure_term * itp_bt
+  | ITP_binop of itp_binop * itp_pure_term* itp_pure_term * itp_bt
   | ITP_match of itp_pure_term * (itp_pat * itp_pure_term) list
   | ITP_ite of itp_pure_term * itp_pure_term * itp_pure_term
   | ITP_eachI of (int * (itp_sym * itp_bt) * int) * itp_pure_term
