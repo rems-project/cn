@@ -461,15 +461,14 @@ let rec resource_to_itp (global : Global.t) (t : CI.itp_resource_term) =
     | CI.ITP_PName (CI.ITP_sym nm, CI.ITP_sym pname, iargs, ptr) ->
       let args = List.map aux iargs in
         (build ((Sym.pp pname :: aux ptr :: args) @ [ Sym.pp nm ]))
-    | CI.ITP_Each (ITP_sym nm, ITP_sym ptr, perm, pred, b) ->
+    | CI.ITP_Each (ITP_sym nm, ptr, perm, pred) ->
       (match perm with
        | ITP_binop
            (ITP_and_prop, ITP_binop (_, min_term, _, _), ITP_binop (_, _, max_term, _), _)
          ->
          let min_doc a = parens (rets "Z.to_nat " ^^ a) in
-         let quantifier = if b then "∀" else "∃" in
          build
-           [ !^(quantifier ^ " ( ") ^^ Sym.pp nm ^^ !^" : list Z), each_int ";
+           [ rets "each_int ";
              min_doc (aux min_term);
              parens
                (rets "Z.to_nat "
@@ -477,7 +476,7 @@ let rec resource_to_itp (global : Global.t) (t : CI.itp_resource_term) =
                 ^^ rets " - "
                 ^^ min_doc (aux min_term))
              ^^ rets "%nat";
-             Sym.pp ptr;
+             aux ptr;
              !^(Sym.pp_string nm);
              aux' pred
            ]

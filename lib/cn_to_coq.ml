@@ -341,14 +341,16 @@ let rec lrt_to_itp_ir (gl : Global.t) (t : LRT.t) =
      | Q q ->
        (match q.name with
         | Owned _ ->
-          CI.ITP_Each
+          CI.ITP_Exists
+          ( CI.ITP_sym nm,
+            ITP_List (ITP_Integer),
+            CI.ITP_Each
             ( CI.ITP_sym nm,
-              CI.ITP_sym (fst q.q),
-              (* pointer *)
-              q_step_to_itp_ir q.step,
+              it_to_itp_ir gl q.pointer None,
               (* permission *)
-              lrt_to_itp_ir gl t,
-              false)
+              it_to_itp_ir gl q.permission None,
+              (* term *)
+              lrt_to_itp_ir gl t))
         | PName _ -> CI.ITP_Unsupported_Resource "unsupported Qpred PName in LRT"))
 
 
@@ -464,14 +466,16 @@ let rec lrtlat_to_itp_ir (gl : Global.t) t =
         | Owned (_, init) ->
           (match init with
            | Init ->
-             CI.ITP_Each
-               ( CI.ITP_sym nm,
-                 CI.ITP_sym (fst q.q),
-                 (* pointer *)
-                 q_step_to_itp_ir q.step,
-                 (* permission *)
-                 lrtlat_to_itp_ir gl t,
-                 true )
+            CI.ITP_Forall
+            ( CI.ITP_sym nm,
+              ITP_List (ITP_Integer),
+              CI.ITP_Each
+              ( CI.ITP_sym nm,
+                it_to_itp_ir gl q.pointer None,
+                (* permission *)
+                it_to_itp_ir gl q.permission None,
+                (* term *)
+                lrtlat_to_itp_ir gl t))
            | Uninit ->
              ITP_Block
                ( CI.ITP_sym nm,
