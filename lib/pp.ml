@@ -156,12 +156,14 @@ let warn_noloc pp = print stderr (format [ Bold; Yellow ] "Warning:" ^^^ pp)
 
 let times = ref (None : (out_channel * string) option)
 
+let stdout_times = ref false
+
 let time_start () = Unix.gettimeofday ()
 
 let time_end descr ?(info1 = "") ?(info2 = lazy PPrint.empty) start_time =
   let end_time = Unix.gettimeofday () in
   let diff = end_time -. start_time in
-  match !times with
+  (match !times with
   | Some (channel, "csv") ->
     Printf.fprintf
       channel
@@ -170,7 +172,15 @@ let time_end descr ?(info1 = "") ?(info2 = lazy PPrint.empty) start_time =
       info1
       (plain (Lazy.force info2))
       diff
-  | _ -> ()
+  | _ -> ());
+  if !stdout_times then
+    (Printf.printf
+      "%s -- %s -- \"%s\" -- %.6f\n"
+      descr
+      info1
+      (plain (Lazy.force info2))
+      diff)
+
 
 
 let maybe_open_times_channel = function

@@ -21,6 +21,7 @@ let run
       debug_level
       print_level
       csv_times
+      stdout_times
       astprints
       no_inherit_loc
       magic_comment_char_dollar
@@ -102,6 +103,7 @@ let run
     ~incl_dirs
     ~incl_files
     ~csv_times
+    ~stdout_times
     ~coq_export_file:None
     ~coq_mucore:false
     ~coq_proof_log:false
@@ -760,6 +762,7 @@ let mk_term
   $ Common.Flags.debug_level
   $ Common.Flags.print_level
   $ Common.Flags.csv_times
+  $ Common.Flags.stdout_times
   $ Common.Flags.astprints
   $ Common.Flags.no_inherit_loc
   $ Common.Flags.magic_comment_char_dollar
@@ -914,6 +917,7 @@ let mk_release_term ~(engine : TestGeneration.engine) ~(preset : TestGeneration.
   $ Common.Flags.debug_level
   $ Common.Flags.print_level
   $ Common.Flags.csv_times
+  $ Common.Flags.stdout_times
   $ Common.Flags.astprints
   $ Common.Flags.no_inherit_loc
   $ Common.Flags.magic_comment_char_dollar

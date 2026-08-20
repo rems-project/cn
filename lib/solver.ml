@@ -1411,7 +1411,7 @@ let provable ~loc ~solver ~assumptions ~simp_ctxt ?(purpose = "") lc =
     | `False -> `False
     | `Unknown -> `False
   in
-  Pp.time_end "provable" ~info1:purpose ~info2:(lazy (LC.pp lc)) start_time;
+  Pp.time_end "SOLVER QUERY" ~info1:purpose ~info2:(lazy (LC.pp lc)) start_time;
   result
 
 

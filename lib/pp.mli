@@ -306,6 +306,8 @@ val warn_noloc : Cerb_pp_prelude.P.document -> unit
 
 val times : (out_channel * string) option ref
 
+val stdout_times : bool ref
+
 val maybe_open_times_channel : (string * String.t) option -> unit
 
 val maybe_close_times_channel : unit -> unit
