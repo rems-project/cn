@@ -5,5 +5,5 @@ void f(int *p, int *q)
 ~~~~~^~~~~~~~~~~~~~~~~ 
 Constraint from tests/cn/spec_null_shift.error.c:11:5:
     ptr_eq(x, NULL) || (u64) x == 1u64;
-    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
 State file: file:///tmp/state__spec_null_shift.error.c__f.html
