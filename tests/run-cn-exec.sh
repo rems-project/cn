@@ -148,7 +148,6 @@ BUGGY="\
        cn/has_alloc_id_shift.c \
        cn/ptr_diff2.c \
        cn/has_alloc_id_ptr_neq.c \
-       cn/spec_null_shift.error.c \
        cn/alloc_token.c \
        cn/ptr_diff.c \
        cn/ptr_relop.c \
