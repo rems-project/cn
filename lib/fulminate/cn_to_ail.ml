@@ -764,15 +764,6 @@ let prefix
   | PassBack, (b2, s2, e) -> (b1 @ b2, s1 @ s2, e)
 
 
-let empty_for_dest : type a. a dest -> a =
-  fun d ->
-  match d with
-  | Assert _ -> ([], [])
-  | Return -> ([], [])
-  | AssignVar _ -> ([], [])
-  | PassBack -> ([], [], mk_expr empty_ail_expr)
-
-
 let generate_get_or_put_ownership_function ~without_ownership_checking ctype
   : A.sigma_declaration * CF.GenTypes.genTypeCategory A.sigma_function_definition
   =
@@ -4052,38 +4043,37 @@ let cn_to_ail_cnstatement
     spec_mode option ->
     a dest ->
     Cnstatement.statement ->
-    a * bool
+    a option
   =
   fun ~without_lemma_checks filename dts globals spec_mode_opt d cnstatement ->
-  let default_res_for_dest = empty_for_dest d in
   match cnstatement with
-  | Cnstatement.Pack_unpack (_pack_unpack, _pt) -> (default_res_for_dest, true)
-  | Derive_constraints _preds -> (default_res_for_dest, true)
-  | To_from_bytes (_to_from, _res) -> (default_res_for_dest, true)
+  | Cnstatement.Pack_unpack (_pack_unpack, _pt) -> None
+  | Derive_constraints _preds -> None
+  | To_from_bytes (_to_from, _res) -> None
   | Have _lc -> failwith "TODO Have"
-  | Instantiate (_to_instantiate, _it) -> (default_res_for_dest, true)
-  | Split_case _ -> (default_res_for_dest, true)
-  | Extract (_, _, _it) -> (default_res_for_dest, true)
-  | Unfold (_fsym, _args) -> (default_res_for_dest, true) (* fsym is a function symbol *)
+  | Instantiate (_to_instantiate, _it) -> None
+  | Split_case _ -> None
+  | Extract (_, _, _it) -> None
+  | Unfold (_fsym, _args) -> None (* fsym is a function symbol *)
   | Apply (fsym, args) ->
     if without_lemma_checks then
-      (default_res_for_dest, true)
+      None
     else
-      ( cn_to_ail_expr
-          filename
-          dts
-          globals
-          spec_mode_opt
-          (IT (Apply (fsym, args), BT.Unit, Locations.other __LOC__))
-          d,
-        false ) (* fsym is a lemma symbol *)
+      Some
+        (cn_to_ail_expr
+           filename
+           dts
+           globals
+           spec_mode_opt
+           (IT (Apply (fsym, args), BT.Unit, Locations.other __LOC__))
+           d) (* fsym is a lemma symbol *)
   | Assert lc ->
-    (cn_to_ail_logical_constraint_aux filename dts globals spec_mode_opt d lc, false)
+    Some (cn_to_ail_logical_constraint_aux filename dts globals spec_mode_opt d lc)
   | Inline _ -> failwith "TODO Inline"
-  | Print _t -> (default_res_for_dest, true)
+  | Print _t -> None
 
 
-let rec cn_to_ail_cnprog_aux ~without_lemma_checks filename dts globals spec_mode_opt
+let rec cn_to_ail_cnprog ~without_lemma_checks filename dts globals spec_mode_opt
   = function
   | Cnprog.Let (_loc, (name, { ct; pointer }), prog) ->
     let b1, s, e = cn_to_ail_expr filename dts globals spec_mode_opt pointer PassBack in
@@ -4108,47 +4098,55 @@ let rec cn_to_ail_cnprog_aux ~without_lemma_checks filename dts globals spec_mod
           [ (name, Some (mk_expr (wrap_with_convert_to cn_ptr_deref_fcall bt))) ])
     in
     let (b2, ss), no_op =
-      cn_to_ail_cnprog_aux ~without_lemma_checks filename dts globals spec_mode_opt prog
+      cn_to_ail_cnprog ~without_lemma_checks filename dts globals spec_mode_opt prog
     in
     if no_op then
       (([], []), true)
     else
       ((b1 @ (binding :: b2), s @ (ail_stat_ :: ss)), false)
   | Pure (loc, stmt) ->
-    let upd_s = generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) () in
-    let pop_s = generate_cn_pop_msg_info () in
-    (match stmt with
-     | Cnstatement.Apply _ ->
-       let (bs, ss, e), no_op =
-         cn_to_ail_cnstatement
-           ~without_lemma_checks
-           filename
-           dts
-           globals
-           spec_mode_opt
-           PassBack
-           stmt
-       in
-       ((bs, upd_s @ ss @ [ A.AilSexpr e ] @ pop_s), no_op)
-     | _ ->
-       let (bs, ss), no_op =
-         cn_to_ail_cnstatement
-           ~without_lemma_checks
-           filename
-           dts
-           globals
-           spec_mode_opt
-           (Assert loc)
-           stmt
-       in
-       ((bs, upd_s @ ss @ pop_s), no_op))
-
-
-let cn_to_ail_cnprog ~without_lemma_checks filename dts globals spec_mode_opt cn_prog =
-  let (bs, ss), _ =
-    cn_to_ail_cnprog_aux ~without_lemma_checks filename dts globals spec_mode_opt cn_prog
-  in
-  (bs, ss)
+    let (bs', ss'), no_op' =
+      match stmt with
+      | Cnstatement.Apply _ ->
+        let cnstat_opt =
+          cn_to_ail_cnstatement
+            ~without_lemma_checks
+            filename
+            dts
+            globals
+            spec_mode_opt
+            PassBack
+            stmt
+        in
+        (match cnstat_opt with
+         | Some (bs, ss, e) -> ((bs, ss @ [ A.AilSexpr e ]), false)
+         | None -> (([], []), true))
+      | _ ->
+        let cnstat_opt =
+          cn_to_ail_cnstatement
+            ~without_lemma_checks
+            filename
+            dts
+            globals
+            spec_mode_opt
+            (Assert loc)
+            stmt
+        in
+        (match cnstat_opt with
+         | Some (bs, ss) -> ((bs, ss), false)
+         | None -> (([], []), true))
+    in
+    let ss'' =
+      if no_op' then
+        ss'
+      else (
+        let upd_s =
+          generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) ()
+        in
+        let pop_s = generate_cn_pop_msg_info () in
+        upd_s @ ss' @ pop_s)
+    in
+    ((bs', ss''), no_op')
 
 
 (* GHOST ARGUMENTS *)
@@ -4300,16 +4298,21 @@ let cn_to_ail_statements
       spec_mode_opt
       (loc, cn_progs)
   =
-  let upd_s = generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) () in
-  let pop_s = generate_cn_pop_msg_info () in
-  let bs_and_ss =
+  let bs_and_ss, no_ops =
     List.map
       (fun prog ->
          cn_to_ail_cnprog ~without_lemma_checks filename dts globals spec_mode_opt prog)
       cn_progs
+    |> List.split
   in
-  let bs, ss = List.split bs_and_ss in
-  (loc, (List.concat bs, upd_s @ List.concat ss @ pop_s))
+  let all_no_ops = List.fold_left ( && ) true no_ops in
+  if all_no_ops then
+    (loc, ([], []))
+  else (
+    let bs, ss = List.split bs_and_ss in
+    let upd_s = generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) () in
+    let pop_s = generate_cn_pop_msg_info () in
+    (loc, (List.concat bs, upd_s @ List.concat ss @ pop_s)))
 
 
 let rec cn_to_ail_lat_internal_loop
@@ -4609,9 +4612,14 @@ let cn_to_ail_loop_inv
     let cn_ownership_leak_check_call =
       A.AilSexpr (mk_expr (AilEcall (mk_expr (AilEident OE.cn_loop_leak_check_sym), [])))
     in
+    let loop_leak_upd_s = generate_error_msg_info_update_stats () in
+    let loop_leak_pop_s = generate_cn_pop_msg_info () in
     let stats =
       (bump_alloc_assign :: loop_ownership_state.assign :: cond_ss)
-      @ (if with_loop_leak_checks then [ cn_ownership_leak_check_call ] else [])
+      @ (if with_loop_leak_checks then
+           loop_leak_upd_s @ (cn_ownership_leak_check_call :: loop_leak_pop_s)
+         else
+           [])
       @ [ cn_loop_put_call; dummy_expr_as_stat ]
     in
     let ail_gcc_stat_as_expr = A.(AilEgcc_statement ([], List.map mk_stmt stats)) in
