@@ -338,16 +338,16 @@ let rec lrt_to_itp_ir (gl : Global.t) (t : LRT.t) =
                  lrt_to_itp_ir gl t,
                  it_to_itp_ir gl p.pointer None ))
         | PName p_nm ->
-            CI.ITP_Exists
-              ( CI.ITP_sym nm,
-                bt_to_itp_ir gl bt,
-                CI.ITP_Star 
-                  ( ITP_PName
+          CI.ITP_Exists
+            ( CI.ITP_sym nm,
+              bt_to_itp_ir gl bt,
+              CI.ITP_Star
+                ( ITP_PName
                     ( CI.ITP_sym nm,
                       CI.ITP_sym p_nm,
                       List.map (fun x -> it_to_itp_ir gl x None) p.iargs,
-                      it_to_itp_ir gl p.pointer None ), 
-                    lrt_to_itp_ir gl t) ))
+                      it_to_itp_ir gl p.pointer None ),
+                  lrt_to_itp_ir gl t ) ))
      | Q q ->
        (match q.name with
         | Owned _ ->
@@ -410,16 +410,16 @@ let rec it_lat_to_itp_ir (gl : Global.t) (t : Terms.Normal.t LAT.t) =
                  it_lat_to_itp_ir gl t,
                  it_to_itp_ir gl p.pointer None ))
         | PName p_nm ->
-            CI.ITP_Exists
-              ( CI.ITP_sym nm,
-                bt_to_itp_ir gl bt,
-                CI.ITP_Star
-                  (ITP_PName
+          CI.ITP_Exists
+            ( CI.ITP_sym nm,
+              bt_to_itp_ir gl bt,
+              CI.ITP_Star
+                ( ITP_PName
                     ( CI.ITP_sym nm,
                       CI.ITP_sym p_nm,
                       List.map (fun x -> it_to_itp_ir gl x None) p.iargs,
                       it_to_itp_ir gl p.pointer None ),
-                  it_lat_to_itp_ir gl t )))
+                  it_lat_to_itp_ir gl t ) ))
      (* Can iterated resources even appear here? *)
      | Q q ->
        (match q.name with
@@ -469,16 +469,16 @@ let rec lrtlat_to_itp_ir (gl : Global.t) t =
                  lrtlat_to_itp_ir gl t,
                  it_to_itp_ir gl p.pointer None ))
         | PName p_nm ->
-            CI.ITP_Forall
-                ( CI.ITP_sym nm,
-                  bt_to_itp_ir gl bt,
-                  CI.ITP_Wand
-                    (ITP_PName
-                      ( CI.ITP_sym nm,
-                        CI.ITP_sym p_nm,
-                        List.map (fun x -> it_to_itp_ir gl x None) p.iargs,
-                        it_to_itp_ir gl p.pointer None ),
-                    lrtlat_to_itp_ir gl t )))
+          CI.ITP_Forall
+            ( CI.ITP_sym nm,
+              bt_to_itp_ir gl bt,
+              CI.ITP_Wand
+                ( ITP_PName
+                    ( CI.ITP_sym nm,
+                      CI.ITP_sym p_nm,
+                      List.map (fun x -> it_to_itp_ir gl x None) p.iargs,
+                      it_to_itp_ir gl p.pointer None ),
+                  lrtlat_to_itp_ir gl t ) ))
      | Q q ->
        (match q.name with
         | Owned (_, init) ->
