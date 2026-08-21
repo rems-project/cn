@@ -4073,7 +4073,7 @@ let cn_to_ail_cnstatement
   | Print _t -> None
 
 
-let rec cn_to_ail_cnprog_aux ~without_lemma_checks filename dts globals spec_mode_opt
+let rec cn_to_ail_cnprog ~without_lemma_checks filename dts globals spec_mode_opt
   = function
   | Cnprog.Let (_loc, (name, { ct; pointer }), prog) ->
     let b1, s, e = cn_to_ail_expr filename dts globals spec_mode_opt pointer PassBack in
@@ -4098,7 +4098,7 @@ let rec cn_to_ail_cnprog_aux ~without_lemma_checks filename dts globals spec_mod
           [ (name, Some (mk_expr (wrap_with_convert_to cn_ptr_deref_fcall bt))) ])
     in
     let (b2, ss), no_op =
-      cn_to_ail_cnprog_aux ~without_lemma_checks filename dts globals spec_mode_opt prog
+      cn_to_ail_cnprog ~without_lemma_checks filename dts globals spec_mode_opt prog
     in
     if no_op then
       (([], []), true)
@@ -4147,13 +4147,6 @@ let rec cn_to_ail_cnprog_aux ~without_lemma_checks filename dts globals spec_mod
         upd_s @ ss' @ pop_s)
     in
     ((bs', ss''), no_op')
-
-
-let cn_to_ail_cnprog ~without_lemma_checks filename dts globals spec_mode_opt cn_prog =
-  let (bs, ss), _ =
-    cn_to_ail_cnprog_aux ~without_lemma_checks filename dts globals spec_mode_opt cn_prog
-  in
-  (bs, ss)
 
 
 (* GHOST ARGUMENTS *)
@@ -4305,16 +4298,21 @@ let cn_to_ail_statements
       spec_mode_opt
       (loc, cn_progs)
   =
-  let upd_s = generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) () in
-  let pop_s = generate_cn_pop_msg_info () in
-  let bs_and_ss =
+  let bs_and_ss, no_ops =
     List.map
       (fun prog ->
          cn_to_ail_cnprog ~without_lemma_checks filename dts globals spec_mode_opt prog)
       cn_progs
+    |> List.split
   in
-  let bs, ss = List.split bs_and_ss in
-  (loc, (List.concat bs, upd_s @ List.concat ss @ pop_s))
+  let all_no_ops = List.fold_left ( && ) true no_ops in
+  if all_no_ops then
+    (loc, ([], []))
+  else (
+    let bs, ss = List.split bs_and_ss in
+    let upd_s = generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) () in
+    let pop_s = generate_cn_pop_msg_info () in
+    (loc, (List.concat bs, upd_s @ List.concat ss @ pop_s)))
 
 
 let rec cn_to_ail_lat_internal_loop
