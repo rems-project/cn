@@ -314,6 +314,10 @@ cn_bool* cn_pointer_gt(cn_pointer* i1, cn_pointer* i2);
 #define CN_GEN_DIV(CTYPE, CNTYPE)                                                        \
   static inline CNTYPE* CNTYPE##_divide(CNTYPE* i1, CNTYPE* i2) {                        \
     CNTYPE* res = (CNTYPE*)cn_bump_aligned_alloc(alignof(CNTYPE), sizeof(CNTYPE));       \
+    if (i2->val == 0) {                                                                  \
+      return convert_to_##CNTYPE(1);                                                     \
+      /* Copying https://smt-lib.org/theories-FixedSizeBitVectors.shtml */               \
+    }                                                                                    \
     res->val = i1->val / i2->val;                                                        \
     return res;                                                                          \
   }
@@ -346,6 +350,9 @@ cn_bool* cn_pointer_gt(cn_pointer* i1, cn_pointer* i2);
 #define CN_GEN_MOD(CTYPE, CNTYPE)                                                        \
   static inline CNTYPE* CNTYPE##_mod(CNTYPE* i1, CNTYPE* i2) {                           \
     CNTYPE* res = (CNTYPE*)cn_bump_aligned_alloc(alignof(CNTYPE), sizeof(CNTYPE));       \
+    if (i2->val == 0) {                                                                  \
+      return i1; /* Copying https://smt-lib.org/theories-FixedSizeBitVectors.shtml */    \
+    }                                                                                    \
     res->val = i1->val % i2->val;                                                        \
     if (res->val < 0) {                                                                  \
       res->val = (i2->val < 0) ? res->val - i2->val : res->val + i2->val;                \
@@ -356,6 +363,9 @@ cn_bool* cn_pointer_gt(cn_pointer* i1, cn_pointer* i2);
 #define CN_GEN_REM(CTYPE, CNTYPE)                                                        \
   static inline CNTYPE* CNTYPE##_rem(CNTYPE* i1, CNTYPE* i2) {                           \
     CNTYPE* res = (CNTYPE*)cn_bump_aligned_alloc(alignof(CNTYPE), sizeof(CNTYPE));       \
+    if (i2->val == 0) {                                                                  \
+      return i1; /* Copying https://smt-lib.org/theories-FixedSizeBitVectors.shtml */    \
+    }                                                                                    \
     res->val = i1->val % i2->val;                                                        \
     return res;                                                                          \
   }
