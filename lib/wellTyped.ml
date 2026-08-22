@@ -27,8 +27,9 @@ let squotes, warn, dot, string, debug, item, colon, comma =
   Pp.(squotes, warn, dot, string, debug, item, colon, comma)
 
 
-let warn_integer_bw_operation loc = 
+let warn_integer_bw_operation loc =
   warn loc !^"Treating bitwise operation on integers as uninterpreted."
+
 
 type message =
   | Global of Global.message
@@ -537,15 +538,14 @@ module WT = struct
            !^op ^^^ squotes (T.pp it) ^^^ !^"does not have positive right-hand argument."
          in
          warn loc msg
-       | Exp, (Integer | Bits _), ((None, _) | (_, None)) ->
+       | Exp, (Integer | Bits _), (None, _ | _, None) ->
          let msg =
            !^"Exponentiation"
            ^^^ squotes (T.pp it)
            ^^^ !^"does not have constant left and right-hand arguments."
          in
          warn loc msg
-       | (BW_And | BW_Or | BW_Xor), Integer, _ ->
-	 warn_integer_bw_operation loc
+       | (BW_And | BW_Or | BW_Xor), Integer, _ -> warn_integer_bw_operation loc
        | _ -> ())
     | _ -> ()
 
@@ -624,8 +624,7 @@ module WT = struct
           match bop with
           | Add | Sub | Mul | Div | Exp | Min | Max ->
             (ensure_arith_type ~reason:loc t, T.get_bt t)
-          | Rem | Mod | ShiftLeft | ShiftRight
-          | BW_And | BW_Or | BW_Xor -> 
+          | Rem | Mod | ShiftLeft | ShiftRight | BW_And | BW_Or | BW_Xor ->
             (ensure_integer_or_bits_type ~reason:loc t, T.get_bt t)
           | LT | LE -> (ensure_arith_type ~reason:loc t, BT.Bool)
           | EQ -> (return (), BT.Bool)
@@ -822,14 +821,14 @@ module WT = struct
         let@ _ty = get_struct_member_type loc tag member in
         let@ t = check loc (Loc ()) t in
         let@ decl = get_struct_decl loc tag in
-	let@ () =
-	  if !cnBV then
+        let@ () =
+          if !cnBV then (
             let o = Option.get (Memory.member_offset decl member) in
             let rs = Option.get (BT.is_bits_bt Memory.uintptr_bt) in
-            ensure_z_fits_bits_type loc rs (Z.of_int o)
-	  else
-	    return ()
-	in
+            ensure_z_fits_bits_type loc rs (Z.of_int o))
+          else
+            return ()
+        in
         (* looking at solver mapping *)
         return (IT (MemberShift (t, tag, member), BT.Loc (), loc))
       | ArrayShift { base; ct; index } ->

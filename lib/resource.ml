@@ -42,9 +42,11 @@ let derived_lc1 ((resource : Req.t), O output) =
         else
           []
       in
-      let within_addr_space = 
-	if !BaseTypes.cnBV then (MT.(le_ (addr, upper) here))
-        else MT.le_ (upper, MT.z_ Memory.max_pointer here) here
+      let within_addr_space =
+        if !BaseTypes.cnBV then
+          MT.(le_ (addr, upper) here)
+        else
+          MT.le_ (upper, MT.z_ Memory.max_pointer here) here
       in
       within_addr_space :: MT.hasAllocId_ pointer here :: alloc_bounds
     | P { name; pointer; iargs = [] }

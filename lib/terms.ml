@@ -979,7 +979,6 @@ let is_pred_ = function IT (Apply (name, args), _, _) -> Some (name, args) | _ -
 
 let is_ctype_const = function IT (Const (CType_const ct), _, _) -> Some ct | _ -> None
 
-
 module Surface = struct
   type t' = BaseTypes.Surface.t term
 
@@ -1042,53 +1041,53 @@ module Normal = struct
 
   let fold_subterms = fold_subterms
 
-  let constant = 
+  let constant =
     let loc = Locations.other __LOC__ in
     let subst su = subst (make_subst su) in
     let default bt = IT (Const (Default bt), bt, loc) in
-    let rec aux (IT (t, _, _)) = 
+    let rec aux (IT (t, _, _)) =
       match t with
       | Const _ -> true
       | Sym _ -> false
       | Unop (_, t) -> aux t
-      | Binop (_,t1,t2) -> aux_list [t1; t2]
-      | ITE (t1,t2,t3) -> aux_list [t1; t2; t3]
-      | EachI ((_,(i,bt),_),t) -> aux (subst [(i, default bt)] t)
+      | Binop (_, t1, t2) -> aux_list [ t1; t2 ]
+      | ITE (t1, t2, t3) -> aux_list [ t1; t2; t3 ]
+      | EachI ((_, (i, bt), _), t) -> aux (subst [ (i, default bt) ] t)
       | Tuple es -> aux_list es
       | NthTuple (_, t) -> aux t
       | Struct (_, ms) -> aux_list (List.map snd ms)
       | StructMember (t, _) -> aux t
-      | StructUpdate ((t1, _), t2) -> aux_list [t1; t2]
+      | StructUpdate ((t1, _), t2) -> aux_list [ t1; t2 ]
       | Record ms -> aux_list (List.map snd ms)
       | RecordMember (t, _) -> aux t
-      | RecordUpdate ((t1, _), t2) -> aux_list [t1; t2]
+      | RecordUpdate ((t1, _), t2) -> aux_list [ t1; t2 ]
       | Constructor (_, ms) -> aux_list (List.map snd ms)
       | MemberShift (t, _, _) -> aux t
-      | ArrayShift {base; ct = _; index} -> aux_list [base; index]
-      | CopyAllocId { addr; loc } -> aux_list [addr; loc]
+      | ArrayShift { base; ct = _; index } -> aux_list [ base; index ]
+      | CopyAllocId { addr; loc } -> aux_list [ addr; loc ]
       | HasAllocId t -> aux t
       | SizeOf _ -> true
       | OffsetOf _ -> true
       | Nil _ -> true
-      | Cons (t1, t2) -> aux_list [t1; t2]
+      | Cons (t1, t2) -> aux_list [ t1; t2 ]
       | Head t -> aux t
       | Tail t -> aux t
       | Representable (_, t) -> aux t
       | Good (_, t) -> aux t
-      | Aligned { t; align;} -> aux_list [t; align]
+      | Aligned { t; align } -> aux_list [ t; align ]
       | WrapI (_, t) -> aux t
       | MapConst (_, t) -> aux t
-      | MapSet (t1,t2,t3) -> aux_list [t1; t2; t3]
-      | MapGet (t1,t2) -> aux_list [t1; t2]
+      | MapSet (t1, t2, t3) -> aux_list [ t1; t2; t3 ]
+      | MapGet (t1, t2) -> aux_list [ t1; t2 ]
       | MapDef _ -> false
       | Apply (_, ts) -> List.is_empty ts
-      | Let ((s,t1),t2) -> aux (subst [(s,t1)] t2)
+      | Let ((s, t1), t2) -> aux (subst [ (s, t1) ] t2)
       | Match (t, cases) ->
-	let case (pat, t) =
-	  let f (s,bt) = (s, default bt) in
-	  subst (List.map f (bound_by_pattern pat)) t
-	in
-	aux_list (t :: List.map case cases)
+        let case (pat, t) =
+          let f (s, bt) = (s, default bt) in
+          subst (List.map f (bound_by_pattern pat)) t
+        in
+        aux_list (t :: List.map case cases)
       | Cast (_, t) -> aux t
       | CN_None _ -> true
       | CN_Some t -> aux t
@@ -1096,5 +1095,4 @@ module Normal = struct
       | GetOpt t -> aux t
     and aux_list ts = List.for_all aux ts in
     aux
-
 end

@@ -692,16 +692,17 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : T.t m =
        let@ () = WellTyped.ensure_base_type loc ~expect (Mu.bt_of_pexpr e3) in
        let@ e2 = check_pexpr path_cs e2 in
        let@ e3 = check_pexpr path_cs e3 in
-       let result = match ctor with
-        | CivAND -> (arith_binop BW_And (e2, e3) loc)
-        | CivOR -> (arith_binop BW_Or (e2, e3) loc)
-        | CivXOR -> (arith_binop BW_Xor (e2, e3) loc)
-        | _ -> assert false
+       let result =
+         match ctor with
+         | CivAND -> arith_binop BW_And (e2, e3) loc
+         | CivOR -> arith_binop BW_Or (e2, e3) loc
+         | CivXOR -> arith_binop BW_Xor (e2, e3) loc
+         | _ -> assert false
        in
-       let@ () = 
-	 if not !cnBV then 
-	   WT.warn_integer_bw_operation loc;
-	   add_c loc (LC.T (MT.representable_ (ct,result) loc))
+       let@ () =
+         if not !cnBV then
+           WT.warn_integer_bw_operation loc;
+         add_c loc (LC.T (MT.representable_ (ct, result) loc))
        in
        return result
      | (CivAND | CivOR | CivXOR), _ ->
@@ -889,11 +890,14 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : T.t m =
       | OpExp -> assert false
       | _ -> assert false
     in
-    let () = match op, (Terms.is_const v1, Terms.is_const v2) with
-    | OpMul, (None, None) -> warn loc !^"Treating multiplication as uninterpreted."
-    | (OpDiv | OpRem_t | OpRem_f), (_, None) -> warn loc !^"Treating division as uninterpreted."
-    | OpExp, ((None, _) | (_, None)) -> warn loc !^"Treating exponentiation as uninterpreted."
-    | _ -> ()
+    let () =
+      match (op, (Terms.is_const v1, Terms.is_const v2)) with
+      | OpMul, (None, None) -> warn loc !^"Treating multiplication as uninterpreted."
+      | (OpDiv | OpRem_t | OpRem_f), (_, None) ->
+        warn loc !^"Treating division as uninterpreted."
+      | OpExp, (None, _ | _, None) ->
+        warn loc !^"Treating exponentiation as uninterpreted."
+      | _ -> ()
     in
     return (fn_ (v1, v2) loc)
   | PEconv_int (ct_expr, pe)
@@ -2749,10 +2753,9 @@ let register_fun_syms file =
     let@ () = add_l fsym (Loc ()) (loc, lazy (Pp.item "global fun-ptr" (Sym.pp fsym))) in
     (* let lc1 = LC.T (ne_ (null_, sym_ (fsym, Loc))) in *)
     let lc2 = LC.T (representable_ (Pointer Void, sym_ (fsym, BT.Loc (), loc)) loc) in
-    return (if !cnBV then acc else (lc2 :: acc))
+    return (if !cnBV then acc else lc2 :: acc)
   in
   PmapM.foldM add file.Mu.call_funinfo []
-
 
 
 let wf_check_and_record_functions funs call_sigs =

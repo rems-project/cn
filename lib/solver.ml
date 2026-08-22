@@ -46,11 +46,12 @@ module CN_Names = struct
   let mod' bt = "mod_uf_" ^ Pp.plain (BT.pp bt)
 
   let bw_and bt = "bw_and_" ^ Pp.plain (BT.pp bt)
+
   let bw_or bt = "bw_or_" ^ Pp.plain (BT.pp bt)
+
   let bw_xor bt = "bw_xor_" ^ Pp.plain (BT.pp bt)
 
   let to_declare = [ mul; div; exp; rem; mod'; bw_and; bw_or; bw_xor ]
-
 end
 
 type solver_frame =
@@ -732,7 +733,7 @@ let rec translate_term s iterm =
        (match get_bt iterm with
         | BT.Bits _ -> SMT.bv_mul s1 s2
         | BT.Real -> SMT.num_mul s1 s2
-        | BT.Integer when (T.constant e1 || T.constant e2) -> SMT.num_mul s1 s2
+        | BT.Integer when T.constant e1 || T.constant e2 -> SMT.num_mul s1 s2
         | BT.Integer -> uninterp_same_type CN_Names.mul
         | _ -> failwith "Mul")
      | Div ->
@@ -760,23 +761,23 @@ let rec translate_term s iterm =
         | BT.Bits (BT.Signed, _) -> SMT.bv_smod s1 s2
         | BT.Bits (BT.Unsigned, _) -> SMT.bv_urem s1 s2
         | BT.Integer when T.constant e2 -> SMT.num_mod s1 s2
-	| BT.Integer -> uninterp_same_type CN_Names.mod'
+        | BT.Integer -> uninterp_same_type CN_Names.mod'
         | _ -> failwith "Mod")
      | BW_Xor ->
-       (match get_bt iterm with 
-       | BT.Bits _ -> SMT.bv_xor s1 s2 
-       | BT.Integer -> uninterp_same_type CN_Names.bw_xor
-       | _ -> failwith "BW_Xor")
+       (match get_bt iterm with
+        | BT.Bits _ -> SMT.bv_xor s1 s2
+        | BT.Integer -> uninterp_same_type CN_Names.bw_xor
+        | _ -> failwith "BW_Xor")
      | BW_And ->
-       (match get_bt iterm with 
-       | BT.Bits _ -> SMT.bv_and s1 s2 
-       | BT.Integer -> uninterp_same_type CN_Names.bw_and
-       | _ -> failwith "BW_And")
+       (match get_bt iterm with
+        | BT.Bits _ -> SMT.bv_and s1 s2
+        | BT.Integer -> uninterp_same_type CN_Names.bw_and
+        | _ -> failwith "BW_And")
      | BW_Or ->
-       (match get_bt iterm with 
-       | BT.Bits _ -> SMT.bv_or s1 s2 
-       | BT.Integer -> uninterp_same_type CN_Names.bw_or
-       | _ -> failwith "BW_Or")
+       (match get_bt iterm with
+        | BT.Bits _ -> SMT.bv_or s1 s2
+        | BT.Integer -> uninterp_same_type CN_Names.bw_or
+        | _ -> failwith "BW_Or")
      (* Shift amount should be positive? *)
      | ShiftLeft ->
        (match get_bt iterm with
