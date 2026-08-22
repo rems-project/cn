@@ -80,7 +80,8 @@ let min_bits_def (sign, n) =
     | Signed -> (Z.(neg @@ shift_left one (Int.sub n 1)), "i")
   in
   let name = "MIN" ^ letter ^ Int.to_string n in
-  MT.num_lit_ num (BT.Bits (sign, n)) loc |> mk_builtin_arg0 name
+  let bt = if !BT.cnBV then BT.Bits (sign, n) else Integer in
+  MT.num_lit_ num bt loc |> mk_builtin_arg0 name
 
 
 let max_bits_def (sign, n) =
@@ -90,7 +91,8 @@ let max_bits_def (sign, n) =
     | Signed -> (Z.(shift_left one (Int.sub n 1) - one), "i")
   in
   let name = "MAX" ^ letter ^ Int.to_string n in
-  MT.num_lit_ num (BT.Bits (sign, n)) loc |> mk_builtin_arg0 name
+  let bt = if !BT.cnBV then BT.Bits (sign, n) else Integer in
+  MT.num_lit_ num bt loc |> mk_builtin_arg0 name
 
 
 let max_min_bits =

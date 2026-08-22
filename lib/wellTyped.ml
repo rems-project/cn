@@ -513,36 +513,36 @@ module WT = struct
   let binop_nia_checks it =
     match it with
     | IT (Binop (bop, t, t'), _, loc) ->
-      (match (bop, T.get_bt t, is_const t, is_const t') with
-       | Mul, Integer, None, None ->
+      (match (bop, T.get_bt t, (is_const t, is_const t')) with
+       | Mul, Integer, (None, None) ->
          let msg =
            !^"Neither side of the integer multiplication"
            ^^^ squotes (T.pp it)
            ^^^ !^"is a constant."
          in
-         (fail { loc; msg = Generic msg } [@alert "-deprecated"])
-       | (Div | Rem | Mod | ShiftLeft | ShiftRight), Integer, _, None ->
+         warn loc msg
+       | (Div | Rem | Mod | ShiftLeft | ShiftRight), Integer, (_, None) ->
          let op = match bop with ShiftLeft | ShiftRight -> "Shift" | _ -> "Division" in
          let msg =
            !^op ^^^ squotes (T.pp it) ^^^ !^"does not have constant right-hand argument."
          in
-         (fail { loc; msg = Generic msg } [@alert "-deprecated"])
-       | (Div | Rem | Mod | ShiftLeft | ShiftRight), Integer, _, Some (Z z', _)
+         warn loc msg
+       | (Div | Rem | Mod | ShiftLeft | ShiftRight), Integer, (_, Some (Z z', _))
          when Z.leq z' Z.zero ->
          let op = match bop with ShiftLeft | ShiftRight -> "Shift" | _ -> "Division" in
          let msg =
            !^op ^^^ squotes (T.pp it) ^^^ !^"does not have positive right-hand argument."
          in
-         (fail { loc; msg = Generic msg } [@alert "-deprecated"])
-       | Exp, (Integer | Bits _), None, _ | Exp, (Integer | Bits _), _, None ->
+         warn loc msg
+       | Exp, (Integer | Bits _), ((None, _) | (_, None)) ->
          let msg =
            !^"Exponentiation"
            ^^^ squotes (T.pp it)
            ^^^ !^"does not have constant left and right-hand arguments."
          in
-         (fail { loc; msg = Generic msg } [@alert "-deprecated"])
-       | _ -> return ())
-    | _ -> return ()
+         warn loc msg
+       | _ -> ())
+    | _ -> ()
 
 
   (* NOTE: This cannot _check_ what the root type of term is (the type is
@@ -634,7 +634,7 @@ module WT = struct
         in
         let@ () = arg_check in
         let it = IT (Binop (bop, t, t'), rbt, loc) in
-        let@ () = binop_nia_checks it in
+        binop_nia_checks it;
         return it
       | ITE (t, t', t'') ->
         let@ t = check loc Bool t in
@@ -817,9 +817,14 @@ module WT = struct
         let@ _ty = get_struct_member_type loc tag member in
         let@ t = check loc (Loc ()) t in
         let@ decl = get_struct_decl loc tag in
-        let o = Option.get (Memory.member_offset decl member) in
-        let rs = Option.get (BT.is_bits_bt Memory.uintptr_bt) in
-        let@ () = ensure_z_fits_bits_type loc rs (Z.of_int o) in
+	let@ () =
+	  if !cnBV then
+            let o = Option.get (Memory.member_offset decl member) in
+            let rs = Option.get (BT.is_bits_bt Memory.uintptr_bt) in
+            ensure_z_fits_bits_type loc rs (Z.of_int o)
+	  else
+	    return ()
+	in
         (* looking at solver mapping *)
         return (IT (MemberShift (t, tag, member), BT.Loc (), loc))
       | ArrayShift { base; ct; index } ->

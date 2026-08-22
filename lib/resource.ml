@@ -42,7 +42,11 @@ let derived_lc1 ((resource : Req.t), O output) =
         else
           []
       in
-      [ MT.hasAllocId_ pointer here; MT.(le_ (addr, upper) here) ] @ alloc_bounds
+      let within_addr_space = 
+	if !BaseTypes.cnBV then (MT.(le_ (addr, upper) here))
+        else MT.le_ (upper, MT.z_ Memory.max_pointer here) here
+      in
+      within_addr_space :: MT.hasAllocId_ pointer here :: alloc_bounds
     | P { name; pointer; iargs = [] }
       when !MT.use_vip && Req.(equal_name name Predicate.alloc) ->
       let module H = Alloc.History in

@@ -29,7 +29,7 @@ struct int_list_items {
 /*@
 datatype int_list {
   Nil {},
-  Cons {i32 x, datatype int_list tl}
+  Cons {integer x, datatype int_list tl}
 }
 
 predicate [rec] {datatype int_list v} IntList(pointer l) {

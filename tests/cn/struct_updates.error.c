@@ -6,7 +6,7 @@ struct coord {
 /*@
 
 function (struct coord) foo(struct coord bar) {
-    { x : 0 , y: 0 , ..bar }
+    { x : 0i32 , y: 0 , ..bar }
 }
 
 @*/

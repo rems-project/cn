@@ -2,16 +2,15 @@
 
 int
 f (int x, int *p, int *q)
-/*@ requires take p_arr = each(u64 i; 0u64 <= i && i < 10u64) {RW(array_shift(p, i))};
-             take q_arr = each(u64 i; 0u64 <= i && i < 12u64) {W<int>(array_shift(q, i))};
-    ensures take p_arr2 = each(u64 i; 0u64 <= i && i < 10u64) {RW(array_shift(p, i))};
-            take q_arr2 = each(u64 i; 0u64 <= i && i < 12u64) {W<int>(array_shift(q, i))}; @*/
+/*@ requires take p_arr = each(integer i; 0 <= i && i < 10) {RW(array_shift(p, i))};
+             take q_arr = each(integer i; 0 <= i && i < 12) {W<int>(array_shift(q, i))};
+    ensures take p_arr2 = each(integer i; 0 <= i && i < 10) {RW(array_shift(p, i))};
+            take q_arr2 = each(integer i; 0 <= i && i < 12) {W<int>(array_shift(q, i))}; @*/
 {
   /*@ focus RW<int>, 1; @*/
-  /*@ focus RW<int>, 1; @*/
+  /*@ focus W<int>, 1; @*/
   /*@ focus RW<int>, 1u64; @*/
-  /*@ focus RW<int>, 1u64; @*/
-  /*@ focus RW<int>, 12; @*/
+  /*@ focus W<int>, 1u64; @*/
   return 1;
 }
 

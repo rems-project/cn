@@ -1,7 +1,7 @@
 int* cast(unsigned long long addr)
 /*@
 ensures
-    addr == 0u64 && is_null(return) || addr != 0u64 && has_alloc_id(return) && (u64) return == addr;
+    addr == 0 && is_null(return) || addr != 0 && has_alloc_id(return) && (integer) return == addr;
 @*/
 {
     return (void*)addr;

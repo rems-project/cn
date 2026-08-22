@@ -98,13 +98,13 @@ let verify
     ~skip_label_inlining:false
     ~handle_error:(Common.handle_type_error ~json ?output_dir ~serialize_json:json_trace)
     ~f:(fun ~cabs_tunit:_ ~prog5:_ ~ail_prog:_ ~statement_locs:_ ~paused ->
-      let check (functions, global_var_constraints, lemmas) =
+      let check (functions, constraints_to_add, lemmas) =
         let open Typing in
         let@ errors =
           Check.time_check_c_functions
             (skip, only)
             check_consistency
-            (global_var_constraints, functions)
+            (constraints_to_add, functions)
         in
         if not quiet then
           List.iter

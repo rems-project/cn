@@ -1,4 +1,7 @@
 return code: 1
+tests/cn/division_by_0.error.c:4:23: warning: Division 'x / y' does not have constant right-hand argument.
+/*@ ensures return == x / y; @*/
+                      ~~^~~ 
 [1/1]: division -- fail
 tests/cn/division_by_0.error.c:6:12: error: Undefined behaviour
     return x / y;

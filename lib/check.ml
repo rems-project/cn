@@ -882,6 +882,12 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : T.t m =
       | OpExp -> assert false
       | _ -> assert false
     in
+    let () = match op, (Terms.is_const v1, Terms.is_const v2) with
+    | OpMul, (None, None) -> warn loc !^"Treating multiplication as uninterpreted."
+    | (OpDiv | OpRem_t | OpRem_f), (_, None) -> warn loc !^"Treating division as uninterpreted."
+    | OpExp, ((None, _) | (_, None)) -> warn loc !^"Treating exponentiation as uninterpreted."
+    | _ -> ()
+    in
     return (fn_ (v1, v2) loc)
   | PEconv_int (ct_expr, pe)
   | PEcall (Sym (Symbol (_, _, SD_Id ("conv_int" | "conv_loaded_int"))), [ ct_expr; pe ])
@@ -2732,12 +2738,14 @@ let record_globals : 'bty. (Sym.t * 'bty Mu.globs) list -> LC.t list m =
 
 let register_fun_syms file =
   let loc = Locations.other __LOC__ in
-  let add fsym _ =
+  let add fsym _bt acc =
+    let@ () = add_l fsym (Loc ()) (loc, lazy (Pp.item "global fun-ptr" (Sym.pp fsym))) in
     (* let lc1 = LC.T (ne_ (null_, sym_ (fsym, Loc))) in *)
-    (* let lc2 = LC.T (representable_ (Pointer Void, sym_ (fsym, Loc, loc)) loc) in *)
-    add_l fsym (Loc ()) (loc, lazy (Pp.item "global fun-ptr" (Sym.pp fsym)))
+    let lc2 = LC.T (representable_ (Pointer Void, sym_ (fsym, BT.Loc (), loc)) loc) in
+    return (if !cnBV then acc else (lc2 :: acc))
   in
-  PmapM.iterM add file.Mu.call_funinfo
+  PmapM.foldM add file.Mu.call_funinfo []
+
 
 
 let wf_check_and_record_functions funs call_sigs =
@@ -3076,7 +3084,7 @@ let check_decls_lemmata_fun_specs (file : unit Mu.file) =
   let@ () = check_tagdefs file.tagDefs in
   let@ () = record_and_check_datatypes file.datatypes in
   let@ global_var_constraints = record_globals file.globs in
-  let@ () = register_fun_syms file in
+  let@ fptr_constraints = register_fun_syms file in
   let@ () =
     ListM.iterM (add_stdlib_spec file.call_funinfo) (Sym.Set.elements file.stdlib_syms)
   in
@@ -3091,7 +3099,8 @@ let check_decls_lemmata_fun_specs (file : unit Mu.file) =
   let@ _trusted, checked = wf_check_and_record_functions file.funs file.call_funinfo in
   Pp.debug 3 (lazy (Pp.headline "type-checked C functions and specifications."));
   Cerb_debug.end_csv_timing "decl, lemmata, function specification checking";
-  return (List.rev checked, global_var_constraints, lemmata)
+  let constraints_to_add = global_var_constraints @ fptr_constraints in
+  return (List.rev checked, constraints_to_add, lemmata)
 
 
 (** With CSV timing enabled, check the provided functions with
@@ -3100,13 +3109,13 @@ let check_decls_lemmata_fun_specs (file : unit Mu.file) =
 let time_check_c_functions
       skip_and_only
       check_consistency
-      (global_var_constraints, (checked : c_function list))
+      (constraints_to_add, (checked : c_function list))
   : (string * TypeErrors.t) list m
   =
   Cerb_debug.begin_csv_timing () (*type checking functions*);
   let@ () = init_solver () in
   let here = Locations.other __LOC__ in
-  let@ () = add_cs here global_var_constraints in
+  let@ () = add_cs here constraints_to_add in
   let@ global = get_global () in
   let@ () =
     match check_consistency with

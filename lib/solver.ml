@@ -1,4 +1,5 @@
 module SMT = Simple_smt
+module T = Terms.Normal
 module MT = MakeTerm
 open Terms
 open MT
@@ -702,7 +703,7 @@ let rec translate_term s iterm =
     let s1 = translate_term s e1 in
     let s2 = translate_term s e2 in
     (* binary uninterpreted function, same type for arguments and result. *)
-    let _uninterp_same_type k =
+    let uninterp_same_type k =
       let bt = get_bt iterm in
       SMT.app (Atom (k bt)) [ s1; s2 ]
     in
@@ -723,36 +724,37 @@ let rec translate_term s iterm =
      | Mul ->
        (match get_bt iterm with
         | BT.Bits _ -> SMT.bv_mul s1 s2
-        | BT.Integer | BT.Real -> SMT.num_mul s1 s2
+        | BT.Real -> SMT.num_mul s1 s2
+        | BT.Integer when (T.constant e1 || T.constant e2) -> SMT.num_mul s1 s2
+        | BT.Integer -> uninterp_same_type CN_Names.mul
         | _ -> failwith "Mul")
-     (* | MulNoSMT -> uninterp_same_type CN_Names.mul *)
      | Div ->
        (match get_bt iterm with
         | BT.Bits (BT.Signed, _) -> SMT.bv_sdiv s1 s2
         | BT.Bits (BT.Unsigned, _) -> SMT.bv_udiv s1 s2
-        | BT.Integer | BT.Real -> SMT.num_div s1 s2
+        | BT.Real -> SMT.num_div s1 s2
+        | BT.Integer when T.constant e2 -> SMT.num_div s1 s2
+        | BT.Integer -> uninterp_same_type CN_Names.div
         | _ -> failwith "Div")
-     (* | DivNoSMT -> uninterp_same_type CN_Names.div *)
      | Exp ->
        (match (get_num_z e1, get_num_z e2) with
         | Some z1, Some z2 when Z.fits_int z2 ->
           translate_term s (num_lit_ (Z.pow z1 (Z.to_int z2)) (get_bt e1) loc)
-        | _, _ -> failwith "Exp")
-     (* | ExpNoSMT -> uninterp_same_type CN_Names.exp *)
+        | _ -> uninterp_same_type CN_Names.exp)
      | Rem ->
        (match get_bt iterm with
         | BT.Bits (BT.Signed, _) -> SMT.bv_srem s1 s2
         | BT.Bits (BT.Unsigned, _) -> SMT.bv_urem s1 s2
-        | BT.Integer -> SMT.num_rem s1 s2 (* CVC5 ?? *)
+        | BT.Integer when T.constant e2 -> SMT.num_rem s1 s2 (* CVC5 ?? *)
+        | BT.Integer -> uninterp_same_type CN_Names.rem
         | _ -> failwith "Rem")
-     (* | RemNoSMT -> uninterp_same_type CN_Names.rem *)
      | Mod ->
        (match get_bt iterm with
         | BT.Bits (BT.Signed, _) -> SMT.bv_smod s1 s2
         | BT.Bits (BT.Unsigned, _) -> SMT.bv_urem s1 s2
-        | BT.Integer -> SMT.num_mod s1 s2
+        | BT.Integer when T.constant e2 -> SMT.num_mod s1 s2
+	| BT.Integer -> uninterp_same_type CN_Names.mod'
         | _ -> failwith "Mod")
-     (* | ModNoSMT -> uninterp_same_type CN_Names.mod' *)
      | BW_Xor ->
        (match get_bt iterm with BT.Bits _ -> SMT.bv_xor s1 s2 | _ -> failwith "BW_Xor")
      | BW_And ->

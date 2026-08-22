@@ -18,9 +18,9 @@ test_c (void) {
   int r;
 
   r = f (12);
-  /*@ assert (r == 0i32); @*/
+  /*@ assert (r == 0); @*/
   r = f (25);
-  /*@ assert (r == 1i32); @*/
+  /*@ assert (r == 1); @*/
 }
 
 
