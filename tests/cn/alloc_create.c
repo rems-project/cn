@@ -2,7 +2,7 @@
 lemma check_alloc(pointer p)
 requires
     let log = allocs[(alloc_id)p];
-    log.base == (u64)p;
+    log.base == (integer)p;
     log.size == sizeof<int>;
 ensures
     true;

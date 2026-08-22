@@ -692,11 +692,18 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : T.t m =
        let@ () = WellTyped.ensure_base_type loc ~expect (Mu.bt_of_pexpr e3) in
        let@ e2 = check_pexpr path_cs e2 in
        let@ e3 = check_pexpr path_cs e3 in
-       (match ctor with
-        | CivAND -> return (arith_binop BW_And (e2, e3) loc)
-        | CivOR -> return (arith_binop BW_Or (e2, e3) loc)
-        | CivXOR -> return (arith_binop BW_Xor (e2, e3) loc)
-        | _ -> assert false)
+       let result = match ctor with
+        | CivAND -> (arith_binop BW_And (e2, e3) loc)
+        | CivOR -> (arith_binop BW_Or (e2, e3) loc)
+        | CivXOR -> (arith_binop BW_Xor (e2, e3) loc)
+        | _ -> assert false
+       in
+       let@ () = 
+	 if not !cnBV then 
+	   WT.warn_integer_bw_operation loc;
+	   add_c loc (LC.T (MT.representable_ (ct,result) loc))
+       in
+       return result
      | (CivAND | CivOR | CivXOR), _ ->
        fail (fun _ ->
          { loc;

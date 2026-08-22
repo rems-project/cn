@@ -1,4 +1,7 @@
 return code: 1
+tests/cn/mod_by_0.error.c:4:24: warning: Division 'x % y' does not have constant right-hand argument.
+/*@  ensures return == x % y; @*/
+                       ~~^~~ 
 [1/1]: mod -- fail
 tests/cn/mod_by_0.error.c:6:12: error: Undefined behaviour
     return x % y;

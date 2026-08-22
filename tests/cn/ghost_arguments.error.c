@@ -1,7 +1,7 @@
 int foo(int p)
 /*@
 requires
-  cn_ghost i32 n, i32 m, i32 k;
+  cn_ghost integer n, integer m, integer k;
   n + m + k == p;
 ensures
   return == n + m + k;
@@ -15,5 +15,5 @@ int main()
   int x = 3;
   int v = 1;
   int* p = &v;
-  return foo(6 /*@ 2i32, x + *p, *p @*/);
+  return foo(6 /*@ 2, x + *p, *p @*/);
 }

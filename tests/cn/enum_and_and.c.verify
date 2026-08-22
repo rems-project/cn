@@ -1,2 +1,5 @@
 return code: 0
+tests/cn/enum_and_and.c:16:22: warning: Treating bitwise operation on integers as uninterpreted.
+        if (table && (flag & flag_1)) {
+                     ^~~~~~~~~~~~~~~ 
 [1/1]: foo -- pass

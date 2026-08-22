@@ -1,2 +1,8 @@
 return code: 0
+tests/cn/b_xor.c:2:27: warning: Treating bitwise operation on integers as uninterpreted.
+    /*@ ensures return == x ^ y; @*/
+                          ~~^~~ 
+tests/cn/b_xor.c:4:12: warning: Treating bitwise operation on integers as uninterpreted.
+    return x ^ y;
+           ~~^~~ 
 [1/1]: f -- pass

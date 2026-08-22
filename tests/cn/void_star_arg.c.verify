@@ -1,2 +1,10 @@
 return code: 0
+tests/cn/void_star_arg.c:17:13: warning: Division 'mod((integer)p
+  , sizeof(signed int))' does not have constant right-hand argument.
+    assert (mod((integer)p, sizeof<int>) == 0);
+            ~~~^~~~~~~~~~~~~~~~~~~~~~~~~ 
+tests/cn/void_star_arg.c:23:13: warning: Division 'mod((integer)p
+  , sizeof(struct two_ints))' does not have constant right-hand argument.
+    assert (mod((integer)p, (sizeof<struct two_ints>)) == 0);
+            ~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
 [1/1]: f -- pass

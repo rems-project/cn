@@ -27,6 +27,9 @@ let squotes, warn, dot, string, debug, item, colon, comma =
   Pp.(squotes, warn, dot, string, debug, item, colon, comma)
 
 
+let warn_integer_bw_operation loc = 
+  warn loc !^"Treating bitwise operation on integers as uninterpreted."
+
 type message =
   | Global of Global.message
   | Mismatch of
@@ -541,6 +544,8 @@ module WT = struct
            ^^^ !^"does not have constant left and right-hand arguments."
          in
          warn loc msg
+       | (BW_And | BW_Or | BW_Xor), Integer, _ ->
+	 warn_integer_bw_operation loc
        | _ -> ())
     | _ -> ()
 
@@ -619,9 +624,9 @@ module WT = struct
           match bop with
           | Add | Sub | Mul | Div | Exp | Min | Max ->
             (ensure_arith_type ~reason:loc t, T.get_bt t)
-          | Rem | Mod | ShiftLeft | ShiftRight ->
+          | Rem | Mod | ShiftLeft | ShiftRight
+          | BW_And | BW_Or | BW_Xor -> 
             (ensure_integer_or_bits_type ~reason:loc t, T.get_bt t)
-          | BW_And | BW_Or | BW_Xor -> (ensure_bits_type loc (T.get_bt t), T.get_bt t)
           | LT | LE -> (ensure_arith_type ~reason:loc t, BT.Bool)
           | EQ -> (return (), BT.Bool)
           | LTPointer | LEPointer ->

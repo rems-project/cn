@@ -44,6 +44,13 @@ module CN_Names = struct
   let rem bt = "rem_uf_" ^ Pp.plain (BT.pp bt)
 
   let mod' bt = "mod_uf_" ^ Pp.plain (BT.pp bt)
+
+  let bw_and bt = "bw_and_" ^ Pp.plain (BT.pp bt)
+  let bw_or bt = "bw_or_" ^ Pp.plain (BT.pp bt)
+  let bw_xor bt = "bw_xor_" ^ Pp.plain (BT.pp bt)
+
+  let to_declare = [ mul; div; exp; rem; mod'; bw_and; bw_or; bw_xor ]
+
 end
 
 type solver_frame =
@@ -756,11 +763,20 @@ let rec translate_term s iterm =
 	| BT.Integer -> uninterp_same_type CN_Names.mod'
         | _ -> failwith "Mod")
      | BW_Xor ->
-       (match get_bt iterm with BT.Bits _ -> SMT.bv_xor s1 s2 | _ -> failwith "BW_Xor")
+       (match get_bt iterm with 
+       | BT.Bits _ -> SMT.bv_xor s1 s2 
+       | BT.Integer -> uninterp_same_type CN_Names.bw_xor
+       | _ -> failwith "BW_Xor")
      | BW_And ->
-       (match get_bt iterm with BT.Bits _ -> SMT.bv_and s1 s2 | _ -> failwith "BW_And")
+       (match get_bt iterm with 
+       | BT.Bits _ -> SMT.bv_and s1 s2 
+       | BT.Integer -> uninterp_same_type CN_Names.bw_and
+       | _ -> failwith "BW_And")
      | BW_Or ->
-       (match get_bt iterm with BT.Bits _ -> SMT.bv_or s1 s2 | _ -> failwith "BW_Or")
+       (match get_bt iterm with 
+       | BT.Bits _ -> SMT.bv_or s1 s2 
+       | BT.Integer -> uninterp_same_type CN_Names.bw_or
+       | _ -> failwith "BW_Or")
      (* Shift amount should be positive? *)
      | ShiftLeft ->
        (match get_bt iterm with
@@ -1105,7 +1121,7 @@ module CN_Functions = struct
       ack_command s (SMT.declare_fun (fn bt) [ t; t ] t)
     in
     let declare fn = List.iter (declare_per_bt fn) bts in
-    List.iter declare CN_Names.[ mul; div; exp; rem; mod' ]
+    List.iter declare CN_Names.to_declare
 
 
   let declare_or_define_function s fn =
