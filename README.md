@@ -37,10 +37,10 @@ Zain K Aamer*, Rini Banerjee*, Hiroyuki Katsura*, David Kaloper-Meršinjak*, Dim
 
 <li>
 <a name="cn-lemmata-thesis">
-<a href="https://yinamy.github.io/files/cn_lemmata_thesis.pdf">Translating CN Separation Logic Lemmas to the Rocq Proof Assistant</a>.
+<a href="https://www.cl.cam.ac.uk/~nk480/amy-yin-cn-lemmata-mphil-thesis.pdf">Translating CN Separation Logic Lemmas to the Rocq Proof Assistant</a>.
 Amy Yin. Thesis for MPhil at the University of Cambridge, 2025.
 [
-<a href="https://yinamy.github.io/files/cn_lemmata_thesis.pdf">pdf</a> 
+<a href="https://www.cl.cam.ac.uk/~nk480/amy-yin-cn-lemmata-mphil-thesis.pdf">pdf</a> 
 ]
 </li>
    
