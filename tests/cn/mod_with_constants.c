@@ -2,13 +2,13 @@
    You can execute the division with no worries for Modulo By Zero */
 
 int x_mod_three (int x)
-/*@ ensures return == x % 3i32; @*/
+/*@ ensures return == x % 3; @*/
 {
     return x % 3;
 }
 
 int x_mod_neg_three (int x)
-/*@ ensures return == x % -3i32; @*/
+/*@ ensures return == x % -3; @*/
 {
     return x % -3;
 }
@@ -22,7 +22,7 @@ int x_mod_neg_three (int x)
 */
 
 int mod_first_operand_neg ()
-/*@  ensures return == -2i32; @*/
+/*@  ensures return == -2; @*/
 {
     return -5 % 3;
 }

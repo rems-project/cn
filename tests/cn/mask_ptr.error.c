@@ -16,9 +16,9 @@ enum {
 
 u64
 foo_integer (u64 y)
-/*@ requires mod(y, shift_left(1u64, ((u64) SHIFT_AMOUNT))) == 0u64; @*/
+/*@ requires mod(y, shift_left(1, SHIFT_AMOUNT)) == 0; @*/
 /* y = 42 */
-/* shift_left(1u64, 5u64) = 0...100000*/
+/* shift_left(1, 5) = 0...100000*/
 {
   u64 x = y;
   x &= ~ ((1UL << SHIFT_AMOUNT) - 1);
@@ -30,8 +30,8 @@ foo_integer (u64 y)
 
 int *
 foo (int *p)
-/*@ requires let p_u64 = (u64) p;
-             mod(p_u64, shift_left(1u64, ((u64) SHIFT_AMOUNT))) == 0u64; @*/
+/*@ requires let p_u64 = (integer) p;
+             mod(p_u64, shift_left(1, SHIFT_AMOUNT)) == 0; @*/
 {
   u64 x = ((u64) p);
   int *p2;
@@ -39,7 +39,7 @@ foo (int *p)
   x &= ~ ((1UL << SHIFT_AMOUNT) - 1);
 
   p2 = ((int *) x);
-  /*@ assert (((u64) p2) == ((u64) p)); @*/
+  /*@ assert (((integer) p2) == ((integer) p)); @*/
   return p2;
 }
 

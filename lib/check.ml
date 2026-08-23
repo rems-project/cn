@@ -673,7 +673,11 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : T.t m =
        let@ () = WellTyped.ensure_base_type loc ~expect (Memory.bt_of_sct ct) in
        let@ () = WellTyped.ensure_base_type loc ~expect (Mu.bt_of_pexpr e2) in
        let@ e2 = check_pexpr path_cs e2 in
-       return (arith_unop BW_Compl e2 loc)
+       let result = 
+	 if !cnBV then (arith_unop BW_Compl e2 loc)
+	 else (sub_ (negate e2 loc, int_ 1 loc) loc)
+       in
+       return result
      | CivCOMPL, _ ->
        fail (fun _ ->
          { loc;
