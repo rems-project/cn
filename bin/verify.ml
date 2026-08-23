@@ -32,6 +32,7 @@ let verify
       solver_type
       solver_inc_enabled
       solver_inc_timeout
+      solver_context_sat_cache
       astprints
       dont_use_vip
       fail_fast
@@ -67,6 +68,7 @@ let verify
   Solver.try_hard := try_hard;
   Solver.inc_enabled := solver_inc_enabled;
   Solver.inc_timeout := solver_inc_timeout;
+  Solver.context_sat_cache_enabled := solver_context_sat_cache;
   MakeTerm.use_vip := not dont_use_vip;
   Check.fail_fast := fail_fast;
   Diagnostics.diag_string := diag;
@@ -182,6 +184,16 @@ module Flags = struct
       value
       & opt (some int) !Solver.inc_timeout
       & info ~docs:s_verification [ "incremental-solver-timeout" ] ~doc)
+
+
+  let solver_context_sat_cache =
+    let doc =
+      "Cache whether the current incremental solver scope is satisfiable, avoiding repeated context-consistency queries"
+    in
+    Arg.(
+      value
+      & opt bool !Solver.context_sat_cache_enabled
+      & info ~docs:s_verification [ "context-sat-cache" ] ~doc)
 
 
   let try_hard =
@@ -316,6 +328,7 @@ let verify_t : unit Term.t =
   $ Flags.solver_type
   $ Flags.solver_inc_enabled
   $ Flags.solver_inc_timeout
+  $ Flags.solver_context_sat_cache
   $ Common.Flags.astprints
   $ Common.Flags.dont_use_vip
   $ Common.Flags.fail_fast

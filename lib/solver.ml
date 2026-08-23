@@ -14,6 +14,45 @@ let inc_enabled = ref true
 
 let inc_timeout = ref None
 
+let context_sat_cache_enabled = ref false
+
+type solver_stats =
+  { mutable logical_queries : int;
+    mutable true_shortcuts : int;
+    mutable incremental_checks : int;
+    mutable fresh_checks : int;
+    mutable timeout_resets : int;
+    mutable sat_cache_hits : int;
+    mutable unsat_cache_hits : int;
+    mutable sat_cache_misses : int
+  }
+
+let solver_stats =
+  { logical_queries = 0;
+    true_shortcuts = 0;
+    incremental_checks = 0;
+    fresh_checks = 0;
+    timeout_resets = 0;
+    sat_cache_hits = 0;
+    unsat_cache_hits = 0;
+    sat_cache_misses = 0
+  }
+
+let () =
+  at_exit (fun () ->
+    let s = solver_stats in
+    if s.incremental_checks + s.fresh_checks > 0 then
+      Printf.eprintf
+        "CN_SOLVER_STATS logical_queries=%d true_shortcuts=%d incremental_checks=%d fresh_checks=%d timeout_resets=%d sat_cache_hits=%d unsat_cache_hits=%d sat_cache_misses=%d\n%!"
+        s.logical_queries
+        s.true_shortcuts
+        s.incremental_checks
+        s.fresh_checks
+        s.timeout_resets
+        s.sat_cache_hits
+        s.unsat_cache_hits
+        s.sat_cache_misses)
+
 (** Functions that pick names for things. *)
 module CN_Names = struct
   let fn_name x = Sym.pp_string_no_nums x ^ "_" ^ string_of_int (Sym.num x)
@@ -43,13 +82,20 @@ module CN_Names = struct
   let mod' bt = "mod_uf_" ^ Pp.plain (BT.pp bt)
 end
 
-type solver_frame =
-  { mutable commands : SMT.sexp list (** Ack-style SMT commands, most recent first. *) }
+type context_consistency =
+  | Consistency_unknown
+  | Consistency_sat
+  | Consistency_unsat
 
-let empty_solver_frame () = { commands = [] }
+type solver_frame =
+  { mutable commands : SMT.sexp list; (** Ack-style SMT commands, most recent first. *)
+    mutable consistency : context_consistency
+  }
+
+let empty_solver_frame ?(consistency = Consistency_unknown) () = { commands = []; consistency }
 
 type solver =
-  { smt_solver : SMT.solver; (** The SMT solver connection. *)
+  { mutable smt_solver : SMT.solver; (** The SMT solver connection. *)
     cur_frame : solver_frame ref;
     prev_frames : solver_frame list ref;
       (** Push/pop model. Current frame, and previous frames. *)
@@ -90,9 +136,10 @@ let debug_ack_command s cmd =
 
 (** Start a new scope. *)
 let push s =
+  let consistency = (!(s.cur_frame)).consistency in
   debug_ack_command s (SMT.push 1);
   s.prev_frames := !(s.cur_frame) :: !(s.prev_frames);
-  s.cur_frame := empty_solver_frame ()
+  s.cur_frame := empty_solver_frame ~consistency ()
 
 
 (** Return to the previous scope.  Assumes that there is a previous scope. *)
@@ -1211,6 +1258,17 @@ let select_solver_type () =
         | _ -> default))
 
 
+let fresh_solver_config (cfg : SMT.solver_config) =
+  { cfg with log = Logger.make (SMT.string_of_solver_extension cfg.exts) }
+
+
+let new_incremental_solver cfg timeout =
+  let smt_solver = SMT.new_solver cfg in
+  List.iter (SMT.ack_command smt_solver) (SMT.incremental cfg);
+  List.iter (SMT.ack_command smt_solver) (SMT.otimeout cfg timeout);
+  smt_solver
+
+
 (** Make a new solver instance *)
 let make globals variable_bindings =
   let base_cfg =
@@ -1235,7 +1293,7 @@ let make globals variable_bindings =
       (0, CTypeMap.empty, IntMap.empty)
   in
   let s =
-    { smt_solver = SMT.new_solver cfg;
+    { smt_solver = new_incremental_solver cfg !inc_timeout;
       cur_frame = ref (empty_solver_frame ());
       prev_frames = ref [];
       ctypes;
@@ -1247,10 +1305,35 @@ let make globals variable_bindings =
   List.iter (SMT.ack_command s.model_smt_solver) (SMT.incremental model_cfg);
   (* "empty model loaded" using 'push' *)
   SMT.ack_command s.model_smt_solver (SMT.push 1);
-  List.iter (SMT.ack_command s.smt_solver) (SMT.incremental cfg);
-  List.iter (SMT.ack_command s.smt_solver) (SMT.otimeout cfg !inc_timeout);
   declare_solver_basics s variable_bindings;
   s
+
+
+let replay_solver_frames solver smt_solver =
+  let frames = List.rev !(solver.prev_frames) @ [ !(solver.cur_frame) ] in
+  List.iteri
+    (fun i frame ->
+       if i > 0 then SMT.ack_command smt_solver (SMT.push 1);
+       List.iter (SMT.ack_command smt_solver) (List.rev frame.commands))
+    frames
+
+
+let reset_incremental_solver_and_check solver =
+  let start_time = Pp.time_start () in
+  let cfg = fresh_solver_config solver.smt_solver.config in
+  solver.smt_solver.stop ();
+  let smt_solver = new_incremental_solver cfg None in
+  solver.smt_solver <- smt_solver;
+  replay_solver_frames solver smt_solver;
+  solver_stats.timeout_resets <- solver_stats.timeout_resets + 1;
+  solver_stats.fresh_checks <- solver_stats.fresh_checks + 1;
+  let result = SMT.check smt_solver in
+  List.iter (SMT.ack_command smt_solver) (SMT.otimeout cfg !inc_timeout);
+  Pp.time_end
+    "RESET FALLBACK SOLVER CHECK"
+    ~info1:(Printf.sprintf "commands=%d" (List.length (get_commands solver)))
+    start_time;
+  result
 
 
 (* ---------------------------------------------------------------------------*)
@@ -1298,6 +1381,14 @@ let record_model =
 
 
 let clear_model () = model_state := None
+
+let current_consistency solver = (!(solver.cur_frame)).consistency
+
+let set_current_consistency solver consistency =
+  (!(solver.cur_frame)).consistency <- consistency
+
+let record_current_context_model solver =
+  record_model solver (List.rev (get_commands solver)) []
 
 (* ---------------------------------------------------------------------------*)
 (* Try hard *)
@@ -1388,48 +1479,101 @@ let reduce_goal assumptions = function
 let assume solver lc =
   clear_model ();
   match lc with
-  | LC.T it -> ack_command solver (SMT.assume (translate_term solver it))
+  | LC.T it ->
+    ack_command solver (SMT.assume (translate_term solver it));
+    if !context_sat_cache_enabled then
+      if Terms.is_true it then
+        ()
+      else if Terms.is_false it then
+        set_current_consistency solver Consistency_unsat
+      else (
+        match current_consistency solver with
+        | Consistency_unsat -> ()
+        | Consistency_unknown | Consistency_sat ->
+          set_current_consistency solver Consistency_unknown)
   | Forall _ -> ()
 
 
 let check_new_solver cfg cmds =
+  let start_time = Pp.time_start () in
+  let cfg = fresh_solver_config cfg in
   let s = SMT.new_solver cfg in
   List.iter (SMT.ack_command s) cmds;
+  solver_stats.fresh_checks <- solver_stats.fresh_checks + 1;
   let result = SMT.check s in
   s.stop ();
+  Pp.time_end
+    "NONINC SOLVER CHECK"
+    ~info1:(Printf.sprintf "commands=%d" (List.length cmds))
+    start_time;
   result
 
 
 let provable_or_unknown ~loc ~solver ~assumptions ~simp_ctxt lc =
   clear_model ();
-  (* shortcut, as similarly suggested by Robbert *)
-  match Simplify.LogicalConstraints.simp simp_ctxt lc with
-  | LC.T (IT (Const (Bool true), _, _)) -> `True
-  | lc ->
+  let check ~context_check lc =
     push solver;
     let { qs; expr; extra } = reduce_goal assumptions lc in
     List.iter (declare_variable solver) qs;
     List.iter (fun t -> assume solver (T t)) (not_ expr loc :: extra);
     let cmds = List.rev (get_commands solver) in
     let answer =
-      match if !inc_enabled then SMT.check solver.smt_solver else Unknown with
-      | Unknown -> check_new_solver solver.smt_solver.config cmds
-      | a -> a
+      if !inc_enabled then (
+        let start_time = Pp.time_start () in
+        solver_stats.incremental_checks <- solver_stats.incremental_checks + 1;
+        let result = SMT.check solver.smt_solver in
+        Pp.time_end "INCREMENTAL SOLVER CHECK" start_time;
+        match result with
+        | Unknown -> reset_incremental_solver_and_check solver
+        | a -> a)
+      else
+        check_new_solver solver.smt_solver.config cmds
     in
+    if !context_sat_cache_enabled then (
+      match answer with
+      | Sat -> set_current_consistency solver Consistency_sat
+      | Unsat -> set_current_consistency solver Consistency_unsat
+      | Unknown -> set_current_consistency solver Consistency_unknown);
     pop solver 1;
-    (match answer with
-     | Unsat -> `True
-     | Sat ->
-       record_model solver cmds qs;
+    if !context_sat_cache_enabled then (
+      match answer with
+      | Sat -> set_current_consistency solver Consistency_sat
+      | Unsat when context_check -> set_current_consistency solver Consistency_unsat
+      | Unsat | Unknown -> ());
+    match answer with
+    | Unsat -> `True
+    | Sat ->
+      record_model solver cmds qs;
+      `False
+    | Unknown ->
+      record_model solver cmds qs;
+      `Unknown
+  in
+  (* [false] is a context-consistency query.  Once this exact solver scope has
+     been shown SAT or UNSAT, repeating the check cannot add information. *)
+  match Simplify.LogicalConstraints.simp simp_ctxt lc with
+  | LC.T (IT (Const (Bool true), _, _)) ->
+    solver_stats.true_shortcuts <- solver_stats.true_shortcuts + 1;
+    `True
+  | (LC.T (IT (Const (Bool false), _, _)) as lc) when !context_sat_cache_enabled ->
+    (match current_consistency solver with
+     | Consistency_sat ->
+       solver_stats.sat_cache_hits <- solver_stats.sat_cache_hits + 1;
+       record_current_context_model solver;
        `False
-     | Unknown ->
-       record_model solver cmds qs;
-       `Unknown)
+     | Consistency_unsat ->
+       solver_stats.unsat_cache_hits <- solver_stats.unsat_cache_hits + 1;
+       `True
+     | Consistency_unknown ->
+       solver_stats.sat_cache_misses <- solver_stats.sat_cache_misses + 1;
+       check ~context_check:true lc)
+  | lc -> check ~context_check:false lc
 
 
 (** The main way to query the solver. *)
 let provable ~loc ~solver ~assumptions ~simp_ctxt ?(purpose = "") lc =
   let start_time = Pp.time_start () in
+  solver_stats.logical_queries <- solver_stats.logical_queries + 1;
   let result =
     match provable_or_unknown ~loc ~solver ~assumptions ~simp_ctxt lc with
     | `True -> `True
