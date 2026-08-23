@@ -1134,6 +1134,9 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : T.t m =
     return direct_x
   | PEwrapI (ity, iop, pe1, pe2) (* not !cnBV *)
   | PEcatch_exceptional_condition (ity, iop, pe1, pe2) (* not !cnBV *) ->
+    (match pe_ with
+    | PEwrapI _ -> assert (Mu.is_div_iop iop || Mu.is_remt_iop iop || Sctypes.is_unsigned_integer_type ity)
+    | _ -> ());
     let@ () = WellTyped.check_ct loc (Integer ity) in
     let@ () = WellTyped.ensure_base_type loc ~expect Integer in
     let@ () = WellTyped.ensure_base_type loc ~expect (Mu.bt_of_pexpr pe1) in
@@ -1141,29 +1144,31 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : T.t m =
     let@ arg1 = check_pexpr path_cs pe1 in
     let@ arg2 = check_pexpr path_cs pe2 in
     let fn_ =
-      match iop with
-      | IOpAdd -> add_
-      | IOpSub -> sub_
-      | IOpMul -> mul_
-      | IOpShl -> failwith "todo"
-      | IOpShr -> failwith "todo"
-      | IOpDiv -> div_
-      | IOpRem_t -> rem_
+      match iop, (T.constant arg1, T.constant arg2) with
+      | IOpAdd, _ -> add_
+      | IOpSub, _ -> sub_
+      | IOpMul, (false,false) -> WT.warn_integer_nia loc;  mul_
+      | IOpMul, _ -> mul_
+      | IOpShl, (_, false) -> WT.warn_integer_nia loc; shl_
+      | IOpShl, _ -> shl_
+      | IOpShr, (_, false) -> WT.warn_integer_nia loc; shr_
+      | IOpShr, _ -> shr_
+      | IOpDiv, (_, false) -> WT.warn_integer_nia loc; div_
+      | IOpDiv, _ -> div_
+      | IOpRem_t, (_, false) -> WT.warn_integer_nia loc; rem_
+      | IOpRem_t, _ -> rem_
     in
     let r = fn_ (arg1, arg2) loc in
-    (match pe_ with
-     | PEwrapI _ ->
-       assert (
-         Mu.is_div_iop iop || Mu.is_remt_iop iop || Sctypes.is_unsigned_integer_type ity);
-       return (integer_wrapI loc ity r)
-     | PEcatch_exceptional_condition _ ->
-       let@ provable = provable loc in
-       (match provable (LC.T (representable_ (Integer ity, r) loc)) with
-        | `True -> return r
-        | `False ->
-          let@ model = model () in
-          let ub = CF.Undefined.UB036_exceptional_condition in
-          fail (fun ctxt -> { loc; msg = Undefined_behaviour { ub; ctxt; model } }))
+    let@ provable = provable loc in
+    let r_representable = provable (LC.T (representable_ (Integer ity, r) loc)) in
+    (match pe_, r_representable with
+     | PEwrapI _, `True -> return r (* TODO: without wrapI, correct? *)
+     | PEcatch_exceptional_condition _, `True -> return r
+     | PEwrapI _, `False -> return (integer_wrapI loc ity r)
+     | PEcatch_exceptional_condition _, `False ->
+       let@ model = model () in
+       let ub = CF.Undefined.UB036_exceptional_condition in
+       fail (fun ctxt -> { loc; msg = Undefined_behaviour { ub; ctxt; model } })
      | _ -> assert false)
   | PEif (pe, e1, e2) ->
     let@ () = WellTyped.ensure_base_type loc ~expect (Mu.bt_of_pexpr e1) in
@@ -1538,6 +1543,7 @@ let bytes_constraints
       in
       List.fold_left (fun x y -> MT.add_ (x, y) here) (List.hd shifted) (List.tl shifted)
     in
+    let rhs = if !cnBV then rhs else integer_wrapI loc it rhs in (* TODO: correct? *)
     (match to_from with
      | To -> return (and2_ (all_some, eq_ (lhs, rhs) here) here)
      | From ->
@@ -1797,9 +1803,6 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : T.t -> unit m) : unit m =
                The PNVI rules state that the pointer must be live so that
                allocations are exposed.
                (2) So, the only UB possible is unrepresentable results. *)
-         (* TODO: this doesn't look like it does the right thing in bitvector
-            mode: if the value wasn't representable at type to_ct,
-            then the cast may have lost bits. *)
          let@ provable = provable loc in
          let here = Locations.other __LOC__ in
          let lc = LC.T (representable_ (to_ct, arg) here) in

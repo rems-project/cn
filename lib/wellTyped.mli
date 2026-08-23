@@ -7,6 +7,7 @@ val maybe_add_ct : Sctypes.t option -> unit
 val get_cts : unit -> CTS.t
 
 val warn_integer_bw_operation : Locations.t -> unit
+val warn_integer_nia : Locations.t -> unit
 
 type message =
   | Global of Global.message

@@ -30,6 +30,9 @@ let squotes, warn, dot, string, debug, item, colon, comma =
 let warn_integer_bw_operation loc =
   warn loc !^"Treating bitwise operation on integers as uninterpreted."
 
+let warn_integer_nia loc =
+  warn loc !^"Treating non-linear integer arithmetic as uninterpreted."
+
 
 type message =
   | Global of Global.message

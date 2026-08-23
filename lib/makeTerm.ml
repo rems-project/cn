@@ -131,6 +131,10 @@ let rem_ = arith_binop Rem
 
 let mod_ = arith_binop Mod
 
+let shl_ = arith_binop ShiftLeft
+
+let shr_ = arith_binop ShiftRight
+
 let divisible_ (it, it') loc = eq_ (mod_ (it, it') loc, int_lit_ 0 (get_bt it) loc) loc
 
 let rem_f_ (it, it') loc = mod_ (it, it') loc
@@ -456,7 +460,17 @@ let value_check mode (struct_layouts : Memory.struct_decls) ct about loc =
   let rec aux (ct_ : Sctypes.t) about =
     match ct_ with
     | Void -> bool_ true loc
-    | Byte -> if BT.(!cnBV) then bool_ true loc else failwith "todo: Byte value_check"
+    | Byte -> 
+      if BT.(!cnBV) then bool_ true loc 
+      else 
+	let min = int_ 0 loc in
+	let max = z_ (Z.sub (Z.pow (Z.of_int 2) Memory.bits_per_byte) Z.one) loc in
+	impl_ (
+	  isSome_ about loc,
+          let membyte = getOpt_ about loc in
+	  let value = cast_ Integer membyte loc in
+	  in_range value (min, max) loc
+	) loc
     | Integer it ->
       in_z_range about (Memory.min_integer_type it, Memory.max_integer_type it) loc
     | Array (_, None) ->

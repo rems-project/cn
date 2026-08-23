@@ -782,12 +782,14 @@ let rec translate_term s iterm =
      | ShiftLeft ->
        (match get_bt iterm with
         | BT.Bits _ -> SMT.bv_shl s1 s2
+        | BT.Integer -> translate_term s MT.(mul_ (e1, exp_ (int_ 2 loc, e2) loc) loc)
         | _ -> failwith "ShiftLeft")
      (* Amount should be positive? *)
      | ShiftRight ->
        (match get_bt iterm with
         | BT.Bits (BT.Signed, _) -> SMT.bv_ashr s1 s2
         | BT.Bits (BT.Unsigned, _) -> SMT.bv_lshr s1 s2
+        | BT.Integer -> translate_term s MT.(div_ (e1, exp_ (int_ 2 loc, e2) loc) loc)
         | _ -> failwith "ShiftRight")
      | LT ->
        (match get_bt e1 with
