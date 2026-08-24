@@ -333,7 +333,7 @@ let term_to_itp (global : Global.t) (t : CI.itp_pure_term) =
     | ITP_const c ->
       (match c with
        | ITP_bool b -> rets (if b then "true" else "false")
-       | ITP_bool_prop b -> f_appM "Is_true" [ rets (if b then "true" else "false") ]
+       | ITP_bool_prop b -> rets (if b then "True" else "False")
        | ITP_Z z -> enc_z z
        | ITP_bits z -> parensM (rets (Z.to_string z)))
     | ITP_unop (op, x, bt) ->
@@ -417,8 +417,7 @@ let term_to_itp (global : Global.t) (t : CI.itp_pure_term) =
     | CI.ITP_apply (CI.ITP_sym name, args) ->
       parensM (build ([ Sym.pp name ] @ List.map aux args))
     | CI.ITP_apply_prop (CI.ITP_sym name, args) ->
-      let r = parensM (build ([ Sym.pp name ] @ List.map aux args)) in
-      f_appM "Is_true" [ r ]
+      parensM (build ([ Sym.pp name ] @ List.map aux args))
     | CI.ITP_representable (CI.ITP_sym s, _, t) ->
       let op_nm = "representable_" ^ Sym.pp_string s in
       parensM (build [ rets op_nm; aux t ])
@@ -1093,4 +1092,4 @@ let generate (global : Global.t) directions (lemmata : (Sym.t * (Loc.t * AT.lemm
       channel
       (mod_spec (List.map (fun (CI.ITP_lemma (CI.ITP_sym nm, _)) -> nm) lemmas))
   in
-  Result.Ok f
+  f
