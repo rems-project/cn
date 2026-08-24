@@ -380,7 +380,7 @@ let in_range within (min, max) loc =
   and_ [ le_ (min, within) loc; le_ (within, max) loc ] loc
 
 
-let rec in_z_range within (min_z, max_z) loc =
+let in_z_range within (min_z, max_z) loc =
   let the_bt = get_bt within in
   match the_bt with
   | BT.Integer -> in_range within (z_ min_z loc, z_ max_z loc) loc
@@ -403,16 +403,16 @@ let rec in_z_range within (min_z, max_z) loc =
         bool_ false loc
     in
     and_ [ min_c; max_c ] loc
-  | Loc () ->
-    (* §6.3.2.3#6 allows converting pointers to any integer type so long as the value of
-       the pointer fits. If uintptr_t and intptr_t exist, then they are guaranteed to be
-       big enough to fit any valid pointer (to void). From there, it's just a matter of
-       checking the bits fit. *)
-    or_
-      [ in_z_range (cast_ Memory.uintptr_bt within loc) (min_z, max_z) loc;
-        in_z_range (cast_ Memory.intptr_bt within loc) (min_z, max_z) loc
-      ]
-      loc
+  (* | Loc () -> *)
+  (*   (\* §6.3.2.3#6 allows converting pointers to any integer type so long as the value of *)
+  (*      the pointer fits. If uintptr_t and intptr_t exist, then they are guaranteed to be *)
+  (*      big enough to fit any valid pointer (to void). From there, it's just a matter of *)
+  (*      checking the bits fit. *\) *)
+  (*   or_ *)
+  (*     [ in_z_range (cast_ Memory.uintptr_bt within loc) (min_z, max_z) loc; *)
+  (*       in_z_range (cast_ Memory.intptr_bt within loc) (min_z, max_z) loc *)
+  (*     ] *)
+  (*     loc *)
   | _ -> failwith ("in_z_range: unsupported type: " ^ Pp.plain (pp_with_typ within))
 
 
