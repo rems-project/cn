@@ -1796,11 +1796,10 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : T.t -> unit m) : unit m =
      | IntFromPtr, [ pe_from_ct; pe_to_ct; pe ] ->
        let@ _from_ct = check_pexpr_good_ctype_const [] pe_from_ct in
        let@ to_ct = check_pexpr_good_ctype_const [] pe_to_ct in
-       assert (match to_ct with Integer _ -> true | _ -> false);
+       let to_ity = match to_ct with Integer ity -> ity | _ -> assert false in
        let@ () = WellTyped.ensure_base_type loc ~expect (Memory.bt_of_sct to_ct) in
        let@ () = WellTyped.ensure_base_type loc ~expect:(Loc ()) (Mu.bt_of_pexpr pe) in
        check_pexpr pe (fun arg ->
-         let actual_value = cast_ (Memory.bt_of_sct to_ct) arg loc in
          (* NOTE: After discussing with Kavyan
                (1) The pointer does NOT need to be live. The PNVI/VIP
                formalisations are missing a rule for the dead pointer case.
@@ -1809,7 +1808,32 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : T.t -> unit m) : unit m =
                (2) So, the only UB possible is unrepresentable results. *)
          let@ provable = provable loc in
          let here = Locations.other __LOC__ in
-         let lc = LC.T (representable_ (to_ct, arg) here) in
+	 let min_z = Memory.min_integer_type to_ity in
+	 let max_z = Memory.max_integer_type to_ity in
+         let actual_value, lc = 
+	   if !cnBV then
+	     (* §6.3.2.3#6 allows converting pointers to any integer type so long as the value of
+		the pointer fits. If uintptr_t and intptr_t exist, then they are guaranteed to be
+		big enough to fit any valid pointer (to void). From there, it's just a matter of
+		checking the bits fit. *)
+	     let lc = 
+	       LC.T (or_
+		 [ in_z_range (cast_ Memory.uintptr_bt arg loc) (min_z, max_z) here;
+		   in_z_range (cast_ Memory.intptr_bt arg loc) (min_z, max_z) here ] here)
+             in
+	     let value = cast_ (Memory.bt_of_sct to_ct) arg loc in
+	     value, lc
+	   else
+	     (* TODO: correct? *)
+	     let iarg = cast_ Integer arg here in
+	     let value = 
+	       if Memory.is_signed_integer_type to_ity
+	       then integer_wrapI here (Signed Intptr_t) iarg 
+	       else (* integer_wrapI here (Unsigned Intptr_t) *) iarg
+	     in
+	     let lc = LC.T (in_z_range value (min_z, max_z) here) in
+	     value, lc
+	 in
          let@ () =
            match provable lc with
            | `True -> return ()
@@ -1823,7 +1847,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : T.t -> unit m) : unit m =
      | PtrFromInt, [ pe_from_ct; pe_to_ct; pe ] ->
        let@ from_ct = check_pexpr_good_ctype_const [] pe_from_ct in
        let@ _to_ct = check_pexpr_good_ctype_const [] pe_to_ct in
-       assert (match from_ct with Integer _ -> true | _ -> false);
+       let _from_ity = match from_ct with Integer ity -> ity | _ -> assert false in
        let@ () = WellTyped.ensure_base_type loc ~expect (Loc ()) in
        let@ () =
          WellTyped.ensure_base_type
@@ -1838,9 +1862,13 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : T.t -> unit m) : unit m =
          let null_case = eq_ (result, null_ here) here in
          (* NOTE: the allocation ID is intentionally left unconstrained *)
          let alloc_case =
+	   let raw_addr = 
+	     if !cnBV then cast_ Memory.uintptr_bt arg here
+	     else integer_wrapI here (Unsigned Intptr_t) arg (* TODO: correct? *)
+	   in
            and_
              [ hasAllocId_ result here;
-               eq_ (cast_ Memory.uintptr_bt arg here, addr_ result here) here
+               eq_ (raw_addr, addr_ result here) here
              ]
              here
          in

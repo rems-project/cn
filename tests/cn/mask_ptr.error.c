@@ -16,12 +16,12 @@ enum {
 
 u64
 foo_integer (u64 y)
-/*@ requires mod(y, shift_left(1, SHIFT_AMOUNT)) == 0; @*/
+/*@ requires mod(y, shift_left(1, 5)) == 0; @*/
 /* y = 42 */
 /* shift_left(1, 5) = 0...100000*/
 {
   u64 x = y;
-  x &= ~ ((1UL << SHIFT_AMOUNT) - 1);
+  x &= ~ ((1UL << 5) - 1);
   /*@ assert (x == y); @*/
   return x;
 }
@@ -31,7 +31,7 @@ foo_integer (u64 y)
 int *
 foo (int *p)
 /*@ requires let p_u64 = (integer) p;
-             mod(p_u64, shift_left(1, SHIFT_AMOUNT)) == 0; @*/
+             mod(p_u64, shift_left(1, 5)) == 0; @*/
 {
   u64 x = ((u64) p);
   int *p2;
