@@ -76,6 +76,7 @@ module Make (AD : Domain.T) = struct
       | Const _ | Nil _ | MapDef _ -> return it
       | Sym x -> Error (Sym.pp_string x ^ " is free")
       (* Unary ops *)
+      | Unop (Abs, _) -> failwith "todo"
       | Unop (Not, it') ->
         let@ it' = eval_aux it' in
         (match it' with

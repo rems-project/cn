@@ -1126,6 +1126,7 @@ let pp_trusted = function
 let pp_unop = function
   | Terms.Not -> pp_constructor0 "Not"
   | Negate -> pp_constructor0 "Negate"
+  | Abs -> pp_constructor0 "Abs"
   | BW_CLZ -> pp_constructor0 "BW_CLZ"
   | BW_CTZ -> pp_constructor0 "BW_CTZ"
   | BW_FFS -> pp_constructor0 "BW_FFS"

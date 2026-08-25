@@ -690,6 +690,11 @@ let rec translate_term s iterm =
             (eq_ (e1, intl 0) loc, intl 0, sub_ (intl sz, arith_unop BW_CLZ e1 loc) loc)
             loc)
      | Not -> SMT.bool_not (translate_term s e1)
+     | Abs -> 
+       (match get_bt iterm with
+       | Integer | Real ->
+	 SMT.num_abs (translate_term s e1)
+       | _ -> failwith (__LOC__ ^ ":Unop (Abs, _)"))
      | Negate ->
        (match get_bt iterm with
         | BT.Bits _ -> SMT.bv_neg (translate_term s e1)

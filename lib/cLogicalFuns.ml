@@ -296,8 +296,8 @@ let rec symb_exec_pexpr ctxt var_map pexpr =
       | OpAnd -> MT.and_ [ x_v; y_v ] loc
       | OpOr -> MT.or_ [ x_v; y_v ] loc
       | OpExp -> MT.exp_ (x_v, y_v) loc
-      | OpRem_f -> MT.rem_ (x_v, y_v) loc
-      | OpRem_t -> MT.mod_ (x_v, y_v) loc
+      | OpRem_f -> MT.rem_f_ (x_v, y_v) loc
+      | OpRem_t -> MT.rem_t_ (x_v, y_v) loc
     in
     (match (op, x_v, is_two_pow y_v) with
      | OpMul, _, Some (`Two_loc two_loc, `Exp exp) ->

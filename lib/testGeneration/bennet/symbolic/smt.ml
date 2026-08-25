@@ -470,6 +470,7 @@ module Make (AD : Domain.T) = struct
     let open Pp in
     let operand = convert_indexterm sigma t in
     match op with
+    | Abs -> failwith "todo"
     | Not -> !^"cn_smt_not" ^^ parens operand
     | Negate -> !^"cn_smt_negate" ^^ parens operand
     | BW_CLZ -> !^"cn_smt_bw_clz" ^^ parens operand

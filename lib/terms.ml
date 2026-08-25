@@ -22,6 +22,7 @@ type const =
 [@@deriving eq, ord]
 
 type unop =
+  | Abs
   | Not
   | Negate
   | BW_CLZ
@@ -225,6 +226,7 @@ let pp
     | Unop (uop, it1) ->
       let prefix x op p = wrap_after x (!^op ^^ aux p it1) in
       (match uop with
+       | Abs -> c_app !^"abs" [ aux 0 it1 ]
        | BW_CLZ -> c_app !^"bw_clz" [ aux 0 it1 ]
        | BW_CTZ -> c_app !^"bw_ctz" [ aux 0 it1 ]
        | BW_FFS -> c_app !^"bw_ffs" [ aux 0 it1 ]
@@ -254,7 +256,7 @@ let pp
        | Mul -> infix 13 !^"*" 13 13
        | Div -> infix 13 slash 14 14
        | Exp -> prefix "power"
-       | Rem -> infix 13 !^"%" 14 14
+       | Rem -> prefix "rem"
        | Mod -> prefix "mod"
        | EQ -> infix 9 (equals ^^ equals) 9 9
        | LT -> infix 10 (langle ()) 10 10

@@ -610,6 +610,13 @@ module WT = struct
             let@ t = infer t in
             let@ () = ensure_arith_type ~reason:loc t in
             return (t, T.get_bt t)
+          | (Abs) ->
+            let@ t = infer t in
+            let@ () = match T.get_bt t with
+	    | Integer | Real -> return ()
+	    | has -> fail { loc; msg = Mismatch { has = BT.pp has; expect = !^"integer or real" } }
+	    in
+            return (t, T.get_bt t)
           | BW_CLZ | BW_CTZ | BW_FFS | BW_FLS | BW_Compl ->
             let@ t = infer t in
             let@ () = ensure_bits_type (T.get_loc t) (T.get_bt t) in

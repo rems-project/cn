@@ -178,6 +178,11 @@ let power_def =
     mk_arg2 (fun (it, it') loc -> MT.binop Exp (it, it') loc (Terms.get_bt it)) )
 
 
+let abs_def =
+  ( "abs",
+    Sym.fresh "abs",
+    mk_arg1 (fun it loc -> MT.arith_unop Abs it loc) )
+
 let rem_def =
   ( "rem",
     Sym.fresh "rem",
@@ -211,6 +216,7 @@ let builtin_funs
     shift_left_def;
     shift_right_def;
     power_def;
+    abs_def;
     rem_def;
     mod_def;
     has_alloc_id_def;

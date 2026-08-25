@@ -29,6 +29,7 @@ Inductive const : Type :=
 
 (* Unary operators *)
 Inductive unop : Type :=
+  | Abs : unop
   | Not : unop
   | Negate : unop
   | BW_CLZ : unop

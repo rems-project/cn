@@ -489,7 +489,7 @@ module C_vars = struct
        | None -> fail { loc; msg = No_pointee_ctype e1 })
     | CN_mul, _ -> return (IT (Binop (Mul, e1, e2), get_bt e1, loc))
     | CN_div, _ -> return (IT (Binop (Div, e1, e2), get_bt e1, loc))
-    | CN_mod, _ -> return (IT (Binop (Rem, e1, e2), get_bt e1, loc))
+    | CN_mod, _ -> fail { loc; msg = Generic !^"Use `rem` or `mod` instead of `%`." } [@alert "-deprecated"]
     | CN_equal, _ ->
       (match (get_bt e1, get_bt e2, !pointer_eq_warned) with
        | Loc _, Loc _, false ->

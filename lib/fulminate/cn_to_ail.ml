@@ -308,6 +308,7 @@ let cn_to_ail_unop bt =
   let bt_typedef_str_opt = get_typedef_string (bt_to_ail_ctype bt) in
   function
   | Terms.Not -> Some "cn_bool_not"
+  | Abs -> failwith "todo"
   | Negate ->
     (match bt_typedef_str_opt with
      | Some typedef_str -> Some (typedef_str ^ "_negate")

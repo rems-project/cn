@@ -1085,7 +1085,7 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : T.t m =
             arith_binop Terms.ShiftRight (arg1, cast_ (T.get_bt arg1) arg2 loc) loc )
           loc
       | IOpDiv -> div_ (arg1, arg2) loc
-      | IOpRem_t -> rem_ (arg1, arg2) loc
+      | IOpRem_t -> rem_t_ (arg1, arg2) loc
     in
     return x
   | PEcatch_exceptional_condition (ity, iop, pe1, pe2) when !cnBV ->
@@ -1159,8 +1159,8 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : T.t m =
       | IOpShr, _ -> shr_
       | IOpDiv, (_, false) -> WT.warn_integer_nia loc; div_
       | IOpDiv, _ -> div_
-      | IOpRem_t, (_, false) -> WT.warn_integer_nia loc; rem_
-      | IOpRem_t, _ -> rem_
+      | IOpRem_t, (_, false) -> WT.warn_integer_nia loc; rem_t_
+      | IOpRem_t, _ -> rem_t_
     in
     let r = fn_ (arg1, arg2) loc in
     let@ provable = provable loc in

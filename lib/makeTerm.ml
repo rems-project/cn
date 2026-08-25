@@ -137,7 +137,30 @@ let shr_ = arith_binop ShiftRight
 
 let divisible_ (it, it') loc = eq_ (mod_ (it, it') loc, int_lit_ 0 (get_bt it) loc) loc
 
+let abs_ it loc = 
+  assert (match get_bt it with (BT.Integer | BT.Real) -> true | _ -> false);
+  IT (Unop (Abs, it), get_bt it, loc)
+
+let neg_ it loc = IT (Unop (Negate, it), get_bt it, loc)
+
 let rem_f_ (it, it') loc = mod_ (it, it') loc
+
+(* gpt says the equivalent of Z's rem operation (so Core's IntRem_t) in
+   SMT is:
+      (let ((r (mod (abs a) b))) 
+           (ite (< a 0) (- r) r))
+   This leads to the definition below. *)
+(* tests/cn/mod.c checks the rem_t semantics against Cerberus runtime outcomes *)
+
+let rem_t_ (a, b) loc =
+  assert (BT.equal (get_bt a) (get_bt b) && BT.equal (get_bt a) Integer);
+  let r_s = Sym.fresh "r" in
+  let r = sym_ (r_s, BT.Integer, loc) in
+  let_ ((r_s, mod_ (abs_ a loc, b) loc),
+        ite_ (lt_ (a, int_lit_ 0 Integer loc) loc,
+	      neg_ r loc,
+	      r) loc) loc
+
 
 let min_ = arith_binop Min
 

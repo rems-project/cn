@@ -254,7 +254,7 @@ let json_of_unop : Terms.unop -> json =
   | BW_FFS -> unit_variant "BwFfs"
   | BW_FLS -> unit_variant "BwFls"
   | BW_Compl -> unit_variant "BwCompl"
-
+  | Abs -> failwith "todo"
 
 let json_of_binop : Terms.binop -> json =
   let open Terms in

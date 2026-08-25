@@ -18,9 +18,9 @@ triggering Fulminate's optimisations for conjunctions and checking they work in 
 */
 void
 naive_memcpy (char *dst, char *src, int n)
-/*@ requires take dstStart_half_1 = each (integer j; 0 <= j && j < n && j % 2 == 0)
+/*@ requires take dstStart_half_1 = each (integer j; 0 <= j && j < n && rem (j, 2) == 0)
                                   {RW(array_shift(dst, j))};
-             take dstStart_half_2 = each (integer j; 0 <= j && j < n && j % 2 == 1)
+             take dstStart_half_2 = each (integer j; 0 <= j && j < n && rem (j, 2) == 1)
                                   {Owned_char_wrapper_void(array_shift(dst, j))};
              take srcStart = each (integer j; 0 <= j && j < n)
                                   {Owned_char_wrapper(array_shift(src, j))};
