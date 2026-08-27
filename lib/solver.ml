@@ -14,7 +14,7 @@ let inc_enabled = ref true
 
 let inc_timeout = ref None
 
-let context_sat_cache_enabled = ref false
+let context_sat_cache_enabled = ref true
 
 type solver_stats =
   { mutable logical_queries : int;
@@ -38,20 +38,6 @@ let solver_stats =
     sat_cache_misses = 0
   }
 
-let () =
-  at_exit (fun () ->
-    let s = solver_stats in
-    if s.incremental_checks + s.fresh_checks > 0 then
-      Printf.eprintf
-        "CN_SOLVER_STATS logical_queries=%d true_shortcuts=%d incremental_checks=%d fresh_checks=%d timeout_resets=%d sat_cache_hits=%d unsat_cache_hits=%d sat_cache_misses=%d\n%!"
-        s.logical_queries
-        s.true_shortcuts
-        s.incremental_checks
-        s.fresh_checks
-        s.timeout_resets
-        s.sat_cache_hits
-        s.unsat_cache_hits
-        s.sat_cache_misses)
 
 (** Functions that pick names for things. *)
 module CN_Names = struct
@@ -92,7 +78,7 @@ type solver_frame =
     mutable consistency : context_consistency
   }
 
-let empty_solver_frame ?(consistency = Consistency_unknown) () = { commands = []; consistency }
+let empty_solver_frame ~consistency = { commands = []; consistency }
 
 type solver =
   { mutable smt_solver : SMT.solver; (** The SMT solver connection. *)
@@ -136,10 +122,10 @@ let debug_ack_command s cmd =
 
 (** Start a new scope. *)
 let push s =
-  let consistency = (!(s.cur_frame)).consistency in
+  let consistency = !(s.cur_frame).consistency in
   debug_ack_command s (SMT.push 1);
   s.prev_frames := !(s.cur_frame) :: !(s.prev_frames);
-  s.cur_frame := empty_solver_frame ~consistency ()
+  s.cur_frame := empty_solver_frame ~consistency
 
 
 (** Return to the previous scope.  Assumes that there is a previous scope. *)
@@ -1294,7 +1280,7 @@ let make globals variable_bindings =
   in
   let s =
     { smt_solver = new_incremental_solver cfg !inc_timeout;
-      cur_frame = ref (empty_solver_frame ());
+      cur_frame = ref (empty_solver_frame ~consistency:Consistency_sat);
       prev_frames = ref [];
       ctypes;
       ctypes_rev;
@@ -1382,13 +1368,15 @@ let record_model =
 
 let clear_model () = model_state := None
 
-let current_consistency solver = (!(solver.cur_frame)).consistency
+let current_consistency solver = !(solver.cur_frame).consistency
 
 let set_current_consistency solver consistency =
-  (!(solver.cur_frame)).consistency <- consistency
+  !(solver.cur_frame).consistency <- consistency
+
 
 let record_current_context_model solver =
   record_model solver (List.rev (get_commands solver)) []
+
 
 (* ---------------------------------------------------------------------------*)
 (* Try hard *)
@@ -1523,9 +1511,7 @@ let provable_or_unknown ~loc ~solver ~assumptions ~simp_ctxt lc =
         solver_stats.incremental_checks <- solver_stats.incremental_checks + 1;
         let result = SMT.check solver.smt_solver in
         Pp.time_end "INCREMENTAL SOLVER CHECK" start_time;
-        match result with
-        | Unknown -> reset_incremental_solver_and_check solver
-        | a -> a)
+        match result with Unknown -> reset_incremental_solver_and_check solver | a -> a)
       else
         check_new_solver solver.smt_solver.config cmds
     in
@@ -1555,7 +1541,7 @@ let provable_or_unknown ~loc ~solver ~assumptions ~simp_ctxt lc =
   | LC.T (IT (Const (Bool true), _, _)) ->
     solver_stats.true_shortcuts <- solver_stats.true_shortcuts + 1;
     `True
-  | (LC.T (IT (Const (Bool false), _, _)) as lc) when !context_sat_cache_enabled ->
+  | LC.T (IT (Const (Bool false), _, _)) as lc when !context_sat_cache_enabled ->
     (match current_consistency solver with
      | Consistency_sat ->
        solver_stats.sat_cache_hits <- solver_stats.sat_cache_hits + 1;

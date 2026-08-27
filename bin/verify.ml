@@ -188,7 +188,8 @@ module Flags = struct
 
   let solver_context_sat_cache =
     let doc =
-      "Cache whether the current incremental solver scope is satisfiable, avoiding repeated context-consistency queries"
+      "Cache whether the current incremental solver scope is satisfiable, avoiding \
+       repeated context-consistency queries"
     in
     Arg.(
       value
