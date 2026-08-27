@@ -415,6 +415,9 @@ let set_logic l = simple_command [ "set-logic"; l ]
 (** Push a new scope. *)
 let push n = simple_command [ "push"; string_of_int n ]
 
+(** Reset the solver. *)
+let reset = simple_command [ "reset" ]
+
 (** Pop a scope. *)
 let pop n = simple_command [ "pop"; string_of_int n ]
 

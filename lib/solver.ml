@@ -12,7 +12,7 @@ let cnBV = BaseTypes.cnBV
 
 let inc_enabled = ref true
 
-let inc_timeout = ref None
+let inc_timeout = ref (Some 200)
 
 (** Functions that pick names for things. *)
 module CN_Names = struct
@@ -1227,12 +1227,9 @@ let make globals variable_bindings =
       model_smt_solver = SMT.new_solver model_cfg
     }
   in
-  (* model solver: set incremental, "load empty model" with 'push'  *)
-  List.iter (SMT.ack_command s.model_smt_solver) (SMT.incremental model_cfg);
-  SMT.ack_command s.model_smt_solver (SMT.push 1);
   (* regular solver: set incremental and timeout, logging these *)
-  List.iter (ack_command s) (SMT.incremental cfg);
-  List.iter (ack_command s) (SMT.timeout cfg !inc_timeout);
+  List.iter (SMT.ack_command s.smt_solver) (SMT.incremental cfg);
+  List.iter (SMT.ack_command s.smt_solver) (SMT.timeout cfg !inc_timeout);
   declare_solver_basics s variable_bindings;
   s
 
@@ -1255,8 +1252,7 @@ let model () = Option.get !model_state
     `check-sat`. *)
 let load_model solver cmds =
   let msmt = solver.model_smt_solver in
-  SMT.ack_command msmt (SMT.pop 1);
-  SMT.ack_command msmt (SMT.push 1);
+  SMT.ack_command msmt (SMT.reset);
   List.iter (SMT.ack_command msmt) cmds;
   match SMT.check msmt with SMT.Sat -> () | _ -> failwith "not actually SAT"
 
@@ -1384,11 +1380,13 @@ let check_without_timeout smt_solver =
   result
 
 
-let reset_solver solver =
-  let old_smt_solver = solver.smt_solver in
-  solver.smt_solver <- SMT.new_solver (solver_cfg ());
-  old_smt_solver.stop ();
-  List.iter (debug_ack_command solver) (get_commands_with_pushes solver)
+let reset_solver s =
+  let cfg = solver_cfg () in
+  s.smt_solver.stop ();
+  s.smt_solver <- SMT.new_solver cfg;
+  List.iter (SMT.ack_command s.smt_solver) (SMT.incremental cfg);
+  List.iter (SMT.ack_command s.smt_solver) (SMT.timeout cfg !inc_timeout);
+  List.iter (debug_ack_command s) (get_commands_with_pushes s)
 
 
 let check_new_solver cfg cmds =
