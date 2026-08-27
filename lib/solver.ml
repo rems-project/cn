@@ -1341,22 +1341,15 @@ let _unused_try_hard = (TryHard.translate_functions, TryHard.translate_foralls)
 (** Goals are translated to this type *)
 type reduction =
   { qs : (Sym.t * BT.t) list; (* quantifier instantiation *)
-    expr : Terms.Normal.t; (* translation of goal *)
-    extra : Terms.Normal.t list (* additional assumptions *)
+    expr : Terms.Normal.t (* translation of goal *)
   }
 
 (** TODO: maybe we should not have `extra` any more. *)
-let reduce_goal assumptions = function
-  | LC.T expr -> { expr; qs = []; extra = [] }
+let reduce_goal = function
+  | LC.T expr -> { expr; qs = [] }
   | Forall ((s, bt), expr) ->
     let s, expr = Terms.Normal.alpha_rename s expr in
-    let mk_extra = function
-      | LC.Forall ((s', bt'), expr') when BT.equal bt bt' ->
-        Some Terms.Normal.(subst (make_rename ~from:s' ~to_:s) expr')
-      | _ -> None
-    in
-    let extra = List.filter_map mk_extra (LC.Set.elements assumptions) in
-    { expr; qs = [ (s, bt) ]; extra }
+    { expr; qs = [ (s, bt) ] }
 
 
 (** Add an assertion. Quantified assertions are ignored. *)
@@ -1375,16 +1368,16 @@ let check_new_solver cfg cmds =
   result
 
 
-let provable_or_unknown ~loc ~solver ~assumptions ~simp_ctxt lc =
+let provable_or_unknown ~loc ~solver ~simp_ctxt lc =
   clear_model ();
   (* shortcut, as similarly suggested by Robbert *)
   match Simplify.LogicalConstraints.simp simp_ctxt lc with
   | LC.T (IT (Const (Bool true), _, _)) -> `True
   | lc ->
     push solver;
-    let { qs; expr; extra } = reduce_goal assumptions lc in
+    let { qs; expr } = reduce_goal lc in
     List.iter (declare_variable solver) qs;
-    List.iter (fun t -> assume solver (T t)) (not_ expr loc :: extra);
+    assume solver (T (not_ expr loc));
     let cmds = List.rev (get_commands solver) in
     let answer =
       match if !inc_enabled then SMT.check solver.smt_solver else Unknown with
@@ -1403,10 +1396,10 @@ let provable_or_unknown ~loc ~solver ~assumptions ~simp_ctxt lc =
 
 
 (** The main way to query the solver. *)
-let provable ~loc ~solver ~assumptions ~simp_ctxt ?(purpose = "") lc =
+let provable ~loc ~solver ~simp_ctxt ?(purpose = "") lc =
   let start_time = Pp.time_start () in
   let result =
-    match provable_or_unknown ~loc ~solver ~assumptions ~simp_ctxt lc with
+    match provable_or_unknown ~loc ~solver ~simp_ctxt lc with
     | `True -> `True
     | `False -> `False
     | `Unknown -> `False

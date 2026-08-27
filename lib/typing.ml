@@ -119,16 +119,10 @@ let simp_ctxt () =
   return (make_simp_ctxt s)
 
 
-let make_provable loc ({ typing_context = s; solver; _ } as c) =
+let make_provable loc ({ solver; _ } as c) =
   let simp_ctxt = make_simp_ctxt c in
   let f ?(purpose = "") lc =
-    Solver.provable
-      ~loc
-      ~solver:(Option.get solver)
-      ~assumptions:s.constraints
-      ~simp_ctxt
-      ~purpose
-      lc
+    Solver.provable ~loc ~solver:(Option.get solver) ~simp_ctxt ~purpose lc
   in
   f
 
