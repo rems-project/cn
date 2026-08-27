@@ -1,4 +1,10 @@
 return code: 0
 [1/3]: divide_by_ten -- pass
+tests/cn/division_with_constants.c:17:12: warning: Treating division as uninterpreted.
+    return x/-10;
+           ~^~~~ 
 [2/3]: divide_by_neg_ten -- pass
+tests/cn/division_with_constants.c:31:12: warning: Treating division as uninterpreted.
+    return 20 / -10;
+           ~~~^~~~~ 
 [3/3]: division_diff_sign -- pass

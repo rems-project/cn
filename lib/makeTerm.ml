@@ -2,6 +2,8 @@ module BT = BaseTypes
 open Terms
 open Terms.Normal
 
+let always_interp = ref false
+
 (* shorthands *)
 
 let use_vip = ref true
@@ -149,8 +151,17 @@ let rem_f_ (it, it') loc = mod_ (it, it') loc
    SMT is:
       (let ((r (mod (abs a) b))) 
            (ite (< a 0) (- r) r))
-   This leads to the definition below. *)
-(* tests/cn/mod.c checks the rem_t semantics against Cerberus runtime outcomes *)
+
+   and for Z's div
+
+   (define-fun zdiv ((a Int) (b Int)) Int
+     (let ((q (div (abs a) b)))
+       (ite (< a 0) (- q) q)))
+
+   This leads to the definitions below.
+
+   tests/cn/mod.c checks the rem_t semantics against Cerberus runtime outcomes 
+*)
 
 let rem_t_ (a, b) loc =
   assert (BT.equal (get_bt a) (get_bt b) && BT.equal (get_bt a) Integer);
@@ -161,6 +172,16 @@ let rem_t_ (a, b) loc =
 	      neg_ r loc,
 	      r) loc) loc
 
+let z_div_ (a, b) loc = 
+  assert (BT.equal (get_bt a) (get_bt b) && BT.equal (get_bt a) Integer);
+  let q_s = Sym.fresh "q" in
+  let q = sym_ (q_s, BT.Integer, loc) in
+
+  let_ ((q_s, div_ (abs_ a loc, b) loc),
+        ite_ (lt_ (a, int_lit_ 0 Integer loc) loc,
+	      neg_ q loc,
+	      q) loc) loc
+  
 
 let min_ = arith_binop Min
 

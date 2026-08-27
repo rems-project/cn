@@ -17,6 +17,8 @@ let inc_timeout = ref (Some 200)
 
 let hybrid = ref true
 
+let always_interp = MT.always_interp
+
 (** Functions that pick names for things. *)
 module CN_Names = struct
   let fn_name x = Sym.pp_string_no_nums x ^ "_" ^ string_of_int (Sym.num x)
@@ -738,7 +740,7 @@ let rec translate_term s iterm =
        (match get_bt iterm with
         | BT.Bits _ -> SMT.bv_mul s1 s2
         | BT.Real -> SMT.num_mul s1 s2
-        | BT.Integer when T.constant e1 || T.constant e2 -> SMT.num_mul s1 s2
+        | BT.Integer when T.constant e1 || T.constant e2 || !always_interp -> SMT.num_mul s1 s2
         | BT.Integer -> uninterp_same_type CN_Names.mul
         | _ -> failwith "Mul")
      | Div ->
@@ -746,26 +748,27 @@ let rec translate_term s iterm =
         | BT.Bits (BT.Signed, _) -> SMT.bv_sdiv s1 s2
         | BT.Bits (BT.Unsigned, _) -> SMT.bv_udiv s1 s2
         | BT.Real -> SMT.num_div s1 s2
-        | BT.Integer when T.constant e2 -> SMT.num_div s1 s2
+        | BT.Integer when T.constant e2 || !always_interp -> SMT.num_div s1 s2
         | BT.Integer -> uninterp_same_type CN_Names.div
         | _ -> failwith "Div")
      | Exp ->
        (match (get_num_z e1, get_num_z e2) with
         | Some z1, Some z2 when Z.fits_int z2 ->
           translate_term s (num_lit_ (Z.pow z1 (Z.to_int z2)) (get_bt e1) loc)
+        (* | _, _ when !always_interp -> SMT.num_exp s1 s2 *)
         | _ -> uninterp_same_type CN_Names.exp)
      | Rem ->
        (match get_bt iterm with
         | BT.Bits (BT.Signed, _) -> SMT.bv_srem s1 s2
         | BT.Bits (BT.Unsigned, _) -> SMT.bv_urem s1 s2
-        | BT.Integer when T.constant e2 -> SMT.num_rem s1 s2 (* CVC5 ?? *)
+        | BT.Integer when T.constant e2 || !always_interp -> SMT.num_rem s1 s2 (* CVC5 ?? *)
         | BT.Integer -> uninterp_same_type CN_Names.rem
         | _ -> failwith "Rem")
      | Mod ->
        (match get_bt iterm with
         | BT.Bits (BT.Signed, _) -> SMT.bv_smod s1 s2
         | BT.Bits (BT.Unsigned, _) -> SMT.bv_urem s1 s2
-        | BT.Integer when T.constant e2 -> SMT.num_mod s1 s2
+        | BT.Integer when T.constant e2 || !always_interp -> SMT.num_mod s1 s2
         | BT.Integer -> uninterp_same_type CN_Names.mod'
         | _ -> failwith "Mod")
      | BW_Xor ->

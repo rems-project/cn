@@ -12,6 +12,8 @@ open Pp.Infix
 
 module CTS = Set.Make (Sctypes)
 
+let always_interp = MakeTerm.always_interp
+
 let cnBV = BaseTypes.cnBV
 
 let add_ct, get_cts =
@@ -31,6 +33,7 @@ let warn_integer_bw_operation loc =
   warn loc !^"Treating bitwise operation on integers as uninterpreted."
 
 let warn_integer_nia loc =
+  if !always_interp then () else
   warn loc !^"Treating non-linear integer arithmetic as uninterpreted."
 
 
@@ -519,38 +522,38 @@ module WT = struct
 
   let binop_nia_checks it =
     match it with
-    | IT (Binop (bop, t, t'), _, loc) ->
-      (match (bop, T.get_bt t, (is_const t, is_const t')) with
-       | Mul, Integer, (None, None) ->
-         let msg =
-           !^"Neither side of the integer multiplication"
-           ^^^ squotes (T.pp it)
-           ^^^ !^"is a constant."
-         in
-         warn loc msg
-       | (Div | Rem | Mod | ShiftLeft | ShiftRight), Integer, (_, None) ->
-         let op = match bop with ShiftLeft | ShiftRight -> "Shift" | _ -> "Division" in
-         let msg =
-           !^op ^^^ squotes (T.pp it) ^^^ !^"does not have constant right-hand argument."
-         in
-         warn loc msg
-       | (Div | Rem | Mod | ShiftLeft | ShiftRight), Integer, (_, Some (Z z', _))
-         when Z.leq z' Z.zero ->
-         let op = match bop with ShiftLeft | ShiftRight -> "Shift" | _ -> "Division" in
-         let msg =
-           !^op ^^^ squotes (T.pp it) ^^^ !^"does not have positive right-hand argument."
-         in
-         warn loc msg
-       | Exp, (Integer | Bits _), (None, _ | _, None) ->
-         let msg =
-           !^"Exponentiation"
-           ^^^ squotes (T.pp it)
-           ^^^ !^"does not have constant left and right-hand arguments."
-         in
-         warn loc msg
-       | (BW_And | BW_Or | BW_Xor), Integer, _ -> warn_integer_bw_operation loc
-       | _ -> ())
-    | _ -> ()
+    | IT (Binop (Mul, t, t'), Integer, loc) ->
+      if (T.constant t || T.constant t' || !always_interp) then return () else
+       let msg =
+	 !^"Neither side of the integer multiplication"
+	 ^^^ squotes (T.pp it)
+	 ^^^ !^"is a constant."
+       in
+       return (warn loc msg)
+    | IT (Binop ((Div | Rem | Mod), _t, t'), Integer, loc) ->
+      if T.constant t' || !always_interp then return () else
+	let msg =
+	  !^"Division" ^^^ squotes (T.pp it) ^^^ !^"does not have constant right-hand argument."
+	in
+	return (warn loc msg)
+    | IT (Binop ((ShiftLeft | ShiftRight), _t, t'), Integer, loc) ->
+      (match is_const t' with
+      | Some ((Z z'), _) when Z.gt z' Z.zero -> return ()
+      | _ -> 
+	let msg = !^"Integer shift requires positive integer literal as second argument" in
+	fail { loc; msg = Generic msg } [@alert "-deprecated"])
+    | IT (Binop (Exp, t, t'), Integer, loc) ->
+      (match T.constant t, is_const t' with
+      | true, Some ((Z z'), _) when Z.gt z' Z.zero -> return ()
+      | false, _ ->
+	let msg = !^"Integer exponentiation requires constant first argument" in
+	fail { loc; msg = Generic msg } [@alert "-deprecated"]
+      | true, _ -> 
+	let msg = !^"Integer exponentiation requires positive integer literal as second argument" in
+	fail { loc; msg = Generic msg } [@alert "-deprecated"])
+    | IT (Binop ((BW_And | BW_Or | BW_Xor), _t, _t'), Integer, loc) ->
+      return (warn_integer_bw_operation loc)
+    | _ -> return ()
 
 
   (* NOTE: This cannot _check_ what the root type of term is (the type is
@@ -648,7 +651,7 @@ module WT = struct
         in
         let@ () = arg_check in
         let it = IT (Binop (bop, t, t'), rbt, loc) in
-        binop_nia_checks it;
+        let@ () = binop_nia_checks it in
         return it
       | ITE (t, t', t'') ->
         let@ t = check loc Bool t in

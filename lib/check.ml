@@ -404,7 +404,7 @@ let known_function_pointer loc p =
      | `Inconsistent_context -> return `Inconsistent_context)
 
 
-let integer_wrapI loc ity n =
+let integer_wrapI_value loc ity n =
   assert (not !cnBV);
   let dlt =
     z_
@@ -413,6 +413,13 @@ let integer_wrapI loc ity n =
   in
   let r = MT.rem_f_ (n, dlt) loc in
   MT.ite_ (le_ (r, z_ (Memory.max_integer_type ity) loc) loc, r, sub_ (r, dlt) loc) loc
+
+let integer_wrapI loc ity n =
+  assert (not !cnBV);
+  let@ provable = provable loc in
+  match provable (LC.T (representable_ (Integer ity, n) loc)) with
+  | `True -> return n
+  | `False -> return (integer_wrapI_value loc ity n)
 
 
 let check_conv_int loc ~expect ct arg =
@@ -451,7 +458,7 @@ let check_conv_int loc ~expect ct arg =
       if !cnBV then
         return (cast_ (Memory.bt_of_sct ct) arg loc)
       else
-        return (integer_wrapI here ity arg)
+        (integer_wrapI here ity arg)
     | _ ->
       (match provable (LC.T (representable_ (ct, arg) here)) with
        | `True ->
@@ -895,6 +902,7 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : T.t m =
       | _ -> assert false
     in
     let () =
+      if !Solver.always_interp then () else
       match (op, (Terms.is_const v1, Terms.is_const v2)) with
       | OpMul, (None, None) -> warn loc !^"Treating multiplication as uninterpreted."
       | (OpDiv | OpRem_t | OpRem_f), (_, None) ->
@@ -1085,7 +1093,7 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : T.t m =
             arith_binop Terms.ShiftRight (arg1, cast_ (T.get_bt arg1) arg2 loc) loc )
           loc
       | IOpDiv -> div_ (arg1, arg2) loc
-      | IOpRem_t -> rem_t_ (arg1, arg2) loc
+      | IOpRem_t -> rem_ (arg1, arg2) loc
     in
     return x
   | PEcatch_exceptional_condition (ity, iop, pe1, pe2) when !cnBV ->
@@ -1157,23 +1165,24 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : T.t m =
       | IOpShl, _ -> shl_
       | IOpShr, (_, false) -> WT.warn_integer_nia loc; shr_
       | IOpShr, _ -> shr_
-      | IOpDiv, (_, false) -> WT.warn_integer_nia loc; div_
-      | IOpDiv, _ -> div_
+      | IOpDiv, (_, false) -> WT.warn_integer_nia loc; z_div_
+      | IOpDiv, _ -> z_div_
       | IOpRem_t, (_, false) -> WT.warn_integer_nia loc; rem_t_
       | IOpRem_t, _ -> rem_t_
     in
     let r = fn_ (arg1, arg2) loc in
-    let@ provable = provable loc in
-    let r_representable = provable (LC.T (representable_ (Integer ity, r) loc)) in
-    (match pe_, r_representable with
-     | PEwrapI _, `True -> return r (* TODO: without wrapI, correct? *)
-     | PEcatch_exceptional_condition _, `True -> return r
-     | PEwrapI _, `False -> return (integer_wrapI loc ity r)
-     | PEcatch_exceptional_condition _, `False ->
-       let@ model = model () in
-       let ub = CF.Undefined.UB036_exceptional_condition in
-       fail (fun ctxt -> { loc; msg = Undefined_behaviour { ub; ctxt; model } })
-     | _ -> assert false)
+    (match pe_ with
+    | PEwrapI _ -> integer_wrapI loc ity r
+    | PEcatch_exceptional_condition _ ->
+      let@ provable = provable loc in
+      let r_representable = provable (LC.T (representable_ (Integer ity, r) loc)) in
+      (match r_representable with
+      | `True -> return r
+      | `False ->
+	let@ model = model () in
+	let ub = CF.Undefined.UB036_exceptional_condition in
+	fail (fun ctxt -> { loc; msg = Undefined_behaviour { ub; ctxt; model } }))
+    | _ -> assert false)
   | PEif (pe, e1, e2) ->
     let@ () = WellTyped.ensure_base_type loc ~expect (Mu.bt_of_pexpr e1) in
     let@ () = WellTyped.ensure_base_type loc ~expect (Mu.bt_of_pexpr e2) in
@@ -1547,7 +1556,7 @@ let bytes_constraints
       in
       List.fold_left (fun x y -> MT.add_ (x, y) here) (List.hd shifted) (List.tl shifted)
     in
-    let rhs = if !cnBV then rhs else integer_wrapI loc it rhs in (* TODO: correct? *)
+    let@ rhs = if !cnBV then return rhs else integer_wrapI loc it rhs in (* TODO: correct? *)
     (match to_from with
      | To -> return (and2_ (all_some, eq_ (lhs, rhs) here) here)
      | From ->
@@ -1810,7 +1819,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : T.t -> unit m) : unit m =
          let here = Locations.other __LOC__ in
 	 let min_z = Memory.min_integer_type to_ity in
 	 let max_z = Memory.max_integer_type to_ity in
-         let actual_value, lc = 
+         let@ actual_value, lc = 
 	   if !cnBV then
 	     (* §6.3.2.3#6 allows converting pointers to any integer type so long as the value of
 		the pointer fits. If uintptr_t and intptr_t exist, then they are guaranteed to be
@@ -1822,17 +1831,17 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : T.t -> unit m) : unit m =
 		   in_z_range (cast_ Memory.intptr_bt arg loc) (min_z, max_z) here ] here)
              in
 	     let value = cast_ (Memory.bt_of_sct to_ct) arg loc in
-	     value, lc
+	     return (value, lc)
 	   else
 	     (* TODO: correct? *)
 	     let iarg = cast_ Integer arg here in
-	     let value = 
+	     let@ value = 
 	       if Memory.is_signed_integer_type to_ity
 	       then integer_wrapI here (Signed Intptr_t) iarg 
-	       else (* integer_wrapI here (Unsigned Intptr_t) *) iarg
+	       else (* integer_wrapI here (Unsigned Intptr_t) *) return iarg
 	     in
 	     let lc = LC.T (in_z_range value (min_z, max_z) here) in
-	     value, lc
+	     return (value, lc)
 	 in
          let@ () =
            match provable lc with
@@ -1861,16 +1870,19 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : T.t -> unit m) : unit m =
          let cond = eq_ (arg, int_lit_ 0 (T.get_bt arg) here) here in
          let null_case = eq_ (result, null_ here) here in
          (* NOTE: the allocation ID is intentionally left unconstrained *)
-         let alloc_case =
-	   let raw_addr = 
-	     if !cnBV then cast_ Memory.uintptr_bt arg here
+         let@ alloc_case =
+	   let@ raw_addr = 
+	     if !cnBV then return (cast_ Memory.uintptr_bt arg here)
 	     else integer_wrapI here (Unsigned Intptr_t) arg (* TODO: correct? *)
 	   in
-           and_
-             [ hasAllocId_ result here;
-               eq_ (raw_addr, addr_ result here) here
-             ]
-             here
+	   let lc = 
+	     and_
+	       [ hasAllocId_ result here;
+		 eq_ (raw_addr, addr_ result here) here
+	       ]
+	       here
+	   in
+	   return lc
          in
          let constr = ite_ (cond, null_case, alloc_case) here in
          let@ () = add_c loc (LC.T constr) in

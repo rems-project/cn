@@ -1,9 +1,2 @@
 return code: 0
-tests/cn/get_from_array.c:25:14: warning: Division 'mod(offs
-  , sizeof(signed int))' does not have constant right-hand argument.
-             mod(offs, (sizeof<int>)) == 0;
-             ~~~^~~~~~~~~~~~~~~~~~~~~ 
-tests/cn/get_from_array.c:26:25: warning: Division 'offs / sizeof(signed int)' does not have constant right-hand argument.
-             let idx = (offs / (sizeof<int>));
-                        ~~~~~^~~~~~~~~~~~~~~ 
 [1/1]: set_a_pointer -- pass

@@ -1,14 +1,18 @@
 /* Since the second operand is constant that is not equal to zero,
    You can execute the division with no worries for Modulo By Zero */
 
+/* Also see comment on CN's definition of rem_t_, in makeTerms.ml */
+
 int x_mod_three (int x)
-/*@ ensures return == x % 3; @*/
+/*@ requires let r = mod(abs(x),3);
+    ensures return == ((x < 0) ? (-r) : r); @*/
 {
     return x % 3;
 }
 
 int x_mod_neg_three (int x)
-/*@ ensures return == x % -3; @*/
+/*@ requires let r = mod(abs(x),-3);
+    ensures return == ((x < 0) ? (-r) : r); @*/
 {
     return x % -3;
 }

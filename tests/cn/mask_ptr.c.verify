@@ -1,5 +1,4 @@
 return code: 1
-cn > cn verify tests/cn/mask_ptr.c
 tests/cn/mask_ptr.c:12:7: error: Argument-type mismatch between integer (from size_t) and u64
 void *cn_aligned_alloc(size_t alignment, size_t size);
       ^~~~~~~~~~~~~~~~ 

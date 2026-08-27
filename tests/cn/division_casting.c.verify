@@ -1,2 +1,14 @@
 return code: 0
+tests/cn/division_casting.c:11:31: warning: Division 'x / y' does not have constant right-hand argument.
+  ensures  good<unsigned int>(x/y);
+                              ~^~ 
+tests/cn/division_casting.c:15:23: warning: Division 'x / y' does not have constant right-hand argument.
+    ensures return == x/y; @*/
+                      ~^~ 
+tests/cn/division_casting.c:18:12: warning: Treating division as uninterpreted.
+    return x/y;
+           ~^~ 
+tests/cn/division_casting.c:18:12: warning: Treating non-linear integer arithmetic as uninterpreted.
+    return x/y;
+           ~^~ 
 [1/1]: division -- pass

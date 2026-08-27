@@ -3,8 +3,8 @@
 
 // fails because it should return a long
 int different_size(int x, long y)
-/*@ requires y != 0i64;
-    ensures return == x % (i32)y; @*/
+/*@ requires y != 0;
+    ensures return == rem (x, y); @*/
 {
     return x % y;
 }

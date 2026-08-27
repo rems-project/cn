@@ -1,10 +1,4 @@
 return code: 1
-tests/cn/mask_ptr.error.c:19:14: warning: Division 'mod(y, 1 << 5)' does not have constant right-hand argument.
-/*@ requires mod(y, shift_left(1, 5)) == 0; @*/
-             ~~~^~~~~~~~~~~~~~~~~~~~~ 
-tests/cn/mask_ptr.error.c:34:14: warning: Division 'mod(p_u64, 1 << 5)' does not have constant right-hand argument.
-             mod(p_u64, shift_left(1, 5)) == 0; @*/
-             ~~~^~~~~~~~~~~~~~~~~~~~~~~~~ 
 tests/cn/mask_ptr.error.c:24:3: warning: Treating bitwise operation on integers as uninterpreted.
   x &= ~ ((1UL << 5) - 1);
   ~~^~~~~~~~~~~~~~~~~~~~~ 
@@ -16,9 +10,6 @@ tests/cn/mask_ptr.error.c:39:3: warning: Treating bitwise operation on integers 
   x &= ~ ((1UL << SHIFT_AMOUNT) - 1);
   ~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
 [2/3]: foo -- fail
-tests/cn/mask_ptr.error.c:50:13: warning: Treating division as uninterpreted.
-  int *p = (((u64) &buf[0]) % 32 == 0) ? &buf[1] : &buf[0];
-            ~~~~~~~~~~~~~~~~^~~~ 
 [3/3]: main -- fail
 tests/cn/mask_ptr.error.c:25:7: error: Unprovable constraint
   /*@ assert (x == y); @*/
