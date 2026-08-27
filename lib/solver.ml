@@ -12,7 +12,7 @@ let cnBV = BaseTypes.cnBV
 
 let inc_enabled = ref true
 
-let inc_timeout = ref (Some 200)
+let inc_timeout = ref (Some 1000)
 
 (** Functions that pick names for things. *)
 module CN_Names = struct
@@ -1227,6 +1227,11 @@ let make globals variable_bindings =
       model_smt_solver = SMT.new_solver model_cfg
     }
   in
+  (* We'd like to use `(reset)` in the model smt solver in-between
+     models, but that seems to not work in z3. Instead '(push 1)'
+     here, and (pop 1); (push 1) whenever we want to reset. *)
+  List.iter (SMT.ack_command s.model_smt_solver) (SMT.incremental cfg);
+  SMT.ack_command s.model_smt_solver (SMT.push 1);
   (* regular solver: set incremental and timeout, logging these *)
   List.iter (SMT.ack_command s.smt_solver) (SMT.incremental cfg);
   List.iter (SMT.ack_command s.smt_solver) (SMT.timeout cfg !inc_timeout);
@@ -1252,7 +1257,8 @@ let model () = Option.get !model_state
     `check-sat`. *)
 let load_model solver cmds =
   let msmt = solver.model_smt_solver in
-  SMT.ack_command msmt (SMT.reset);
+  SMT.ack_command msmt (SMT.pop 1);
+  SMT.ack_command msmt (SMT.push 1);
   List.iter (SMT.ack_command msmt) cmds;
   match SMT.check msmt with SMT.Sat -> () | _ -> failwith "not actually SAT"
 
