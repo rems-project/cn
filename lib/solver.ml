@@ -1222,6 +1222,10 @@ module Logger = struct
         })
     else
       { SMT.send = (fun _ -> ()); SMT.receive = (fun _ -> ()); SMT.stop = (fun _ -> ()) }
+
+  let same_cfg_fresh_logger (cfg : SMT.solver_config) =
+    { cfg with log = make (SMT.string_of_solver_extension cfg.exts) }
+
 end
 
 let solver_path = ref (None : string option)
@@ -1244,8 +1248,6 @@ let select_solver_type () =
         | _ -> default))
 
 
-let fresh_solver_config (cfg : SMT.solver_config) =
-  { cfg with log = Logger.make (SMT.string_of_solver_extension cfg.exts) }
 
 
 let new_incremental_solver cfg timeout =
@@ -1279,7 +1281,7 @@ let make globals variable_bindings =
       (0, CTypeMap.empty, IntMap.empty)
   in
   let s =
-    { smt_solver = new_incremental_solver cfg !inc_timeout;
+    { smt_solver = SMT.new_solver cfg;
       cur_frame = ref (empty_solver_frame ~consistency:Consistency_sat);
       prev_frames = ref [];
       ctypes;
@@ -1288,9 +1290,10 @@ let make globals variable_bindings =
       model_smt_solver = SMT.new_solver model_cfg
     }
   in
-  List.iter (SMT.ack_command s.model_smt_solver) (SMT.incremental model_cfg);
   (* "empty model loaded" using 'push' *)
   SMT.ack_command s.model_smt_solver (SMT.push 1);
+  List.iter (SMT.ack_command s.smt_solver) (SMT.incremental cfg);
+  List.iter (SMT.ack_command s.smt_solver) (SMT.otimeout cfg !inc_timeout);
   declare_solver_basics s variable_bindings;
   s
 
@@ -1306,7 +1309,7 @@ let replay_solver_frames solver smt_solver =
 
 let reset_incremental_solver_and_check solver =
   let start_time = Pp.time_start () in
-  let cfg = fresh_solver_config solver.smt_solver.config in
+  let cfg = Logger.same_cfg_fresh_logger solver.smt_solver.config in
   solver.smt_solver.stop ();
   let smt_solver = new_incremental_solver cfg None in
   solver.smt_solver <- smt_solver;
@@ -1484,7 +1487,7 @@ let assume solver lc =
 
 let check_new_solver cfg cmds =
   let start_time = Pp.time_start () in
-  let cfg = fresh_solver_config cfg in
+  let cfg = Logger.same_cfg_fresh_logger cfg in
   let s = SMT.new_solver cfg in
   List.iter (SMT.ack_command s) cmds;
   solver_stats.fresh_checks <- solver_stats.fresh_checks + 1;
