@@ -1518,11 +1518,6 @@ let provable_or_unknown ~loc ~solver ~assumptions ~simp_ctxt lc =
       else
         check_new_solver solver.smt_solver.config cmds
     in
-    if !context_sat_cache_enabled then (
-      match answer with
-      | Sat -> set_current_consistency solver Consistency_sat
-      | Unsat -> set_current_consistency solver Consistency_unsat
-      | Unknown -> set_current_consistency solver Consistency_unknown);
     pop solver 1;
     if !context_sat_cache_enabled then (
       match answer with
