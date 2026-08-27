@@ -947,4 +947,6 @@ let timeout cfg n =
   | Other -> assert false
 
 
-let otimeout cfg = function None -> [] | Some n -> timeout cfg n
+let timeout cfg ot =
+  (* 0 encodes 'no timeout' in the solvers *)
+  timeout cfg (Option.value ~default:0 ot)
