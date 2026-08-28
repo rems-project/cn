@@ -16,6 +16,8 @@ let header filename =
   ^^ !^": generated lemma specifications from CN *)"
   ^^ hardline
   ^^ hardline
+  ^^ !^"import Playground.CN_Lib"
+  ^^ hardline
   ^^ !^"import Playground.CN_Lib_Iris"
   ^^ hardline
   ^^ !^"import Playground.CN_Lib_Iris_Fixpoint"
@@ -41,7 +43,8 @@ let print_section section_name comment section_body =
   ^^^ !^section_name
   ^^ hardline
   ^^ hardline
-  ^^^ !^"-- " ^^ !^comment
+  ^^^ !^"-- "
+  ^^ !^comment
   ^^ hardline
   ^^ hardline
   ^^ flow hardline section_body
@@ -126,6 +129,7 @@ let tuple_itp_ty doc fld_tys =
   in
   parens (flow (break 1) (times fld_tys))
 
+
 (* Getter for tuples given an index and its dimensions *)
 let gen_get_upd ((i, list_len) : int * int) (tm : PPrint.document) =
   let open Pp in
@@ -136,6 +140,7 @@ let gen_get_upd ((i, list_len) : int * int) (tm : PPrint.document) =
     foldi (list_len - 1) pp_fst tm
   else
     pp_snd (foldi (list_len - 1 - i) pp_fst tm)
+
 
 (* CN BaseTypes to Lean *)
 let rec bt_to_itp (bt : CI.itp_bt) =
@@ -165,10 +170,11 @@ let rec bt_to_itp (bt : CI.itp_bt) =
     tuple_itp_ty !^"" enc_fld_bts
   | CI.ITP_Set _bt2 -> rets "unsupported BT set"
 
+
 (* Let and forall occur in both pure and resource terms*)
-let pp_let sym rhs_doc doc =
+let pp_let sym rhs_doc doc is_resource =
   let open Pp in
-  !^"let" ^^^ Sym.pp sym ^^^ !^":=" ^^^ rhs_doc ^^^ doc
+  !^"let" ^^^ Sym.pp sym ^^^ !^":=" ^^ rhs_doc ^^ !^";" ^^ (if is_resource then !^" iprop%" else !^"")  ^^^ doc
 
 
 let pp_forall (sym : Sym.t) (bt : CI.itp_bt) (doc : Pp.document) =
@@ -182,10 +188,10 @@ let norm_bv_op bt doc_f =
     (match sign with
      | CI.ITP_Unsigned ->
        let minInt, maxInt = BT.bits_range (Unsigned, sz) in
-       f_appM "CN_Lib.wrapI" [ enc_z minInt; enc_z maxInt; doc_f ]
+       f_appM "wrapI" [ enc_z minInt; enc_z maxInt; doc_f ]
      | CI.ITP_Signed ->
        let minInt, maxInt = BT.bits_range (Signed, sz) in
-       f_appM "CN_Lib.wrapI" [ enc_z minInt; enc_z maxInt; doc_f ])
+       f_appM "wrapI" [ enc_z minInt; enc_z maxInt; doc_f ])
   | _ -> doc_f
 
 
@@ -202,7 +208,7 @@ let term_to_itp (global : Global.t) (t : CI.itp_pure_term) =
   let rec f (global : Global.t) t =
     let aux t = f global t in
     let abinop s x y = parensM (build [ aux x; rets s; aux y ]) in
-    let bool_binop t = parensM (build [ rets "decide" ; t]) in
+    let bool_binop t = parensM (build [ rets "decide"; t ]) in
     match t with
     | CI.ITP_sym_term (CI.ITP_sym s) -> Sym.pp s
     | ITP_const c ->
@@ -246,14 +252,12 @@ let term_to_itp (global : Global.t) (t : CI.itp_pure_term) =
          | CI.ITP_or -> abinop "||" x y
          | CI.ITP_or_prop -> abinop "∨" x y
          (* Apparently Lean doesn't have builtin boolean implication *)
-         | CI.ITP_impl -> f global (CI.ITP_binop(CI.ITP_or, CI.ITP_unop(CI.ITP_neg, x, bt), y, bt))
+         | CI.ITP_impl ->
+           f global (CI.ITP_binop (CI.ITP_or, CI.ITP_unop (CI.ITP_neg, x, bt), y, bt))
          | CI.ITP_impl_prop -> abinop "-∗" x y)
     | CI.ITP_match (x, cases) ->
       let br (pat, rhs) = build [ rets "|"; pat_to_itp pat; rets "=>"; aux rhs ] in
-      parensM
-        (build
-           ([ rets "match"; aux x; rets "with"; hardline ]
-            @ List.map br cases))
+      parensM (build ([ rets "match"; aux x; rets "with"; hardline ] @ List.map br cases))
     | CI.ITP_ite (sw, x, y) ->
       parensM (build [ rets "if"; aux sw; rets "then"; aux x; rets "else"; aux y ])
     | CI.ITP_eachI ((i1, (CI.ITP_sym s, _), i2), x) ->
@@ -300,7 +304,7 @@ let term_to_itp (global : Global.t) (t : CI.itp_pure_term) =
     | CI.ITP_arraytolist (arr, i, len) ->
       parensM (build [ rets "CN_Lib.array_to_list"; aux arr; aux i; aux len ])
     | CI.ITP_wrapI (z1, z2, t) -> f_appM "CN_Lib.wrapI" [ enc_z z1; enc_z z2; aux t ]
-    | CI.ITP_let_pure (CI.ITP_sym nm, x, y) -> parensM (pp_let nm (aux x) (aux y))
+    | CI.ITP_let_pure (CI.ITP_sym nm, x, y) -> parensM (pp_let nm (aux x) (aux y) false)
     | CI.ITP_arrayshift (base, ct, index) ->
       f_appM "arrayshift" [ aux base; enc_z ct; aux index ]
     | CI.ITP_good -> rets ""
@@ -308,6 +312,7 @@ let term_to_itp (global : Global.t) (t : CI.itp_pure_term) =
     | CI.ITP_unsupported_pure msg -> rets ("unsupported ITP_pure_term: " ^ msg)
   in
   f global t
+
 
 let rec resource_to_itp (global : Global.t) (t : CI.itp_resource_term) =
   let open Pp in
@@ -317,14 +322,14 @@ let rec resource_to_itp (global : Global.t) (t : CI.itp_resource_term) =
   let aux' t = resource_to_itp global t in
   let map_split f = fun doc -> f (break 1 ^^ doc) in
   match t with
-  | CI.ITP_Let_Resource (CI.ITP_sym nm, x, y) -> parensM (pp_let nm (aux x) (aux' y))
+  | CI.ITP_Let_Resource (CI.ITP_sym nm, x, y) -> parensM (pp_let nm (aux x) (aux' y) true)
   | CI.ITP_Forall (CI.ITP_sym sym, bt, t) -> pp_forall sym bt (aux' t)
   | CI.ITP_Exists (CI.ITP_sym sym, bt, t) ->
     !^"∃" ^^^ parens (typ (Sym.pp sym) (bt_to_itp bt)) ^^ !^"," ^^ break 1 ^^ aux' t
   | CI.ITP_Star (t1, t2) -> mk_star (aux' t1) (aux' t2)
   | CI.ITP_Wand (t1, t2) -> mk_wand (aux' t1) (aux' t2)
   | CI.ITP_Pure t -> iris_pure (aux t)
-  | CI.ITP_Define (CI.ITP_sym sym, x, y) -> map_split (pp_let sym (aux x)) (aux' y)
+  | CI.ITP_Define (CI.ITP_sym sym, x, y) -> map_split (pp_let sym (aux x)) (aux' y) true
   | CI.ITP_Empty_Heap -> rets "emp"
   | CI.ITP_Block (CI.ITP_sym s, _, t, _) ->
     let op_nm = "Block_" ^ Sym.pp_string s in
@@ -338,14 +343,11 @@ let rec resource_to_itp (global : Global.t) (t : CI.itp_resource_term) =
     (match perm with
      | ITP_binop
          (ITP_and_prop, ITP_binop (_, min_term, _, _), ITP_binop (_, _, max_term, _), _)
-       ->       build
+       ->
+       build
          [ rets "each_int ";
-          aux min_term;
-           parens
-             (rets "Z.to_nat "
-              ^^ parens (aux max_term)
-              ^^ rets " - "
-              ^^ aux min_term)
+           aux min_term;
+           parens (rets "Z.to_nat " ^^ parens (aux max_term) ^^ rets " - " ^^ aux min_term)
            ^^ rets "%nat";
            aux ptr;
            !^(Sym.pp_string nm);
@@ -364,7 +366,7 @@ let convert_lemma_defs global (lemmas : CI.itp_lemma list) =
     defn (Sym.pp_string nm ^ "_type") [] (Some (Pp.string "IProp GF")) (!^"iprop% " ^^ rhs)
   in
   let tys = List.map lemma_ty lemmas in
-  tys 
+  tys
 
 
 (* print datatypes *)
@@ -380,15 +382,13 @@ let translate_datatypes (dtys : CI.itp_dt list list) =
   in
   (* Print different header if in mutually recursive group *)
   let print_dt dty_clump =
-    if (List.length dty_clump > 1) then
-      flow
-      hardline
-      [!^"mutual" ^^ hardline] :: (List.map dt_eqs dty_clump)
+    if List.length dty_clump > 1 then
+      flow hardline [ !^"mutual" ^^ hardline ] :: List.map dt_eqs dty_clump
     else
       List.map dt_eqs dty_clump
   in
   let rec f (dtys : CI.itp_dt list list) =
-    match dtys with [] -> [] | x :: xs -> (print_dt x) @ (f xs)
+    match dtys with [] -> [] | x :: xs -> print_dt x @ f xs
   in
   f dtys
 
@@ -398,15 +398,24 @@ let open_dtypes (dtys : CI.itp_dt list list) =
   let open Pp in
   let get_dt_name (CI.ITP_dt (CI.ITP_sym nm, _, _)) = Sym.pp nm in
   let dt_names = List.map get_dt_name (List.flatten dtys) in
-  !^"open" ^^^ flow (break 1) (dt_names) ^^ hardline
+  if List.length dt_names > 0 then
+    !^"open" ^^^ flow (break 1) dt_names ^^ hardline
+  else
+    !^""
+
 
 (* print a line that says `open pred1 pred2...` too *)
 let open_predtypes (predtys : CI.itp_resource_pred_group list) =
   let open Pp in
-  !^"open" 
-  ^^^ flow (break 1) 
-    (List.mapi (fun i _ -> (!^"cn_predicate_group_" ^^ !^(string_of_int i))) predtys)
-  ^^ hardline
+  if List.length predtys > 0 then
+    !^"open"
+    ^^^ flow
+          (break 1)
+          (List.mapi (fun i _ -> !^"cn_predicate_group_" ^^ !^(string_of_int i)) predtys)
+    ^^ hardline
+  else
+    !^""
+
 
 (* Generates `Ptr -> arg_ty1 -> ... -> ret_ty -> IProp GF` *)
 let make_pred_ty args ret_ty res_ty =
@@ -420,8 +429,8 @@ let make_pred_ty args ret_ty res_ty =
 let rec scanl (f : 'b -> 'a -> 'b) (q : 'b) (ls : 'a list) =
   q :: (match ls with [] -> [] | x :: xs -> scanl f (f q x) xs)
 
-let scanl1 f ls = match ls with x :: xs -> scanl f x xs | [] -> []  
 
+let scanl1 f ls = match ls with x :: xs -> scanl f x xs | [] -> []
 
 (* print resource predicate definitions *)
 let translate_pred (gl : Global.t) (preds : CI.itp_resource_pred_group list) =
@@ -482,12 +491,12 @@ let translate_pred (gl : Global.t) (preds : CI.itp_resource_pred_group list) =
     Sym.pp_string (get_pred_name pred) ^ "_body"
   in
   let unpack_body (group : CI.itp_resource_pred_group) (pred : CI.itp_resource_pred) =
-    simp 
+    simp
       (defn
-        (get_body_name pred)
-        (make_args group pred)
-        (Some (Pp.string "IProp GF"))
-        (!^"iprop% " ^^ intersperse " ∨ " "" (unpack_clauses pred.CI.clauses)))
+         (get_body_name pred)
+         (make_args group pred)
+         (Some (Pp.string "IProp GF"))
+         (!^"iprop% " ^^ intersperse " ∨ " "" (unpack_clauses pred.CI.clauses)))
   in
   let get_constr_name (pred : CI.itp_resource_pred) =
     "CN_GROUP_" ^ Sym.pp_string (get_pred_name pred)
@@ -507,13 +516,11 @@ let translate_pred (gl : Global.t) (preds : CI.itp_resource_pred_group list) =
       ^^ hardline
     in
     let ofe_type =
-      !^("abbrev " ^ type_name ^ "O := DiscreteO " ^ type_name)
-      ^^ hardline
+      !^("abbrev " ^ type_name ^ "O := DiscreteO " ^ type_name) ^^ hardline
     in
     group_type ^^ ofe_type
   in
-  let to_ofe t = !^"⟨" ^^t ^^ !^"⟩"
-  in
+  let to_ofe t = !^"⟨" ^^ t ^^ !^"⟩" in
   (* In lean, `rec` is a reserved keyword so we use `rec_cn` instead *)
   (* (λ p ν, rec_cn ⟨CN_GROUP_IsForest p ν⟩) *)
   let make_closure (pred : CI.itp_resource_pred) =
@@ -553,10 +560,10 @@ let translate_pred (gl : Global.t) (preds : CI.itp_resource_pred_group list) =
     let call_arg = parens @@ typ !^"call" !^group_ofe_name in
     simp
       (defn
-        (get_pre_fixpoint_name index)
-        [ rec_arg; call_arg ]
-        (Some !^"IProp GF")
-        (make_pre_fixpoint_body predicates))
+         (get_pre_fixpoint_name index)
+         [ rec_arg; call_arg ]
+         (Some !^"IProp GF")
+         (make_pre_fixpoint_body predicates))
   in
   let make_monotonicity_instance index (predicates : CI.itp_resource_pred_group) =
     let pre_fixpoint = get_pre_fixpoint_name index in
@@ -564,29 +571,23 @@ let translate_pred (gl : Global.t) (preds : CI.itp_resource_pred_group list) =
     let instance =
       align
         (infix
-          2
-          1
-          colon
-          (!^"instance" ^^^ !^instance_name)
-          (!^"BIMonoPred" ^^^ parens !^(pre_fixpoint ^ " (hlc := hlc) (GF := GF) ") ^^ !^ ":="))
+           2
+           1
+           colon
+           (!^"instance" ^^^ !^instance_name)
+           (!^"BIMonoPred"
+            ^^^ parens !^(pre_fixpoint ^ " (hlc := hlc) (GF := GF) ")
+            ^^ !^":="))
     in
     let prepare =
       brackets
-           (build
-              [ 
-                intersperse "," "" @@ List.map (fun p -> !^(get_body_name p)) predicates
-              ])
+        (build
+           [ intersperse "," "" @@ List.map (fun p -> !^(get_body_name p)) predicates ])
     in
     let tactic =
-      prefix
-        2
-        1
-        (group (!^"solve_bi_mono_pred_with_prepare" ^/^ !^pre_fixpoint))
-        prepare
+      prefix 2 1 (group (!^"solve_bi_mono_pred_with_prepare" ^/^ !^pre_fixpoint)) prepare
     in
-    let proof =
-      blank 2 ^^ align (!^"by " ^^ nest 2 (hardline ^^ tactic) ^^ hardline)
-    in
+    let proof = blank 2 ^^ align (!^"by " ^^ nest 2 (hardline ^^ tactic) ^^ hardline) in
     instance ^^ hardline ^^ proof ^^ hardline
   in
   let make_pre_fixpoint index (predicates : CI.itp_resource_pred_group) =
@@ -598,8 +599,7 @@ let translate_pred (gl : Global.t) (preds : CI.itp_resource_pred_group list) =
     let args = make_formal_args pred in
     let app = !^(get_constr_name pred) :: make_actual_args pred in
     let body =
-      build
-        [ !^"bi_least_fixpoint"; !^(get_pre_fixpoint_name index); to_ofe (build app) ]
+      build [ !^"bi_least_fixpoint"; !^(get_pre_fixpoint_name index); to_ofe (build app) ]
     in
     simp (defn (Sym.pp_string (get_pred_name pred)) args (Some !^"IProp GF") body)
   in
@@ -690,32 +690,30 @@ let translate_pred (gl : Global.t) (preds : CI.itp_resource_pred_group list) =
       let arg1 =
         parens
         @@ align
-        @@ !^"fun (call : " ^^ !^(get_group_type_name index ^ "O")
+        @@ !^"fun (call : "
+        ^^ !^(get_group_type_name index ^ "O")
         ^^ !^") =>"
         ^^ nest
              2
-             (hardline
-              ^^ !^"match call with"
-              ^^ nest 2 (hardline ^^ body)
-              ^^ hardline)
+             (hardline ^^ !^"match call with" ^^ nest 2 (hardline ^^ body) ^^ hardline)
       in
       let arg2 =
         brackets
-           (build
-              [ 
-                intersperse "," "" @@ List.map (fun p -> !^"H_" ^^ Sym.pp (get_pred_name p)) predicates
-              ])
+          (build
+             [ intersperse "," ""
+               @@ List.map (fun p -> !^"H_" ^^ Sym.pp (get_pred_name p)) predicates
+             ])
       in
       !^"  iintro "
       ^^ build (List.map (fun p -> !^"#H_" ^^ Sym.pp (get_pred_name p)) predicates)
       ^^^ hardline
       ^^^ !^" solve_cn_predicate_induction"
-      ^^^ nest 2 (hardline ^^ flow hardline [ name ^^ !^","; arg1 ^^ !^","; arg2 ^^ hardline ])
+      ^^^ nest
+            2
+            (hardline ^^ flow hardline [ name ^^ !^","; arg1 ^^ !^","; arg2 ^^ hardline ])
     in
     let args = List.map (fun p -> p |> make_induction_lemma_arg |> parens) predicates in
-    let statement =
-      make_induction_lemma_statement predicates |> parens
-    in
+    let statement = make_induction_lemma_statement predicates |> parens in
     let proof = make_induction_lemma_proof index predicates in
     let names = List.map (fun p -> Sym.pp (get_pred_name p)) predicates in
     let proof_name = separate underscore names ^^ underscore ^^ !^"induction" in
@@ -731,9 +729,10 @@ let translate_pred (gl : Global.t) (preds : CI.itp_resource_pred_group list) =
     (* IsForest p ν ⊣⊢ IsForest_body IsForest IsTree p ν. *)
     let statement =
       let body1 =
-        parensM @@ 
-          build @@ 
-            ((Sym.pp (get_pred_name pred) ^^ !^" (hlc := hlc) (GF := GF) ") :: List.map fst args)
+        parensM
+        @@ build
+        @@ ((Sym.pp (get_pred_name pred) ^^ !^" (hlc := hlc) (GF := GF) ")
+            :: List.map fst args)
       in
       let body2 =
         parensM
@@ -746,15 +745,15 @@ let translate_pred (gl : Global.t) (preds : CI.itp_resource_pred_group list) =
     in
     let proof =
       let rewrites = List.map (fun p -> Sym.pp (get_pred_name p)) predicates in
-      let rem =
-        [ "least_fixpoint_unfold"; get_pre_fixpoint_name index ]
-      in
+      let rem = [ "least_fixpoint_unfold"; get_pre_fixpoint_name index ] in
       !^"  apply Iris.BI.BiEntails.of_eq"
       ^^ hardline
-      ^^ !^"  rw [" ^^  (intersperse "," "" (rewrites @ List.map ( !^ ) rem)) ^^ !^"]"
+      ^^ !^"  rw ["
+      ^^ intersperse "," "" (rewrites @ List.map ( !^ ) rem)
+      ^^ !^"]"
       ^^ hardline
       ^^ !^"  rfl"
-      ^^hardline
+      ^^ hardline
     in
     make_lemma
       proof_name
@@ -768,7 +767,7 @@ let translate_pred (gl : Global.t) (preds : CI.itp_resource_pred_group list) =
     let fixpoint = make_fixpoints index predicates in
     let induction_lemma = make_induction_lemma index predicates in
     let unfold_lemmata = List.map (make_unfold_lemma index predicates) predicates in
-    group_type, pred_defs @ (fixpoint :: induction_lemma :: unfold_lemmata)
+    (group_type, pred_defs @ (fixpoint :: induction_lemma :: unfold_lemmata))
   in
   let groups = List.mapi unpack_group preds in
   (List.map fst groups, List.concat_map snd groups)
@@ -832,7 +831,7 @@ let translate_fun (gl : Global.t) (funs : CI.itp_fun list list * CI.itp_fun list
          (fun i doc -> !^(if i = 0 then "" else "    with") ^^ doc)
          (List.map translate_one clump))
   in
-  (List.map print (fst funs), List.map print (snd funs))  
+  (List.map print (fst funs), List.map print (snd funs))
 
 
 (* generate records and Owned_Structname predicates for all structs*)
@@ -880,7 +879,9 @@ let translate_structs (struct_decls : Memory.struct_decls) =
   in
   let unpack_decls (decl : Sym.t * Memory.struct_layout) =
     let nm = !^(Sym.pp_string (fst decl)) in
-    !^"structure "
+    !^"@[ext]"
+    ^^ hardline
+    ^^ !^"structure "
     ^^ nm
     ^^ !^" where"
     ^^ hardline
@@ -894,12 +895,13 @@ let translate_structs (struct_decls : Memory.struct_decls) =
     ^^ nm
     ^^ !^") : IProp GF := "
     ^^ hardline
-    ^^ !^ "iprop% "
+    ^^ !^"iprop% "
     ^^ decl_to_pieces (snd decl)
     ^^ hardline
   in
   List.map unpack_decls (Sym.Map.bindings struct_decls)
-  
+
+
 (* main generate function, makes everything happen *)
 let generate (global : Global.t) directions (lemmata : (Sym.t * (Loc.t * AT.lemmat)) list)
   =
@@ -934,12 +936,15 @@ let generate (global : Global.t) directions (lemmata : (Sym.t * (Loc.t * AT.lemm
     (* print structs and function definitions *)
     Pp.print
       channel
-      (print_section "Defs" "Defs comment" (structs @ translated_uninterp_preds @ snd translated_funs));
+      (print_section
+         "Defs"
+         "Defs comment"
+         (structs @ translated_uninterp_preds @ snd translated_funs));
     (* print resource predicates *)
     Pp.print channel (print_section "ResourcePredicates" "RPred comment" translated_preds);
     (* print function definitions *)
     (* print lemmas *)
     let translated_lemmas = convert_lemma_defs global lemmas in
-    Pp.print channel (print_section "Lemma_Defs" "Lemma comment" translated_lemmas);
+    Pp.print channel (print_section "Lemma_Defs" "Lemma comment" translated_lemmas)
   in
   f
