@@ -172,6 +172,17 @@ let run
       (if TestGeneration.Config.is_experimental engine then
          Pp.(warn_noloc !^(TestGeneration.Config.experimental_message engine)));
       let _, sigma = ail_prog in
+      let handle_test_generation_error e =
+        if TestGeneration.Config.is_experimental engine then (
+          Common.print_uncaught_exception e;
+          Cerb_colour.with_colour
+            (fun () ->
+               Pp.(warn_noloc !^(TestGeneration.Config.experimental_message engine)))
+            ();
+          exit 1)
+        else
+          Common.handle_error_with_user_guidance ~label:(Common.tool_name (Test engine)) e
+      in
       if
         List.is_empty
           (TestGeneration.functions_under_test
@@ -181,6 +192,13 @@ let run
              prog5
              paused)
       then (
+        (try
+           Option.iter
+             (fun path ->
+                TestGeneration.export_specs ~path ~filename cabs_tunit sigma prog5 paused)
+             (TestGeneration.Config.get_export_spec_json ())
+         with
+         | e -> handle_test_generation_error e);
         print_endline "No testable functions, trivially passing";
         exit 0);
       Cerb_colour.do_colour := false;
@@ -222,19 +240,7 @@ let run
            prog5
            paused
        with
-       | e ->
-         if TestGeneration.Config.is_experimental engine then (
-           Common.print_uncaught_exception e;
-           (* colour was disabled before the run; force it on so the reminder stands out *)
-           Cerb_colour.with_colour
-             (fun () ->
-                Pp.(warn_noloc !^(TestGeneration.Config.experimental_message engine)))
-             ();
-           exit 1)
-         else
-           Common.handle_error_with_user_guidance
-             ~label:(Common.tool_name (Test engine))
-             e);
+       | e -> handle_test_generation_error e);
       if not dont_run then (
         Cerb_debug.maybe_close_csv_timing_file ();
         match build_tool with
@@ -542,8 +548,9 @@ module Flags = struct
   let export_spec_json =
     let doc =
       "Dump the specification IR as one JSON file in AustenTest's spec-module format. \
-       Functions are emitted in CN's test-discovery order, which defines their one-byte \
-       selector IDs"
+       Every representable function definition is emitted in CN's deterministic \
+       definition-discovery order, which defines its one-byte selector ID, even when CN \
+       cannot generate tests for it"
     in
     Arg.(
       value

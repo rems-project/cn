@@ -657,7 +657,7 @@ let json_of_structs (prog5 : unit Mucore.file) : json list =
     []
 
 
-(* The C signature of one function under test, recovered from the Ail sigma
+(* The C signature of one exported function, recovered from the Ail sigma
    exactly where `bennet/stage1/convert.ml` recovers its own `c_types`.
 
    A declared-but-undefined function has no parameter names; positional ones
@@ -888,11 +888,11 @@ let rec max_sym_num (j : json) : int =
 (* ----------------------------------------------------------------- entry *)
 
 (* One `SpecModule`, covering one translation unit and every representable
-   function under test. The order of `functions` is the selector ABI:
+   function definition. The order of `functions` is the selector ABI:
    AustenTest prefixes each input with the exact zero-based position of its
-   target in this array. `functions_under_test` supplies CN's deterministic
-   test-discovery order, and the filtering in [save] retains the relative
-   order of every survivor. *)
+   target in this array. MuCore's function map supplies CN's deterministic
+   definition-discovery order, and the filtering in [save] retains the
+   relative order of every survivor. *)
 let json_of_module
       ~filename
       sigma

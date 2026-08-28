@@ -28,6 +28,15 @@ val functions_under_test
   _ Typing.pause ->
   Test.t list
 
+val export_specs
+  :  path:string ->
+  filename:string ->
+  Cerb_frontend.Cabs.translation_unit ->
+  Cerb_frontend.GenTypes.genTypeCategory Cerb_frontend.AilSyntax.sigma ->
+  unit Mucore.file ->
+  _ Typing.pause ->
+  unit
+
 val run
   :  output_dir:string ->
   filename:string ->

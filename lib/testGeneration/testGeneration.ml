@@ -489,7 +489,34 @@ let functions_under_test
   insts
   |> List.filter (fun (inst : FExtract.instrumentation) ->
     Sym.Set.mem inst.fn selected_fsyms)
-  |> List.map (Test.of_instrumentation cabs_tunit sigma paused)
+  |> List.map (Test.of_instrumentation sigma paused)
+
+
+(* Specification export is intentionally broader than test generation. Every
+   function definition has an internal argument/return specification, even
+   when it has no user-written clauses or CN cannot generate a test harness
+   for its C signature. Declarations are excluded because they have no body
+   or definition in this translation unit. *)
+let functions_for_export
+      (cabs_tunit : CF.Cabs.translation_unit)
+      (sigma : CF.GenTypes.genTypeCategory A.sigma)
+      (prog5 : unit Mucore.file)
+      (paused : _ Typing.pause)
+  : Test.t list
+  =
+  FExtract.collect_instrumentation cabs_tunit prog5
+  |> fst
+  |> List.filter (fun (inst : FExtract.instrumentation) -> Option.is_some inst.internal)
+  |> List.map (Test.of_instrumentation sigma paused)
+
+
+let export_specs ~path ~filename cabs_tunit sigma prog5 paused : unit =
+  SpecExport.save
+    ~path
+    ~filename
+    sigma
+    prog5
+    (functions_for_export cabs_tunit sigma prog5 paused)
 
 
 let run
@@ -509,7 +536,7 @@ let run
      a specification the generator pipeline itself chokes on — the export is
      of the IR, not of anything downstream of it. *)
   Option.iter
-    (fun path -> SpecExport.save ~path ~filename sigma prog5 insts)
+    (fun path -> export_specs ~path ~filename cabs_tunit sigma prog5 paused)
     (TestGenConfig.get_export_spec_json ());
   save_generators ~output_dir ~filename cabs_tunit sigma prog5 paused insts;
   save_tests
