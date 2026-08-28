@@ -12,7 +12,7 @@ let cnBV = BaseTypes.cnBV
 
 let inc_enabled = ref true
 
-let inc_timeout = ref None
+let inc_timeout = ref (Some 1000)
 
 (** Functions that pick names for things. *)
 module CN_Names = struct
@@ -49,7 +49,7 @@ type solver_frame =
 let empty_solver_frame () = { commands = [] }
 
 type solver =
-  { smt_solver : SMT.solver; (** The SMT solver connection. *)
+  { mutable smt_solver : SMT.solver; (** The SMT solver connection. *)
     cur_frame : solver_frame ref;
     prev_frames : solver_frame list ref;
       (** Push/pop model. Current frame, and previous frames. *)
@@ -77,7 +77,13 @@ end
 
 let get_commands s =
   let frames = !(s.cur_frame) :: !(s.prev_frames) in
-  List.concat_map (fun f -> f.commands) frames
+  List.rev (List.concat_map (fun f -> f.commands) frames)
+
+
+let get_commands_with_pushes s =
+  let cur_cmds = !(s.cur_frame).commands in
+  let prev_cmds = List.map (fun f -> SMT.push 1 :: f.commands) !(s.prev_frames) in
+  List.(rev (concat (cur_cmds :: prev_cmds)))
 
 
 let debug_ack_command s cmd =
@@ -1186,21 +1192,23 @@ let select_solver_type () =
         | _ -> default))
 
 
-(** Make a new solver instance *)
-let make globals variable_bindings =
+let solver_cfg () =
   let base_cfg =
     match select_solver_type () with
     | Z3 -> SMT.z3
     | CVC5 -> SMT.cvc5
     | Other -> failwith "Unsupported solver type."
   in
-  let cfg =
-    { base_cfg with
-      exe = Option.value ~default:base_cfg.exe !solver_path;
-      opts = Option.value ~default:base_cfg.opts !solver_flags;
-      log = Logger.make (SMT.string_of_solver_extension base_cfg.exts)
-    }
-  in
+  { base_cfg with
+    exe = Option.value ~default:base_cfg.exe !solver_path;
+    opts = Option.value ~default:base_cfg.opts !solver_flags;
+    log = Logger.make (SMT.string_of_solver_extension base_cfg.exts)
+  }
+
+
+(** Make a new solver instance *)
+let make globals variable_bindings =
+  let cfg = solver_cfg () in
   let model_cfg = { cfg with log = Logger.make "model" } in
   let _, ctypes, ctypes_rev =
     let open WellTyped in
@@ -1219,11 +1227,14 @@ let make globals variable_bindings =
       model_smt_solver = SMT.new_solver model_cfg
     }
   in
-  List.iter (SMT.ack_command s.model_smt_solver) (SMT.incremental model_cfg);
-  (* "empty model loaded" using 'push' *)
+  (* We'd like to use `(reset)` in the model smt solver in-between
+     models, but that seems to not work in z3. Instead '(push 1)'
+     here, and (pop 1); (push 1) whenever we want to reset. *)
+  List.iter (SMT.ack_command s.model_smt_solver) (SMT.incremental cfg);
   SMT.ack_command s.model_smt_solver (SMT.push 1);
+  (* regular solver: set incremental and timeout, logging these *)
   List.iter (SMT.ack_command s.smt_solver) (SMT.incremental cfg);
-  List.iter (SMT.ack_command s.smt_solver) (SMT.otimeout cfg !inc_timeout);
+  List.iter (SMT.ack_command s.smt_solver) (SMT.timeout cfg !inc_timeout);
   declare_solver_basics s variable_bindings;
   s
 
@@ -1367,6 +1378,23 @@ let assume solver lc =
   | Forall _ -> ()
 
 
+let check_without_timeout smt_solver =
+  let cfg = smt_solver.SMT.config in
+  List.iter (SMT.ack_command smt_solver) (SMT.timeout cfg None);
+  let result = SMT.check smt_solver in
+  List.iter (SMT.ack_command smt_solver) (SMT.timeout cfg !inc_timeout);
+  result
+
+
+let reset_solver s =
+  let cfg = solver_cfg () in
+  s.smt_solver.stop ();
+  s.smt_solver <- SMT.new_solver cfg;
+  List.iter (SMT.ack_command s.smt_solver) (SMT.incremental cfg);
+  List.iter (SMT.ack_command s.smt_solver) (SMT.timeout cfg !inc_timeout);
+  List.iter (debug_ack_command s) (get_commands_with_pushes s)
+
+
 let check_new_solver cfg cmds =
   let s = SMT.new_solver cfg in
   List.iter (SMT.ack_command s) cmds;
@@ -1385,11 +1413,16 @@ let provable_or_unknown ~loc ~solver ~assumptions ~simp_ctxt lc =
     let { qs; expr; extra } = reduce_goal assumptions lc in
     List.iter (declare_variable solver) qs;
     List.iter (fun t -> assume solver (T t)) (not_ expr loc :: extra);
-    let cmds = List.rev (get_commands solver) in
+    let cmds = get_commands solver in
     let answer =
-      match if !inc_enabled then SMT.check solver.smt_solver else Unknown with
-      | Unknown -> check_new_solver solver.smt_solver.config cmds
-      | a -> a
+      match !inc_enabled with
+      | false -> check_new_solver solver.smt_solver.config cmds
+      | true ->
+        (match SMT.check solver.smt_solver with
+         | Unknown ->
+           reset_solver solver;
+           check_without_timeout solver.smt_solver
+         | answer -> answer)
     in
     pop solver 1;
     (match answer with
