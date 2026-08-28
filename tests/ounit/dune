@@ -4,6 +4,18 @@
  (name test_runner)
  (deps
   (package cn))
- (libraries cn ounit2 qcheck qcheck-ounit zarith)
+ (libraries cn ounit2 qcheck qcheck-ounit unix zarith)
  (action
-  (run ./test_runner.exe)))
+  (setenv
+   CN_TEST_EXE
+   %{exe:../../bin/main.exe}
+   (setenv
+    CN_ENUM_ARGUMENT_FIXTURE
+    %{dep:fixtures/spec_export/enum_argument.c}
+    (setenv
+     CN_ENUM_RETURN_FIXTURE
+     %{dep:fixtures/spec_export/enum_return.c}
+     (setenv
+      CN_MIXED_EXPORT_FIXTURE
+      %{dep:fixtures/spec_export/mixed.c}
+      (run ./test_runner.exe)))))))

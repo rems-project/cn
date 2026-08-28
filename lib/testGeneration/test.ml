@@ -23,7 +23,6 @@ type t =
   }
 
 let of_instrumentation
-      (cabs_tunit : CF.Cabs.translation_unit)
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (paused : _ Typing.pause)
       (inst : Fulminate.Extract.instrumentation)
@@ -46,26 +45,15 @@ let of_instrumentation
   in
   let suite = filename |> Filename.basename |> String.split_on_char '.' |> List.hd in
   let test = Sym.pp_string inst.fn in
+  (* A definition can inherit internal linkage from an earlier [static]
+     declaration even when its own storage-class list is empty. Cerberus's
+     external-identifier map records the resolved linkage. *)
   let is_static =
-    let (TUnit decls) = cabs_tunit in
-    List.exists
-      (fun decl ->
-         match decl with
-         | CF.Cabs.EDecl_func
-             (FunDef
-                ( _,
-                  _,
-                  { storage_classes; _ },
-                  Declarator
-                    (_, DDecl_function (DDecl_identifier (_, Identifier (_, fn')), _)),
-                  _ ))
-           when String.equal (Sym.pp_string inst.fn) fn'
-                && List.exists
-                     (fun scs -> match scs with CF.Cabs.SC_static -> true | _ -> false)
-                     storage_classes ->
-           true
-         | _ -> false)
-      decls
+    not
+      (Pmap.fold
+         (fun _ (candidate, _) found -> found || Sym.equal inst.fn candidate)
+         sigma.extern_idmap
+         false)
   in
   let context =
     Result.get_ok (Typing.run_from_pause (fun _ -> Typing.get_typing_context ()) paused)
