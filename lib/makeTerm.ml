@@ -80,7 +80,11 @@ let or_ its loc = vargs_binop (bool_ false loc) (Tools.curry (fun p -> or2_ p lo
 
 let impl_ (it, it') loc = IT (Binop (Implies, it, it'), BT.Bool, loc)
 
-let not_ it loc = IT (Unop (Not, it), get_bt it, loc)
+let not_ it loc =
+  match is_bool it with
+  | Some b -> bool_ (not b) loc
+  | _ -> IT (Unop (Not, it), get_bt it, loc)
+
 
 let bw_compl_ it loc = IT (Unop (BW_Compl, it), get_bt it, loc)
 

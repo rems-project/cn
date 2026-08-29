@@ -44,9 +44,14 @@ module CN_Names = struct
 end
 
 type solver_frame =
-  { mutable commands : SMT.sexp list (** Ack-style SMT commands, most recent first. *) }
+  { mutable commands : SMT.sexp list; (** Ack-style SMT commands, most recent first. *)
+    mutable consistency : SMT.result option
+      (** None means we don't know; Some Unknown means we know the SMT solver returned Unknown. *)
+  }
 
-let empty_solver_frame () = { commands = [] }
+let set_consistency consistency f = f.consistency <- consistency
+
+let empty_solver_frame consistency = { commands = []; consistency }
 
 type solver =
   { mutable smt_solver : SMT.solver; (** The SMT solver connection. *)
@@ -96,9 +101,10 @@ let debug_ack_command s cmd =
 
 (** Start a new scope. *)
 let push s =
+  let cur_consistency = !(s.cur_frame).consistency in
   debug_ack_command s (SMT.push 1);
   s.prev_frames := !(s.cur_frame) :: !(s.prev_frames);
-  s.cur_frame := empty_solver_frame ()
+  s.cur_frame := empty_solver_frame cur_consistency
 
 
 (** Return to the previous scope.  Assumes that there is a previous scope. *)
@@ -1219,7 +1225,7 @@ let make globals variable_bindings =
   in
   let s =
     { smt_solver = SMT.new_solver cfg;
-      cur_frame = ref (empty_solver_frame ());
+      cur_frame = ref (empty_solver_frame (Some SMT.Sat));
       prev_frames = ref [];
       ctypes;
       ctypes_rev;
@@ -1370,12 +1376,23 @@ let reduce_goal assumptions = function
     { expr; qs = [ (s, bt) ]; extra }
 
 
-(** Add an assertion. Quantified assertions are ignored. *)
-let assume solver lc =
-  clear_model ();
-  match lc with
-  | LC.T it -> ack_command solver (SMT.assume (translate_term solver it))
-  | Forall _ -> ()
+(** Add an assertion (assumed to have already been simplified).
+    Quantified assertions are ignored. *)
+let assume solver = function
+  | LC.Forall _ -> ()
+  | LC.T (IT (Const (Bool true), _, _)) -> ()
+  | LC.T it ->
+    let cf = !(solver.cur_frame) in
+    ack_command solver (SMT.assume (translate_term solver it));
+    clear_model ();
+    let new_consistency =
+      match cf.consistency with
+      | _ when is_false it -> Some SMT.Unsat
+      | Some Unsat -> Some Unsat
+      | Some (Sat | Unknown) -> None
+      | None -> None
+    in
+    set_consistency new_consistency cf
 
 
 let reset_solver_and_check s =
@@ -1399,12 +1416,18 @@ let check_new_solver cfg cmds =
 
 let provable_or_unknown ~loc ~solver ~assumptions ~simp_ctxt lc =
   clear_model ();
-  (* shortcut, as similarly suggested by Robbert *)
-  match Simplify.LogicalConstraints.simp simp_ctxt lc with
-  | LC.T (IT (Const (Bool true), _, _)) -> `True
-  | lc ->
-    push solver;
+  let lc = Simplify.LogicalConstraints.simp simp_ctxt lc in
+  let cf = !(solver.cur_frame) in
+  match (lc, cf.consistency) with
+  | LC.T (IT (Const (Bool true), _, _)), _ ->
+    `True (* shortcut, as similarly suggested by Robbert *)
+  | LC.T (IT (Const (Bool false), _, _)), Some Sat ->
+    record_model solver (get_commands solver) [];
+    `False
+  | _, Some Unsat -> `True
+  | _ ->
     let { qs; expr; extra } = reduce_goal assumptions lc in
+    push solver;
     List.iter (declare_variable solver) qs;
     List.iter (fun t -> assume solver (T t)) (not_ expr loc :: extra);
     let cmds = get_commands solver in
@@ -1418,8 +1441,13 @@ let provable_or_unknown ~loc ~solver ~assumptions ~simp_ctxt lc =
     in
     pop solver 1;
     (match answer with
-     | Unsat -> `True
+     | Unsat ->
+       if LC.is_false lc && List.is_empty extra then
+         set_consistency (Some Unsat) !(solver.cur_frame);
+       `True
      | Sat ->
+       set_consistency (Some Sat) !(solver.cur_frame);
+       List.iter (set_consistency (Some Sat)) !(solver.prev_frames);
        record_model solver cmds qs;
        `False
      | Unknown ->
