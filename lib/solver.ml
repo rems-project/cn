@@ -49,6 +49,8 @@ type solver_frame =
       (** None means we don't know; Some Unknown means we know the SMT solver returned Unknown. *)
   }
 
+let set_consistency consistency f = f.consistency <- consistency
+
 let empty_solver_frame consistency = { commands = []; consistency }
 
 type solver =
@@ -1391,7 +1393,7 @@ let assume solver = function
       | Some (Sat | Unknown) -> None
       | None -> None
     in
-    cf.consistency <- new_consistency
+    set_consistency new_consistency cf
 
 
 let reset_solver_and_check s =
@@ -1414,38 +1416,40 @@ let check_new_solver cfg cmds =
 
 
 let provable_or_unknown ~loc ~solver ~assumptions ~simp_ctxt lc =
+  clear_model ();
   let lc = Simplify.LogicalConstraints.simp simp_ctxt lc in
-  let { qs; expr; extra } = reduce_goal assumptions lc in
-  push solver;
-  List.iter (declare_variable solver) qs;
-  List.iter (fun t -> assume solver (T t)) (not_ expr loc :: extra);
-  let cmds = get_commands solver in
-  let answer =
-    match !(solver.cur_frame).consistency with
-    | Some ((Sat | Unsat) as a) -> a
-    | None | Some Unknown ->
-      (match !inc_enabled with
-       | false -> check_new_solver solver.smt_solver.config cmds
-       | true ->
-         (match SMT.check solver.smt_solver with
-          | Unknown -> reset_solver_and_check solver
-          | answer -> answer))
-  in
-  pop solver 1;
-  match answer with
-  | Unsat ->
-    if LC.is_false lc && List.is_empty extra then
-      !(solver.cur_frame).consistency <- Some Unsat;
-    `True
-  | Sat ->
-    !(solver.cur_frame).consistency <- Some Sat;
-    List.iter (fun f -> f.consistency <- Some Sat) !(solver.prev_frames);
-    record_model solver cmds qs;
-    `False
-  | Unknown ->
-    record_model solver cmds qs;
-    `Unknown
-
+  let cf = !(solver.cur_frame) in
+  match (lc, cf.consistency) with
+  | LC.T (IT (Const (Bool true), _, _)), _ -> `True
+  | _, Some Unsat -> `True
+  | _ ->
+    let { qs; expr; extra } = reduce_goal assumptions lc in
+    push solver;
+    List.iter (declare_variable solver) qs;
+    List.iter (fun t -> assume solver (T t)) (not_ expr loc :: extra);
+    let cmds = get_commands solver in
+    let answer =
+      match !inc_enabled with
+      | false -> check_new_solver solver.smt_solver.config cmds
+      | true ->
+        (match SMT.check solver.smt_solver with
+         | Unknown -> reset_solver_and_check solver
+         | answer -> answer)
+    in
+    pop solver 1;
+    (match answer with
+     | Unsat ->
+       if LC.is_false lc && List.is_empty extra then
+         set_consistency (Some Unsat) !(solver.cur_frame);
+       `True
+     | Sat ->
+       set_consistency (Some Sat) !(solver.cur_frame);
+       List.iter (set_consistency (Some Sat)) !(solver.prev_frames);
+       record_model solver cmds qs;
+       `False
+     | Unknown ->
+       record_model solver cmds qs;
+       `Unknown)
 
 
 (** The main way to query the solver. *)
