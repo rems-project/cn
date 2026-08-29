@@ -1387,8 +1387,7 @@ let assume solver = function
     clear_model ();
     let new_consistency =
       match cf.consistency with
-      | _ when is_false it ->
-        Some SMT.Unsat (* shortcut, as similarly suggested by Robbert *)
+      | _ when is_false it -> Some SMT.Unsat
       | Some Unsat -> Some Unsat
       | Some (Sat | Unknown) -> None
       | None -> None
@@ -1420,7 +1419,8 @@ let provable_or_unknown ~loc ~solver ~assumptions ~simp_ctxt lc =
   let lc = Simplify.LogicalConstraints.simp simp_ctxt lc in
   let cf = !(solver.cur_frame) in
   match (lc, cf.consistency) with
-  | LC.T (IT (Const (Bool true), _, _)), _ -> `True
+  | LC.T (IT (Const (Bool true), _, _)), _ ->
+    `True (* shortcut, as similarly suggested by Robbert *)
   | LC.T (IT (Const (Bool false), _, _)), Some Sat ->
     record_model solver (get_commands solver) [];
     `False
