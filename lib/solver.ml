@@ -12,7 +12,7 @@ let cnBV = BaseTypes.cnBV
 
 let inc_enabled = ref true
 
-let inc_timeout = ref (Some 2000)
+let inc_timeout = ref (Some 1000)
 
 (** Functions that pick names for things. *)
 module CN_Names = struct
