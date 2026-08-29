@@ -1378,21 +1378,15 @@ let assume solver lc =
   | Forall _ -> ()
 
 
-let check_without_timeout smt_solver =
-  let cfg = smt_solver.SMT.config in
-  List.iter (SMT.ack_command smt_solver) (SMT.timeout cfg None);
-  let result = SMT.check smt_solver in
-  List.iter (SMT.ack_command smt_solver) (SMT.timeout cfg !inc_timeout);
-  result
-
-
-let reset_solver s =
+let reset_solver_and_check s =
   let cfg = solver_cfg () in
   s.smt_solver.stop ();
   s.smt_solver <- SMT.new_solver cfg;
   List.iter (SMT.ack_command s.smt_solver) (SMT.incremental cfg);
+  List.iter (debug_ack_command s) (get_commands_with_pushes s);
+  let result = SMT.check s.smt_solver in
   List.iter (SMT.ack_command s.smt_solver) (SMT.timeout cfg !inc_timeout);
-  List.iter (debug_ack_command s) (get_commands_with_pushes s)
+  result
 
 
 let check_new_solver cfg cmds =
@@ -1419,9 +1413,7 @@ let provable_or_unknown ~loc ~solver ~assumptions ~simp_ctxt lc =
       | false -> check_new_solver solver.smt_solver.config cmds
       | true ->
         (match SMT.check solver.smt_solver with
-         | Unknown ->
-           reset_solver solver;
-           check_without_timeout solver.smt_solver
+         | Unknown -> reset_solver_and_check solver
          | answer -> answer)
     in
     pop solver 1;
