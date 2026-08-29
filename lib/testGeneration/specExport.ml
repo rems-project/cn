@@ -839,12 +839,20 @@ let json_of_global sigma prog5 owner (surface : json) (sym, glob) : json option 
          ]))
 
 
-let json_of_test filename sigma (test : Test.t) : json =
-  let name = test_name filename test in
+let json_of_function_linkage (test : Test.t) : json =
+  if test.is_static then
+    `String "internal"
+  else
+    `String "external"
+
+
+let json_of_test _filename sigma (test : Test.t) : json =
+  let name = Sym.pp_string test.fn in
   let params, ret = c_signature sigma test.fn in
   let post, _fn_body = AT.get_return test.internal in
   obj
     [ ("name", `String name);
+      ("linkage", json_of_function_linkage test);
       ( "params",
         `List
           (List.map
