@@ -1421,6 +1421,9 @@ let provable_or_unknown ~loc ~solver ~assumptions ~simp_ctxt lc =
   let cf = !(solver.cur_frame) in
   match (lc, cf.consistency) with
   | LC.T (IT (Const (Bool true), _, _)), _ -> `True
+  | LC.T (IT (Const (Bool false), _, _)), Some Sat -> 
+     record_model solver (get_commands solver) [];
+     `False
   | _, Some Unsat -> `True
   | _ ->
     let { qs; expr; extra } = reduce_goal assumptions lc in
