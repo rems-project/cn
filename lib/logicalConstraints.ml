@@ -122,3 +122,6 @@ let impl loc (it : T.t) (lc : t) : t =
 
 let preds_of (lc : t) : Sym.Set.t =
   match lc with T it | Forall (_, it) -> Terms.preds_of it
+
+
+let is_false = function T t -> Terms.is_false t | Forall _ -> false

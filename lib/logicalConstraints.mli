@@ -38,6 +38,8 @@ val dtree : t -> Cerb_frontend.Pp_ast.doc_tree
 
 val is_forall : t -> bool
 
+val is_false : t -> bool
+
 val is_interesting : t -> bool
 
 val impl : Locations.t -> Terms.Normal.t -> t -> t
