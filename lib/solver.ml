@@ -1384,7 +1384,6 @@ let reset_solver_and_check s =
   s.smt_solver <- SMT.new_solver cfg;
   List.iter (SMT.ack_command s.smt_solver) (SMT.incremental cfg);
   List.iter (debug_ack_command s) (get_commands_with_pushes s);
-  List.iter (SMT.ack_command s.smt_solver) (SMT.timeout cfg None);
   let result = SMT.check s.smt_solver in
   List.iter (SMT.ack_command s.smt_solver) (SMT.timeout cfg !inc_timeout);
   result
