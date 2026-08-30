@@ -157,17 +157,21 @@ let enum_return_function_is_exported _ =
 
 
 let untestable_functions_join_testable_ones _ =
-  let names =
-    exported_functions "CN_MIXED_EXPORT_FIXTURE"
-    |> List.map (fun fn -> json_field "name" fn)
-  in
+  let functions = exported_functions "CN_MIXED_EXPORT_FIXTURE" in
+  let names = List.map (fun fn -> json_field "name" fn) functions in
   assert_equal
-    [ `String "static_mixed_helper";
-      `String "specified";
-      `String "identity";
-      `String "main"
-    ]
-    names
+    [ `String "helper"; `String "specified"; `String "identity"; `String "main" ]
+    names;
+  let helper = List.hd functions in
+  assert_equal
+    ~printer:Yojson.Safe.to_string
+    (`String "internal")
+    (json_field "linkage" helper);
+  let main = List.nth functions 3 in
+  assert_equal
+    ~printer:Yojson.Safe.to_string
+    (`String "external")
+    (json_field "linkage" main)
 
 
 let early_export_failure_uses_test_error_handler _ =
