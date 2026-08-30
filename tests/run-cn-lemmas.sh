@@ -79,6 +79,7 @@ arrays_inductive|arrays/inductive|array_lemma.c
 arrays_testing|arrays/testing|array_lemma.c
 pop_queue|queue|pop.c
 struct_test|struct_test|test.c
+basics|basics|datatype.c
 EOF
 
 if ! run_and_report fixpoint run_fixpoint_test; then

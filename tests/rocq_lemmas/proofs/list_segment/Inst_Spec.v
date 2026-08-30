@@ -2,7 +2,8 @@ Require Import ZArith Bool.
 Require Import CN_Lemmas.Gen_Spec CN_Lemmas.CN_Lib_Iris.
 From iris.proofmode Require Import proofmode.
 
-Import CN_Lemmas.Gen_Spec.Types.
+Module Types := CN_Lemmas.Gen_Spec.Types.
+Import Types.
 
 Module Inst.
 End Inst.
@@ -42,7 +43,7 @@ Module InstOK : CN_Lemmas.Gen_Spec.Lemma_Spec (Inst).
         iDestruct "Hnodes" as (node) "[Hnode Htail]".
         iDestruct "Htail" as (tail) "[IH _]".
         iDestruct ("IH" with "Hsuffix'") as (whole_tail) "Htail".
-        iExists (Cons (Preds.D.value node) whole_tail).
+        iExists (Cons (Types.value node) whole_tail).
         iApply List_unfold.
         iRight.
         iSplit; first done.

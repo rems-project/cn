@@ -596,6 +596,26 @@ let convert_lemma_defs global (lemmas : CI.coq_lemma list) =
   tys
 
 
+let generate_structs (struct_decls : Memory.struct_decls) =
+  let open Pp in
+  let get_struct_field (piece : Memory.struct_piece) =
+    match piece.member_or_padding with
+    | Some (id, ctype) ->
+      !^("  " ^ Id.get_string id ^ " : " ^ print_ctype ctype ^ "; ") ^^ hardline
+    | None -> rets ""
+  in
+  let unpack_struct_type (decl : Sym.t * Memory.struct_layout) =
+    let nm = !^(Sym.pp_string (fst decl)) in
+    !^"  Record "
+    ^^ nm
+    ^^ !^" : Type := { "
+    ^^ hardline
+    ^^ build (List.map get_struct_field (snd decl))
+    ^^ !^" }."
+  in
+  List.map unpack_struct_type (Sym.Map.bindings struct_decls)
+
+
 (* print datatypes *)
 let translate_datatypes (dtys : CI.coq_dt list list) =
   let open Pp in
@@ -1089,7 +1109,7 @@ let translate_fun (gl : Global.t) (funs : CI.coq_fun list list * CI.coq_fun list
 
 
 (* generate records and Owned_Structname predicates for all structs*)
-let translate_structs (struct_decls : Memory.struct_decls) =
+let translate_own_structs (struct_decls : Memory.struct_decls) =
   let open Pp in
   let piece_to_owned (piece : Memory.struct_piece) =
     let make_owned (nm : string) (id : Id.t) =
@@ -1125,23 +1145,9 @@ let translate_structs (struct_decls : Memory.struct_decls) =
     | x :: [] -> piece_to_owned x ^^ !^"."
     | x :: xs -> piece_to_owned x ^^ !^" ∗ " ^^ decl_to_pieces xs
   in
-  let get_struct_field (piece : Memory.struct_piece) =
-    match piece.member_or_padding with
-    | Some (id, ctype) ->
-      !^("  " ^ Id.get_string id ^ " : " ^ print_ctype ctype ^ "; ") ^^ hardline
-    | None -> rets ""
-  in
   let unpack_decls (decl : Sym.t * Memory.struct_layout) =
     let nm = !^(Sym.pp_string (fst decl)) in
-    !^"  Record "
-    ^^ nm
-    ^^ !^" : Type := { "
-    ^^ hardline
-    ^^ build (List.map get_struct_field (snd decl))
-    ^^ !^" }."
-    ^^ hardline
-    ^^ hardline
-    ^^ !^"  Definition "
+    !^"  Definition "
     ^^ !^"Owned_"
     ^^ nm
     ^^ !^" (l: Ptr) (v : "
@@ -1165,18 +1171,19 @@ let generate (global : Global.t) directions (lemmata : (Sym.t * (Loc.t * AT.lemm
       CC.cn_to_coq_ir global lemmata
     in
     (* print datatypes *)
+    let struct_defs = generate_structs global.struct_decls in
     let dtypes = translate_datatypes dtys in
     let structs =
       if global.struct_decls == Sym.Map.empty then
         [ Pp.string "(* no struct definitions required *)" ]
       else
-        translate_structs global.struct_decls
+        translate_own_structs global.struct_decls
     in
     let translated_funs = translate_fun global funs in
     let translated_uninterp_preds = translate_uninterp_pred uninterp_preds in
     let pred_group_tys, translated_preds = translate_pred global preds in
     (* print datatypes *)
-    Pp.print channel (types_spec (dtypes @ pred_group_tys));
+    Pp.print channel (types_spec (struct_defs @ dtypes @ pred_group_tys));
     (* print uninterpreted logical functions and resource predicates as parameters *)
     Pp.print channel (param_spec (fst translated_funs));
     (* print structs and function definitions *)
