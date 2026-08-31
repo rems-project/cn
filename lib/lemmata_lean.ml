@@ -24,12 +24,14 @@ let header filename =
   ^^ hardline
   ^^ !^"import Iris.ProofMode"
   ^^ hardline
+  ^^ !^"import Inst_Params.Inst_Params"
+  ^^ hardline
   ^^ hardline
   ^^ hardline
   ^^ !^"namespace Gen_Spec"
   ^^ hardline
   ^^ hardline
-  ^^ !^"open Iris CN_Lib ProofMode"
+  ^^ !^"open Iris CN_Lib ProofMode Inst_Params"
   ^^ hardline
   ^^ hardline
   ^^ !^"variable {hlc GF} [MyHeap hlc GF]"
@@ -775,7 +777,7 @@ let translate_uninterp_pred =
   let open Pp in
   List.map (fun (CI.ITP_sym nm, _, args, ret_ty) ->
     let ty = make_pred_ty args ret_ty "IProp GF" in
-    (!^"def" ^^^ typ (Sym.pp nm) ty ^^ !^":= sorry") ^^ hardline)
+    (!^"def" ^^^ typ (Sym.pp nm) ty ^^ !^" := Inst_Params." ^^ Sym.pp nm) ^^ hardline)
 
 
 (* translate functions to ITP *)
@@ -813,21 +815,24 @@ let translate_fun (gl : Global.t) (funs : CI.itp_fun list list * CI.itp_fun list
          let ty =
            List.fold_right (fun at rt -> at ^^^ !^"->" ^^^ rt) itp_arg_typs itp_rt
          in
-         !^"  Parameter" ^^^ typ (Sym.pp nm) ty ^^ hardline
+         !^"  def" ^^^ typ (Sym.pp nm) ty ^^ !^" := Inst_Params." ^^ Sym.pp nm ^^ hardline
        | CI.ITP_uninterp_prop ->
          let itp_arg_typs = List.map (fun (_, bt) -> bt_to_itp bt) args in
          let itp_rt = !^"Prop" in
          let ty =
            List.fold_right (fun at rt -> at ^^^ !^"->" ^^^ rt) itp_arg_typs itp_rt
          in
-         !^"  Parameter" ^^^ typ (Sym.pp nm) ty ^^ hardline)
+         !^"  def" ^^^ typ (Sym.pp nm) ty ^^ !^" := Inst_Params." ^^ Sym.pp nm ^^ hardline)
   in
+  let print_mutual_rec doc =
+    !^"mutual" ^^ hardline ^^ doc ^^ hardline ^^ !^"end" ^^ hardline
+  in
+  let print_clump clump = flow hardline (List.map translate_one clump) in
   let print clump =
-    flow
-      hardline
-      (List.mapi
-         (fun i doc -> !^(if i = 0 then "" else "    with") ^^ doc)
-         (List.map translate_one clump))
+    if List.length clump > 1 then
+      print_mutual_rec (print_clump clump)
+    else
+      print_clump clump
   in
   (List.map print (fst funs), List.map print (snd funs))
 
@@ -925,24 +930,44 @@ let generate (global : Global.t) directions (lemmata : (Sym.t * (Loc.t * AT.lemm
     let translated_uninterp_preds = translate_uninterp_pred uninterp_preds in
     let pred_group_tys, translated_preds = translate_pred global preds in
     (* print datatypes *)
-    Pp.print channel (print_section "Types" "Dtypes comment" (dtypes @ pred_group_tys));
+    Pp.print
+      channel
+      (print_section
+         "Types"
+         "Pure inductive types appearing in the global typing context"
+         (dtypes @ pred_group_tys));
     (* open datatype/predicate namespaces *)
     Pp.print channel open_dtypes;
     Pp.print channel open_predtypes;
     (* print uninterpreted logical functions and resource predicates as parameters *)
-    Pp.print channel (print_section "Params" "Params comment" (fst translated_funs));
+    Pp.print
+      channel
+      (print_section
+         "Params"
+         "The following uninterpreted logical functions and resource predicates must be \
+          defined in a library called Inst_Params"
+         (fst translated_funs));
     (* print structs and function definitions *)
     Pp.print
       channel
       (print_section
          "Defs"
-         "Defs comment"
+         "Definitions of functions and structs appearing in the global typing context"
          (structs @ translated_uninterp_preds @ snd translated_funs));
     (* print resource predicates *)
-    Pp.print channel (print_section "ResourcePredicates" "RPred comment" translated_preds);
-    (* print function definitions *)
+    Pp.print
+      channel
+      (print_section
+         "ResourcePredicates"
+         "Resource predicates appearing in the global typing context"
+         translated_preds);
     (* print lemmas *)
     let translated_lemmas = convert_lemma_defs global lemmas in
-    Pp.print channel (print_section "Lemma_Defs" "Lemma comment" translated_lemmas)
+    Pp.print
+      channel
+      (print_section
+         "Lemma_Defs"
+         "Lemma definitions and typeclasses to instantiate by user"
+         translated_lemmas)
   in
   f
