@@ -23,7 +23,7 @@ run_proof_case() {
 
   if ! (cd "${LEMMA_DIR}/cases/${source_dir}" &&
         timeout 60 cn verify "${input_file}" \
-          --lemmata "${theory_dir}/Gen_Spec.v") >"${case_dir}/cn.log" 2>&1; then
+          --lemmata_coq "${theory_dir}/Gen_Spec.v") >"${case_dir}/cn.log" 2>&1; then
     cat "${case_dir}/cn.log"
     return 1
   fi

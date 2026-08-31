@@ -1,0 +1,27 @@
+name = "pop_queue"
+version = "0.1.0"
+defaultTargets = ["Main"]
+
+[[lean_lib]]
+name = "Inst_Params"
+
+[[lean_lib]]
+name = "Gen_Spec"
+
+[[lean_lib]]
+name = "Inst_Spec"
+
+[[lean_lib]]
+name = "Main"
+
+[[require]]
+name = "iris"
+git.url = "https://github.com/leanprover-community/iris-lean.git" 
+git.subDir = "Iris" 
+rev = "master"
+
+[[require]]
+name = "CN_Lib"
+git.url = "https://github.com/yinamy/CN_Lib.git" 
+git.subDir = "" 
+rev = "main"
