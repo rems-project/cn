@@ -16,11 +16,11 @@ let header filename =
   ^^ !^": generated lemma specifications from CN *)"
   ^^ hardline
   ^^ hardline
-  ^^ !^"import Playground.CN_Lib"
+  ^^ !^"import CN_Lib.CN_Lib"
   ^^ hardline
-  ^^ !^"import Playground.CN_Lib_Iris"
+  ^^ !^"import CN_Lib.CN_Lib_Iris"
   ^^ hardline
-  ^^ !^"import Playground.CN_Lib_Iris_Fixpoint"
+  ^^ !^"import CN_Lib.CN_Lib_Iris_Fixpoint"
   ^^ hardline
   ^^ !^"import Iris.ProofMode"
   ^^ hardline
@@ -29,7 +29,7 @@ let header filename =
   ^^ !^"namespace Gen_Spec"
   ^^ hardline
   ^^ hardline
-  ^^ !^"open Iris CN_Lib_Iris ProofMode"
+  ^^ !^"open Iris CN_Lib ProofMode"
   ^^ hardline
   ^^ hardline
   ^^ !^"variable {hlc GF} [MyHeap hlc GF]"
@@ -174,7 +174,13 @@ let rec bt_to_itp (bt : CI.itp_bt) =
 (* Let and forall occur in both pure and resource terms*)
 let pp_let sym rhs_doc doc is_resource =
   let open Pp in
-  !^"let" ^^^ Sym.pp sym ^^^ !^":=" ^^ rhs_doc ^^ !^";" ^^ (if is_resource then !^" iprop%" else !^"")  ^^^ doc
+  !^"let"
+  ^^^ Sym.pp sym
+  ^^^ !^":="
+  ^^ rhs_doc
+  ^^ !^";"
+  ^^ (if is_resource then !^" iprop%" else !^"")
+  ^^^ doc
 
 
 let pp_forall (sym : Sym.t) (bt : CI.itp_bt) (doc : Pp.document) =
@@ -260,20 +266,8 @@ let term_to_itp (global : Global.t) (t : CI.itp_pure_term) =
       parensM (build ([ rets "match"; aux x; rets "with"; hardline ] @ List.map br cases))
     | CI.ITP_ite (sw, x, y) ->
       parensM (build [ rets "if"; aux sw; rets "then"; aux x; rets "else"; aux y ])
-    | CI.ITP_eachI ((i1, (CI.ITP_sym s, _), i2), x) ->
-      let enc =
-        pp_forall
-          s
-          CI.ITP_Integer
-          (binop
-             "->"
-             (binop
-                "/\\"
-                (binop "<=" (Pp.int i1) (Sym.pp s))
-                (binop "<=" (Sym.pp s) (Pp.int i2)))
-             (aux x))
-      in
-      parens enc
+    | CI.ITP_eachI _ -> rets "Each is unsupported in Lean right now"
+    (* TODO: pending upstream decisions about arrays *)
     (* TODO: figure these ones out *)
     | CI.ITP_mapset _ -> rets "unsupported mapset"
     | CI.ITP_mapget _ -> rets "unsupported mapget"
@@ -339,21 +333,9 @@ let rec resource_to_itp (global : Global.t) (t : CI.itp_resource_term) =
   | CI.ITP_PName (CI.ITP_sym nm, CI.ITP_sym pname, iargs, ptr) ->
     let args = List.map aux iargs in
     build ((Sym.pp pname :: aux ptr :: args) @ [ Sym.pp nm ])
-  | CI.ITP_Each (ITP_sym nm, ptr, perm, pred) ->
-    (match perm with
-     | ITP_binop
-         (ITP_and_prop, ITP_binop (_, min_term, _, _), ITP_binop (_, _, max_term, _), _)
-       ->
-       build
-         [ rets "each_int ";
-           aux min_term;
-           parens (rets "Z.to_nat " ^^ parens (aux max_term) ^^ rets " - " ^^ aux min_term)
-           ^^ rets "%nat";
-           aux ptr;
-           !^(Sym.pp_string nm);
-           aux' pred
-         ]
-     | _ -> rets "unsupported ITP_Each_LAT perm")
+  | CI.ITP_Each _ ->
+    rets "Each is unsupported in Lean right now"
+    (* TODO: pending upstream decisions about arrays *)
   | CI.ITP_Good -> rets ""
   | CI.ITP_Unsupported_Resource msg -> rets msg
 
@@ -361,9 +343,25 @@ let rec resource_to_itp (global : Global.t) (t : CI.itp_resource_term) =
 let convert_lemma_defs global (lemmas : CI.itp_lemma list) =
   let open Pp in
   let lemma_ty (CI.ITP_lemma (CI.ITP_sym nm, tm)) =
+    let lemma_name = Sym.pp_string nm in
     Pp.progress_simple "converting lemma type" (Sym.pp_string nm);
     let rhs = resource_to_itp global tm in
-    defn (Sym.pp_string nm ^ "_type") [] (Some (Pp.string "IProp GF")) (!^"iprop% " ^^ rhs)
+    defn
+      (lemma_name ^ "_type {hlc : HasLC} {GF : BundledGFunctors} [MyHeap hlc GF] ")
+      []
+      (Some (Pp.string "IProp GF"))
+      (!^"iprop% " ^^ rhs)
+    ^^ hardline
+    (* Add typeclass definition after each lemma type definition (for users to instantiate) *)
+    ^^ !^"class "
+    ^^ !^lemma_name
+    ^^ !^" where"
+    ^^ hardline
+    ^^ !^"  "
+    ^^ !^lemma_name
+    ^^ !^"_inst : ⊢@{IProp GF} "
+    ^^ !^(lemma_name ^ "_type")
+    ^^ hardline
   in
   let tys = List.map lemma_ty lemmas in
   tys
