@@ -263,14 +263,14 @@ let it_to_itp_ir global it b =
       let decl = Sym.Map.find tag global.struct_decls in
       let v = Option.get (Memory.member_offset decl member) in
       f comp_bool (MT.int_lit_ v (Terms.get_bt it) (Terms.get_loc it))
+    | Terms.SizeOf ct ->
+      f comp_bool (MT.int_lit_ (Memory.size_of_ctype ct) (Terms.get_bt it) (Terms.get_loc it))
     | Terms.Tuple _ -> CI.ITP_unsupported_pure "Unsupported tuple"
     | Terms.NthTuple (_, _) -> CI.ITP_unsupported_pure "Unsupported nth tuple"
     | Terms.Struct (_, _) -> CI.ITP_unsupported_pure "Unsupported struct"
     | Terms.MemberShift _ -> CI.ITP_unsupported_pure "Unsupported member shift"
     | Terms.CopyAllocId _ -> CI.ITP_unsupported_pure "Unsupported copy alloc id"
     | Terms.HasAllocId _ -> CI.ITP_unsupported_pure "Unsupported has alloc id"
-    | Terms.SizeOf _ -> CI.ITP_unsupported_pure "Unsupported size of"
-    | Terms.OffsetOf (_, _) -> CI.ITP_unsupported_pure "Unsupported offset of"
     | Terms.Nil _ -> CI.ITP_unsupported_pure "Unsupported nil"
     | Terms.Cons (_, _) -> CI.ITP_unsupported_pure "Unsupported cons"
     | Terms.Head _ -> CI.ITP_unsupported_pure "Unsupported head"
