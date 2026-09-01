@@ -1,14 +1,8 @@
 return code: 1
 [1/5]: div_bad -- fail
 [2/5]: div1 -- pass
-tests/cn/div.c:15:12: warning: Treating division as uninterpreted.
-    return 5 / (-3);
-           ~~^~~~~~ 
 [3/5]: div2 -- pass
 [4/5]: div3 -- pass
-tests/cn/div.c:27:12: warning: Treating division as uninterpreted.
-    return (-5) / (-3);
-           ~~~~~^~~~~~ 
 [5/5]: div4 -- pass
 tests/cn/div.c:3:12: error: Undefined behaviour
     return x / 0;

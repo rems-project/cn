@@ -1,14 +1,8 @@
 return code: 1
 [1/5]: mod_bad -- fail
 [2/5]: mod1 -- pass
-tests/cn/mod.c:19:12: warning: Treating division as uninterpreted.
-    return 5 % (-3);
-           ~~^~~~~~ 
 [3/5]: mod2 -- pass
 [4/5]: mod3 -- pass
-tests/cn/mod.c:31:12: warning: Treating division as uninterpreted.
-    return (-5) % (-3);
-           ~~~~~^~~~~~ 
 [5/5]: mod4 -- pass
 tests/cn/mod.c:7:12: error: Undefined behaviour
     return x % 0;
