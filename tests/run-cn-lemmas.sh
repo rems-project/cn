@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail -o noclobber
 
+ONLY_CASE=${2:-}
+if [[ $# -ne 0 && ($# -ne 2 || $1 != --only) ]]; then
+  echo "Usage: $0 [--only CASE]" >&2
+  exit 2
+fi
+
 DIRNAME=$(dirname "$0")
 LEMMA_DIR="${DIRNAME}/rocq_lemmas"
 WORK_DIR=$(mktemp -d /tmp/cn-rocq-lemmas.XXXXXX)
@@ -67,6 +73,7 @@ run_and_report() {
 FAILED=()
 
 while IFS='|' read -r case_name source_dir input_file; do
+  [[ -z ${ONLY_CASE} || ${ONLY_CASE} == "${case_name}" ]] || continue
   if ! run_and_report \
       "${case_name}" run_proof_case "${case_name}" "${source_dir}" "${input_file}"; then
     FAILED+=("${case_name}")
@@ -79,11 +86,13 @@ arrays_inductive|arrays/inductive|array_lemma.c
 arrays_testing|arrays/testing|array_lemma.c
 pop_queue|queue|pop.c
 struct_test|struct_test|test.c
-basics|basics|datatype.c
+basics|basics|basics.c
 EOF
 
-if ! run_and_report fixpoint run_fixpoint_test; then
-  FAILED+=(fixpoint)
+if [[ -z ${ONLY_CASE} || ${ONLY_CASE} == fixpoint ]]; then
+  if ! run_and_report fixpoint run_fixpoint_test; then
+    FAILED+=(fixpoint)
+  fi
 fi
 
 if [ "${#FAILED[@]}" -eq 0 ]; then
