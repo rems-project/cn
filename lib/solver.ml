@@ -53,7 +53,11 @@ module CN_Names = struct
 
   let bw_xor bt = "bw_xor_" ^ Pp.plain (BT.pp bt)
 
-  let to_declare = [ mul; div; exp; rem; mod'; bw_and; bw_or; bw_xor ]
+  let bw_clz_z bt = "bw_clz_z_" ^ Pp.plain (BT.pp bt)
+
+  let bw_ctz_z bt = "bw_ctz_z_" ^ Pp.plain (BT.pp bt)
+
+  let to_declare = [ mul; div; exp; rem; mod'; bw_and; bw_or; bw_xor; bw_clz_z; bw_ctz_z ]
 end
 
 type solver_frame =
@@ -682,7 +686,7 @@ let rec translate_term s iterm =
             (eq_ (e1, intl 0) loc, intl 0, add_ (arith_unop BW_CTZ e1 loc, intl 1) loc)
             loc)
      | BW_FLS ->
-       (* copying and adjusting BW_FFS_NoSMT rule *)
+       (* copying and adjusting BW_FFS rule *)
        (* NOTE: This desugaring duplicates e1 *)
        let sz = match get_bt e1 with Bits (_sign, n) -> n | _ -> assert false in
        let intl i = int_lit_ i (get_bt e1) loc in
@@ -705,6 +709,7 @@ let rec translate_term s iterm =
      | BW_Compl ->
        (match get_bt iterm with
         | BT.Bits _ -> SMT.bv_compl (translate_term s e1)
+        | BT.Integer -> translate_term s (sub_ (negate e1 loc, int_ 1 loc) loc)
         | _ -> failwith (__LOC__ ^ ":Unop (BW_Compl, _)"))
      | BW_CLZ ->
        (match get_bt iterm with
@@ -799,6 +804,43 @@ let rec translate_term s iterm =
         | BT.Bits (BT.Unsigned, _) -> SMT.bv_lshr s1 s2
         | BT.Integer -> translate_term s MT.(div_ (e1, exp_ (int_ 2 loc, e2) loc) loc)
         | _ -> failwith "ShiftRight")
+     | BW_CLZ_Z ->
+        (match get_bt iterm with
+         | Integer -> uninterp_same_type CN_Names.bw_clz_z
+         | _ -> failwith "BW_CLZ_Z")
+     | BW_CTZ_Z ->
+        (match get_bt iterm with
+         | Integer -> uninterp_same_type CN_Names.bw_ctz_z
+         | _ -> failwith "BW_CTZ_Z")
+     | BW_FFS_Z ->
+        (* Copying and adjusting the bitvector version. *)
+        (* NOTE: This desugaring duplicates e1 *)
+        (match get_bt iterm with
+         | Integer ->
+            let int_ i = int_ i loc in
+            translate_term
+              s
+              (ite_
+                 (eq_ (e1, int_ 0) loc, 
+                  int_ 0, 
+                  add_ (arith_binop BW_CTZ_Z (e1,e2) loc, int_ 1) loc)
+                 loc)
+         | _ -> failwith "BW_FFS_Z")
+     | BW_FLS_Z -> 
+        (* Copying and adjusting the bitvector version. *)
+        (* NOTE: This desugaring duplicates e1 *)
+        (match get_bt iterm with
+         | Integer ->
+            let int_ i = int_ i loc in
+            translate_term
+              s
+              (ite_
+                 (eq_ (e1, int_ 0) loc, 
+                  int_ 0, 
+                  sub_ (e2, arith_binop BW_CLZ_Z (e1,e2) loc) loc)
+                 loc)
+         | _ -> failwith "BW_FLS_Z"
+        )
      | LT ->
        (match get_bt e1 with
         | BT.Bits (BT.Signed, _) -> SMT.bv_slt s1 s2

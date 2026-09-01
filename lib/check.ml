@@ -680,11 +680,7 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : T.t m =
        let@ () = WellTyped.ensure_base_type loc ~expect (Memory.bt_of_sct ct) in
        let@ () = WellTyped.ensure_base_type loc ~expect (Mu.bt_of_pexpr e2) in
        let@ e2 = check_pexpr path_cs e2 in
-       let result = 
-	 if !cnBV then (arith_unop BW_Compl e2 loc)
-	 else (sub_ (negate e2 loc, int_ 1 loc) loc)
-       in
-       return result
+       return (arith_unop BW_Compl e2 loc)
      | CivCOMPL, _ ->
        fail (fun _ ->
          { loc;
@@ -2985,22 +2981,35 @@ let wf_check_and_record_lemma (lemma_s, (loc, lemma_typ)) =
 let ctz_proxy_ft =
   let here = Locations.other __LOC__ in
   let info = (here, Some "ctz_proxy builtin ft") in
-  let n_sym, n = MT.fresh_named BT.(Bits (Unsigned, 32)) "n_" here in
-  let ret_sym, ret = MT.fresh_named BT.(Bits (Signed, 32)) "return" here in
-  let neq_0 = LC.T (MT.not_ (MT.eq_ (n, MT.int_lit_ 0 (T.get_bt n) here) here) here) in
-  let eq_ctz =
-    LC.T
-      (MT.eq_ (ret, cast_ (T.get_bt ret) (MT.arith_unop Terms.BW_CTZ n here) here) here)
-  in
+  let n_ct = Sctypes.(Integer (Unsigned Int_)) in
+  let n_width =  Memory.(bits_per_byte * size_of_integer_type (Unsigned Int_)) in
+  let n_bt = Memory.bt_of_sct n_ct in
+  let n_sym, n = MT.fresh_named n_bt "n_" here in
+  let ret_ct = Sctypes.(Integer (Signed Int_)) in
+  let ret_bt = Memory.bt_of_sct ret_ct in
+  let ret_sym, ret = MT.fresh_named ret_bt "return" here in
   let rt =
+    let value = 
+      if !cnBV then cast_ ret_bt (MT.arith_unop Terms.BW_CTZ n here) here
+      else MT.arith_binop Terms.BW_CTZ_Z (n, int_ n_width here) here
+    in
+    let eq_ctz = LC.T (MT.eq_ (ret, value) here) in
+    (* We could also add a derived constraint about the range of
+       possible values, for non-bv mode, if that's convenient. *)
+    let range = 
+      if !cnBV then LC.T (bool_ true here)
+      else LC.T (in_z_range ret (Z.zero, Z.of_int (n_width-1)) here) 
+    in
     RT.mComputational
-      ((ret_sym, T.get_bt ret), info)
-      (LRT.mConstraint (eq_ctz, info) LRT.I)
+      ((ret_sym, ret_bt), info)
+      (LRT.mConstraints [(eq_ctz, info);(range, info)] LRT.I)
   in
   let ft =
+    let neq_0 = LC.T (MT.ne_ (n, MT.int_lit_ 0 n_bt here) here) in
+    let in_range = LC.T (good_ (n_ct, n) here) in
     AT.mComputationals
-      [ (n_sym, T.get_bt n, info) ]
-      (AT.L (LAT.mConstraint (neq_0, info) (LAT.I rt)))
+      [ (n_sym, n_bt, info) ]
+      (AT.L (LAT.mConstraints [(neq_0, info); (in_range, info)] (LAT.I rt)))
   in
   ft
 
@@ -3008,18 +3017,33 @@ let ctz_proxy_ft =
 let ffs_proxy_ft sz =
   let here = Locations.other __LOC__ in
   let sz_name = CF.Pp_ail.string_of_integerBaseType sz in
-  let bt = Memory.bt_of_sct Sctypes.(Integer (Signed sz)) in
-  let ret_bt = Memory.bt_of_sct Sctypes.(Integer (Signed Int_)) in
-  let info = (Locations.other __LOC__, Some ("ffs_proxy builtin ft: " ^ sz_name)) in
-  let n_sym, n = MT.fresh_named bt "n_" here in
+  let info = (here, Some ("ffs_proxy builtin ft: " ^ sz_name)) in
+  let arg_ct = Sctypes.(Integer (Signed sz)) in
+  let arg_bt = Memory.bt_of_sct arg_ct in
+  let n_width =  (Memory.bits_per_byte * (Memory.size_of_integer_type (Signed sz)))  in
+  let ret_ct = Sctypes.(Integer (Signed Int_)) in
+  let ret_bt = Memory.bt_of_sct ret_ct in
+  let n_sym, n = MT.fresh_named arg_bt "n_" here in
   let ret_sym, ret = MT.fresh_named ret_bt "return" here in
-  let eq_ffs =
-    LC.T (MT.eq_ (ret, MT.cast_ ret_bt (MT.arith_unop Terms.BW_FFS n here) here) here)
+  let value = 
+    if !cnBV then MT.cast_ ret_bt (MT.arith_unop Terms.BW_FFS n here) here 
+    else MT.arith_binop Terms.BW_FFS_Z (n, int_ n_width here) here
+  in
+  let eq_ffs = LC.T (MT.eq_ (ret, value) here) in
+  let range = 
+    if !cnBV then LC.T (bool_ true here)
+    else LC.T (in_z_range ret (Z.zero, Z.of_int n_width) here)
   in
   let rt =
-    RT.mComputational ((ret_sym, ret_bt), info) (LRT.mConstraint (eq_ffs, info) LRT.I)
+    (* We could also add a derived constraint about the range of
+       possible values, for non-bv mode, if that's convenient. *)
+    RT.mComputational ((ret_sym, ret_bt), info) (LRT.mConstraints [(eq_ffs, info);(range, info)] LRT.I)
   in
-  let ft = AT.mComputationals [ (n_sym, bt, info) ] (AT.L (LAT.I rt)) in
+  let ft = 
+    let in_range = LC.T (good_ (arg_ct, n) here) in
+    AT.mComputationals [ (n_sym, arg_bt, info) ] 
+      (AT.L (LAT.mConstraints [(in_range, info)] (LAT.I rt))) 
+  in
   ft
 
 
@@ -3073,15 +3097,15 @@ let add_stdlib_spec =
     List.fold_left
       (fun map (name, ft) -> StrMap.add name ft map)
       StrMap.empty
-      (if !cnBV then
+      (
          [ ("ctz_proxy", ctz_proxy_ft);
            ("ffs_proxy", ffs_proxy_ft Sctypes.IntegerBaseTypes.Int_);
            ("ffsl_proxy", ffs_proxy_ft Sctypes.IntegerBaseTypes.Long);
            ("ffsll_proxy", ffs_proxy_ft Sctypes.IntegerBaseTypes.LongLong);
            ("memcpy_proxy", memcpy_proxy_ft)
          ]
-       else
-         [])
+
+         )
   in
   let add ct fsym ft =
     Pp.debug

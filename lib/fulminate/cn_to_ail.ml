@@ -377,6 +377,10 @@ let cn_to_ail_binop bt1 bt2 =
   | BW_Or -> Some (get_cn_int_type_str bt1 bt2 ^ "_bwor")
   | ShiftLeft -> Some (get_cn_int_type_str bt1 bt2 ^ "_shift_left")
   | ShiftRight -> Some (get_cn_int_type_str bt1 bt2 ^ "_shift_right")
+  | BW_CLZ_Z -> failwith "todo"
+  | BW_CTZ_Z -> failwith "todo"
+  | BW_FFS_Z -> failwith "todo"
+  | BW_FLS_Z -> failwith "todo"
   | LT -> Some (get_cn_int_type_str bt1 bt2 ^ "_lt")
   | LE -> Some (get_cn_int_type_str bt1 bt2 ^ "_le")
   | Min -> Some (get_cn_int_type_str bt1 bt2 ^ "_min")

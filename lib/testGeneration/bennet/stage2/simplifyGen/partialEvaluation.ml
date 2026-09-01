@@ -183,6 +183,10 @@ module Make (AD : Domain.T) = struct
       | Binop (BW_Or, it1, it2) -> eval_num_binop Z.logor it1 it2 __LOC__
       | Binop (ShiftLeft, _it1, _it2) | Binop (ShiftRight, _it1, _it2) ->
         Error "todo: Bits shifts"
+      | Binop ((BW_CLZ_Z | BW_CTZ_Z), _it1, _it2) ->
+        Error "todo: CLZ_Z and CTZ_Z"
+      | Binop ((BW_FFS_Z | BW_FLS_Z), _it1, _it2) ->
+        Error "todo: FFS_Z and FLS_Z"
       | Binop (LT, it1, it2) ->
         let@ it1 = eval_aux it1 in
         let@ it2 = eval_aux it2 in

@@ -805,6 +805,7 @@ let pp_binop = function
   | Terms.BW_Or -> pp_constructor0 "Terms.BW_Or"
   | Terms.ShiftLeft -> pp_constructor0 "Terms.ShiftLeft"
   | Terms.ShiftRight -> pp_constructor0 "Terms.ShiftRight"
+  | Terms.(BW_CTZ_Z | BW_CLZ_Z | BW_FFS_Z | BW_FLS_Z) -> failwith "todo"
   | Terms.LT -> pp_constructor0 "Terms.LT"
   | Terms.LE -> pp_constructor0 "Terms.LE"
   | Terms.Min -> pp_constructor0 "Terms.Min"

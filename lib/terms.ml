@@ -48,6 +48,10 @@ type binop =
   | BW_Or
   | ShiftLeft
   | ShiftRight
+  | BW_CLZ_Z                    (* second argument is width *)
+  | BW_CTZ_Z                    (* second argument is width *)
+  | BW_FFS_Z                    (* second argument is width *)
+  | BW_FLS_Z                    (* second argument is width *)
   | LT
   | LE
   | Min
@@ -272,6 +276,10 @@ let pp
          infix 0 (langle () ^^ langle ()) 1 1 (* easier to read with parens *)
        | ShiftRight ->
          infix 0 (rangle () ^^ rangle ()) 1 1 (* easier to read with parens *)
+       | BW_CLZ_Z -> prefix "clz_z"
+       | BW_CTZ_Z -> prefix "ctz_z"
+       | BW_FFS_Z -> prefix "ffs_z"
+       | BW_FLS_Z -> prefix "fls_z"
        | SetMember -> prefix "member"
        | SetUnion -> prefix "union"
        | SetIntersection -> prefix "inter"

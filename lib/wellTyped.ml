@@ -520,7 +520,7 @@ module WT = struct
     | IT (Cons (it, _), _, _) | it -> return @@ T.get_loc it
 
 
-  let binop_nia_checks it =
+  let nia_checks it =
     match it with
     | IT (Binop (Mul, t, t'), Integer, loc) ->
       if (T.constant t || T.constant t' || !always_interp) then return () else
@@ -552,6 +552,8 @@ module WT = struct
 	let msg = !^"Integer exponentiation requires positive integer literal as second argument" in
 	fail { loc; msg = Generic msg } [@alert "-deprecated"])
     | IT (Binop ((BW_And | BW_Or | BW_Xor), _t, _t'), Integer, loc) ->
+      return (warn_integer_bw_operation loc)
+    | IT (Binop ((BW_CLZ_Z | BW_CTZ_Z | BW_FFS_Z | BW_FLS_Z), _t, _t'), _, loc) ->
       return (warn_integer_bw_operation loc)
     | _ -> return ()
 
@@ -613,19 +615,25 @@ module WT = struct
             let@ t = infer t in
             let@ () = ensure_arith_type ~reason:loc t in
             return (t, T.get_bt t)
-          | (Abs) ->
+          | Abs ->
             let@ t = infer t in
             let@ () = match T.get_bt t with
 	    | Integer | Real -> return ()
 	    | has -> fail { loc; msg = Mismatch { has = BT.pp has; expect = !^"integer or real" } }
 	    in
             return (t, T.get_bt t)
-          | BW_CLZ | BW_CTZ | BW_FFS | BW_FLS | BW_Compl ->
+          | BW_CLZ | BW_CTZ | BW_FFS | BW_FLS ->
             let@ t = infer t in
             let@ () = ensure_bits_type (T.get_loc t) (T.get_bt t) in
             return (t, T.get_bt t)
+          | BW_Compl ->
+            let@ t = infer t in
+            let@ () = ensure_integer_or_bits_type ~reason:loc t in
+            return (t, T.get_bt t)
         in
-        return (IT (Unop (unop, t), ret_bt, loc))
+        let it = (IT (Unop (unop, t), ret_bt, loc)) in
+        let@ () = nia_checks it in
+        return it
       | Binop (SetMember, t, t') ->
         let@ t = infer t in
         let@ t' = check loc (Set (T.get_bt t)) t' in
@@ -639,6 +647,8 @@ module WT = struct
             (ensure_arith_type ~reason:loc t, T.get_bt t)
           | Rem | Mod | ShiftLeft | ShiftRight | BW_And | BW_Or | BW_Xor ->
             (ensure_integer_or_bits_type ~reason:loc t, T.get_bt t)
+          | BW_CLZ_Z | BW_CTZ_Z | BW_FFS_Z | BW_FLS_Z ->
+            (ensure_base_type loc ~expect:Integer (T.get_bt t), Integer)
           | LT | LE -> (ensure_arith_type ~reason:loc t, BT.Bool)
           | EQ -> (return (), BT.Bool)
           | LTPointer | LEPointer ->
@@ -651,7 +661,7 @@ module WT = struct
         in
         let@ () = arg_check in
         let it = IT (Binop (bop, t, t'), rbt, loc) in
-        let@ () = binop_nia_checks it in
+        let@ () = nia_checks it in
         return it
       | ITE (t, t', t'') ->
         let@ t = check loc Bool t in
