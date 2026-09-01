@@ -17,7 +17,8 @@ let verify
       json
       json_trace
       output_dir
-      lemmata
+      lemmata_coq
+      lemmata_lean
       coq_export_file
       coq_mucore
       coq_proof_log
@@ -117,7 +118,7 @@ let verify
                  err)
             errors;
         Option.fold ~none:() ~some:exit (Common.exit_code_of_errors (List.map snd errors));
-        Check.generate_lemmas lemmas lemmata
+        Check.generate_lemmas lemmas lemmata_coq lemmata_lean
       in
       Typing.run_from_pause check paused)
 
@@ -261,13 +262,22 @@ module Flags = struct
   (*   Arg.(value & flag & info ~docs:s_verification [ "integermode" ] ~doc) *)
 end
 
-module Lemma_flags = struct
+module Lemma_flags_lean = struct
   let lemmata =
     let doc = "lemmata generation mode (target filename)" in
     Arg.(
       value
       & opt (some string) None
-      & info ~docs:s_verification [ "lemmata" ] ~docv:"FILE" ~doc)
+      & info ~docs:s_verification [ "lemmata_lean" ] ~docv:"FILE" ~doc)
+end
+
+module Lemma_flags_coq = struct
+  let lemmata =
+    let doc = "lemmata generation mode (target filename)" in
+    Arg.(
+      value
+      & opt (some string) None
+      & info ~docs:s_verification [ "lemmata_coq" ] ~docv:"FILE" ~doc)
 end
 
 module CoqExport_flags = struct
@@ -314,7 +324,8 @@ let verify_t : unit Term.t =
   $ Flags.json
   $ Flags.json_trace
   $ Flags.output_dir
-  $ Lemma_flags.lemmata
+  $ Lemma_flags_coq.lemmata
+  $ Lemma_flags_lean.lemmata
   $ CoqExport_flags.coq_export
   $ CoqMucore_flags.coq_mucore
   $ CoqProofLog_flags.coq_proof_log

@@ -3145,20 +3145,24 @@ let time_check_c_functions
   return errors
 
 
-let generate_lemmas lemmata o_lemma_mode =
+let generate_lemmas lemmata o_lemma_mode_coq o_lemma_mode_lean =
   let@ global = get_global () in
-  match o_lemma_mode with
-  | Some mode ->
-    let@ () =
-      Sym.Map.fold
-        (fun sym (loc, lemma_typ) acc ->
-           (* I think this avoids a left-recursion in the monad bind *)
-           let@ () = Consistent.lemma loc sym lemma_typ in
-           acc)
-        global.lemmata
-        (return ())
-    in
-    lift (Lemmata.generate global mode lemmata)
+  let@ () =
+    Sym.Map.fold
+      (fun sym (loc, lemma_typ) acc ->
+         (* I think this avoids a left-recursion in the monad bind *)
+         let@ () = Consistent.lemma loc sym lemma_typ in
+         acc)
+      global.lemmata
+      (return ())
+  in
+  let@ () =
+    match o_lemma_mode_coq with
+    | Some mode -> lift (Result.Ok (Lemmata.generate global mode lemmata))
+    | None -> return ()
+  in
+  match o_lemma_mode_lean with
+  | Some mode -> lift (Result.Ok (Lemmata_lean.generate global mode lemmata))
   | None -> return ()
 
 (* TODO:
