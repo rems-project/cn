@@ -12,7 +12,9 @@ let cnBV = BaseTypes.cnBV
 
 let inc_enabled = ref true
 
-let inc_timeout = ref (Some 1000)
+let inc_timeout = ref (Some 200)
+
+let hybrid = ref true
 
 (** Functions that pick names for things. *)
 module CN_Names = struct
@@ -1395,22 +1397,22 @@ let assume solver = function
     set_consistency new_consistency cf
 
 
-let reset_solver_and_check s =
-  let cfg = solver_cfg () in
-  s.smt_solver.stop ();
-  s.smt_solver <- SMT.new_solver cfg;
-  List.iter (SMT.ack_command s.smt_solver) (SMT.incremental cfg);
-  List.iter (debug_ack_command s) (get_commands_with_pushes s);
-  let result = SMT.check s.smt_solver in
-  List.iter (SMT.ack_command s.smt_solver) (SMT.timeout cfg !inc_timeout);
-  result
-
-
 let check_new_solver cfg cmds =
   let s = SMT.new_solver cfg in
   List.iter (SMT.ack_command s) cmds;
   let result = SMT.check s in
   s.stop ();
+  result
+
+
+let reset_solver_and_check s cmds =
+  let cfg = solver_cfg () in
+  s.smt_solver.stop ();
+  s.smt_solver <- SMT.new_solver cfg;
+  List.iter (SMT.ack_command s.smt_solver) (SMT.incremental cfg);
+  List.iter (debug_ack_command s) (get_commands_with_pushes s);
+  let result = if !hybrid then check_new_solver cfg cmds else SMT.check s.smt_solver in
+  List.iter (SMT.ack_command s.smt_solver) (SMT.timeout cfg !inc_timeout);
   result
 
 
@@ -1436,7 +1438,7 @@ let provable_or_unknown ~loc ~solver ~assumptions ~simp_ctxt lc =
       | false -> check_new_solver solver.smt_solver.config cmds
       | true ->
         (match SMT.check solver.smt_solver with
-         | Unknown -> reset_solver_and_check solver
+         | Unknown -> reset_solver_and_check solver cmds
          | answer -> answer)
     in
     pop solver 1;

@@ -32,6 +32,7 @@ let verify
       solver_type
       solver_inc_enabled
       solver_inc_timeout
+      solver_hybrid
       astprints
       dont_use_vip
       fail_fast
@@ -67,6 +68,7 @@ let verify
   Solver.try_hard := try_hard;
   Solver.inc_enabled := solver_inc_enabled;
   Solver.inc_timeout := solver_inc_timeout;
+  Solver.hybrid := solver_hybrid;
   MakeTerm.use_vip := not dont_use_vip;
   Check.fail_fast := fail_fast;
   Resource.disable_derived_lc1 := disable_derived_lc1;
@@ -182,6 +184,17 @@ module Flags = struct
       value
       & opt (some int) !Solver.inc_timeout
       & info ~docs:s_verification [ "incremental-solver-timeout" ] ~doc)
+
+
+  let solver_hybrid =
+    let doc =
+      "Enable or disable hybrid SMT solving (on incremental solver timeout, switch to \
+       non-incremental solver)."
+    in
+    Arg.(
+      value
+      & opt bool !Solver.hybrid
+      & info ~docs:s_verification [ "hybrid-solving" ] ~doc)
 
 
   let try_hard =
@@ -316,6 +329,7 @@ let verify_t : unit Term.t =
   $ Flags.solver_type
   $ Flags.solver_inc_enabled
   $ Flags.solver_inc_timeout
+  $ Flags.solver_hybrid
   $ Common.Flags.astprints
   $ Common.Flags.dont_use_vip
   $ Common.Flags.fail_fast
