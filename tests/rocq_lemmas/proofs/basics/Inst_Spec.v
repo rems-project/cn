@@ -20,5 +20,12 @@ Module InstOK: CN_Lemmas.Gen_Spec.Lemma_Spec(Inst).
       iIntros (p).
       done.
     Qed.
+
+    Lemma sizeof_offsetof_lemma : ⊢ sizeof_offsetof_lemma_type.
+    Proof.
+      iIntros (_).
+      done.
+    Qed.
   End Proof.
+
 End InstOK.
