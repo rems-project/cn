@@ -162,7 +162,7 @@ let rec bt_to_itp (bt : CI.itp_bt) =
   | CI.ITP_Loc -> !^"Ptr"
   | CI.ITP_Datatype (CI.ITP_sym tag) -> Sym.pp tag
   | CI.ITP_List _bt2 -> !^"list " ^^ bt_to_itp _bt2
-  | CI.ITP_Unit -> !^"unsupported BT unit"
+  | CI.ITP_Unit -> !^"Unit"
   | CI.ITP_Membyte -> !^"unsupported BT membyte"
   | CI.ITP_Real -> !^"unsupported BT real"
   | CI.ITP_Alloc_id -> !^"unsupported BT alloc_id"
@@ -224,7 +224,8 @@ let term_to_itp (global : Global.t) (t : CI.itp_pure_term) =
        | ITP_bool b -> rets (if b then "true" else "false")
        | ITP_bool_prop b -> rets (if b then "True" else "False")
        | ITP_Z z -> enc_z z
-       | ITP_bits z -> parensM (rets (Z.to_string z)))
+       | ITP_bits z -> parensM (rets (Z.to_string z))
+       | ITP_unit -> rets "()")
     | ITP_unop (op, x, bt) ->
       norm_bv_op
         bt
