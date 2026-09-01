@@ -259,6 +259,10 @@ let it_to_itp_ir global it b =
       let size_of_ct = Z.of_int @@ Memory.size_of_ctype ct in
       (* do a + b * c*)
       CI.ITP_arrayshift (aux base, size_of_ct, aux index)
+    | Terms.OffsetOf (tag, member) ->
+      let decl = Sym.Map.find tag global.struct_decls in
+      let v = Option.get (Memory.member_offset decl member) in
+      f comp_bool (MT.int_lit_ v (Terms.get_bt it) (Terms.get_loc it))
     | Terms.Tuple _ -> CI.ITP_unsupported_pure "Unsupported tuple"
     | Terms.NthTuple (_, _) -> CI.ITP_unsupported_pure "Unsupported nth tuple"
     | Terms.Struct (_, _) -> CI.ITP_unsupported_pure "Unsupported struct"
