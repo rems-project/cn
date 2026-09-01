@@ -30,6 +30,20 @@ lemma sizeof_offsetof_lemma ()
     y < x;
 @*/
 
+/* 3. test case for unit */
+/*@
+predicate (void) Empty(pointer p) {
+  return;
+}
+
+lemma unit_lemma (pointer p, pointer q)
+  requires true;
+  ensures
+    take X = Empty(p);
+    take Y = Empty(q);
+    X == Y;
+@*/
+
 int main(void)
 {
   return 0;

@@ -132,7 +132,7 @@ let it_to_itp_ir global it b =
        | Terms.MemByte _ -> CI.ITP_unsupported_pure "Unsupported const membyte"
        | Terms.Pointer _ -> CI.ITP_unsupported_pure "Unsupported const pointer"
        | Terms.Alloc_id _ -> CI.ITP_unsupported_pure "Unsupported const alloc_id"
-       | Terms.Unit -> CI.ITP_unsupported_pure "Unsupported const unit"
+       | Terms.Unit -> CI.ITP_const (CI.ITP_unit)
        | Terms.Null -> CI.ITP_const (CI.ITP_Z Z.zero)
        | Terms.CType_const _ -> CI.ITP_unsupported_pure "Unsupported const ctype"
        | Terms.Default _ -> CI.ITP_unsupported_pure "Unsupported const default")
