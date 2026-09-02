@@ -10,6 +10,8 @@ End Inst.
 Module InstOK: CN_Lemmas.Gen_Spec.Lemma_Spec(Inst).
 
   Module L := CN_Lemmas.Gen_Spec.Lemma_Defs (Inst).
+  Import L.
+  Import L.R.
 
   Section Proof.
     Import L.
@@ -20,5 +22,24 @@ Module InstOK: CN_Lemmas.Gen_Spec.Lemma_Spec(Inst).
       iIntros (p).
       done.
     Qed.
+
+    Lemma sizeof_offsetof_lemma : ⊢ sizeof_offsetof_lemma_type.
+    Proof.
+      iIntros (_).
+      done.
+    Qed.
+
+    Lemma unit_lemma: ⊢ unit_lemma_type.
+    Proof.
+      iIntros (p q) "_".
+      iExists tt.
+      iSplitL.
+      - iApply Empty_unfold. done.
+      - iExists tt.
+        iSplitL; last done.
+        iApply Empty_unfold.
+        done.
+    Qed.
   End Proof.
+
 End InstOK.

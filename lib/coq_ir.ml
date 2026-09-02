@@ -43,6 +43,7 @@ type itp_const =
   | ITP_bool_prop of bool
   | ITP_Z of Z.t
   | ITP_bits of Z.t
+  | ITP_unit
 
 type itp_unop =
   | ITP_neg

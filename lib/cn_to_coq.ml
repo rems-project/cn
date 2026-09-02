@@ -132,7 +132,7 @@ let it_to_itp_ir global it b =
        | Terms.MemByte _ -> CI.ITP_unsupported_pure "Unsupported const membyte"
        | Terms.Pointer _ -> CI.ITP_unsupported_pure "Unsupported const pointer"
        | Terms.Alloc_id _ -> CI.ITP_unsupported_pure "Unsupported const alloc_id"
-       | Terms.Unit -> CI.ITP_unsupported_pure "Unsupported const unit"
+       | Terms.Unit -> CI.ITP_const CI.ITP_unit
        | Terms.Null -> CI.ITP_const (CI.ITP_Z Z.zero)
        | Terms.CType_const _ -> CI.ITP_unsupported_pure "Unsupported const ctype"
        | Terms.Default _ -> CI.ITP_unsupported_pure "Unsupported const default")
@@ -204,7 +204,11 @@ let it_to_itp_ir global it b =
            CI.ITP_binop (CI.ITP_impl_prop, x, y, bt)
          else
            CI.ITP_binop (CI.ITP_impl, x, y, bt)
-       | _ -> CI.ITP_unsupported_pure "Unsupported binop")
+       | Min -> CI.ITP_ite (CI.ITP_binop (CI.ITP_lt, x, y, bt), x, y)
+       | Max -> CI.ITP_ite (CI.ITP_binop (CI.ITP_lt, x, y, bt), y, x)
+       | ShiftLeft | ShiftRight | SetUnion | SetIntersection | SetDifference | SetMember
+       | Subset ->
+         CI.ITP_unsupported_pure "Unsupported binop")
     | Terms.Match (x, cases) ->
       let comp = Some (it, "case-discriminant") in
       let br (pat, rhs) = (pat_to_itp_ir pat, aux rhs) in
@@ -259,14 +263,20 @@ let it_to_itp_ir global it b =
       let size_of_ct = Z.of_int @@ Memory.size_of_ctype ct in
       (* do a + b * c*)
       CI.ITP_arrayshift (aux base, size_of_ct, aux index)
+    | Terms.OffsetOf (tag, member) ->
+      let decl = Sym.Map.find tag global.struct_decls in
+      let v = Option.get (Memory.member_offset decl member) in
+      f comp_bool (MT.int_lit_ v (Terms.get_bt it) (Terms.get_loc it))
+    | Terms.SizeOf ct ->
+      f
+        comp_bool
+        (MT.int_lit_ (Memory.size_of_ctype ct) (Terms.get_bt it) (Terms.get_loc it))
     | Terms.Tuple _ -> CI.ITP_unsupported_pure "Unsupported tuple"
     | Terms.NthTuple (_, _) -> CI.ITP_unsupported_pure "Unsupported nth tuple"
     | Terms.Struct (_, _) -> CI.ITP_unsupported_pure "Unsupported struct"
     | Terms.MemberShift _ -> CI.ITP_unsupported_pure "Unsupported member shift"
     | Terms.CopyAllocId _ -> CI.ITP_unsupported_pure "Unsupported copy alloc id"
     | Terms.HasAllocId _ -> CI.ITP_unsupported_pure "Unsupported has alloc id"
-    | Terms.SizeOf _ -> CI.ITP_unsupported_pure "Unsupported size of"
-    | Terms.OffsetOf (_, _) -> CI.ITP_unsupported_pure "Unsupported offset of"
     | Terms.Nil _ -> CI.ITP_unsupported_pure "Unsupported nil"
     | Terms.Cons (_, _) -> CI.ITP_unsupported_pure "Unsupported cons"
     | Terms.Head _ -> CI.ITP_unsupported_pure "Unsupported head"
