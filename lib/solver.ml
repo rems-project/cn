@@ -696,11 +696,10 @@ let rec translate_term s iterm =
             (eq_ (e1, intl 0) loc, intl 0, sub_ (intl sz, arith_unop BW_CLZ e1 loc) loc)
             loc)
      | Not -> SMT.bool_not (translate_term s e1)
-     | Abs -> 
+     | Abs ->
        (match get_bt iterm with
-       | Integer | Real ->
-	 SMT.num_abs (translate_term s e1)
-       | _ -> failwith (__LOC__ ^ ":Unop (Abs, _)"))
+        | Integer | Real -> SMT.num_abs (translate_term s e1)
+        | _ -> failwith (__LOC__ ^ ":Unop (Abs, _)"))
      | Negate ->
        (match get_bt iterm with
         | BT.Bits _ -> SMT.bv_neg (translate_term s e1)
@@ -745,7 +744,8 @@ let rec translate_term s iterm =
        (match get_bt iterm with
         | BT.Bits _ -> SMT.bv_mul s1 s2
         | BT.Real -> SMT.num_mul s1 s2
-        | BT.Integer when T.constant e1 || T.constant e2 || !always_interp -> SMT.num_mul s1 s2
+        | BT.Integer when T.constant e1 || T.constant e2 || !always_interp ->
+          SMT.num_mul s1 s2
         | BT.Integer -> uninterp_same_type CN_Names.mul
         | _ -> failwith "Mul")
      | Div ->
@@ -766,7 +766,8 @@ let rec translate_term s iterm =
        (match get_bt iterm with
         | BT.Bits (BT.Signed, _) -> SMT.bv_srem s1 s2
         | BT.Bits (BT.Unsigned, _) -> SMT.bv_urem s1 s2
-        | BT.Integer when T.constant e2 || !always_interp -> SMT.num_rem s1 s2 (* CVC5 ?? *)
+        | BT.Integer when T.constant e2 || !always_interp ->
+          SMT.num_rem s1 s2 (* CVC5 ?? *)
         | BT.Integer -> uninterp_same_type CN_Names.rem
         | _ -> failwith "Rem")
      | Mod ->
@@ -805,42 +806,41 @@ let rec translate_term s iterm =
         | BT.Integer -> translate_term s MT.(div_ (e1, exp_ (int_ 2 loc, e2) loc) loc)
         | _ -> failwith "ShiftRight")
      | BW_CLZ_Z ->
-        (match get_bt iterm with
-         | Integer -> uninterp_same_type CN_Names.bw_clz_z
-         | _ -> failwith "BW_CLZ_Z")
+       (match get_bt iterm with
+        | Integer -> uninterp_same_type CN_Names.bw_clz_z
+        | _ -> failwith "BW_CLZ_Z")
      | BW_CTZ_Z ->
-        (match get_bt iterm with
-         | Integer -> uninterp_same_type CN_Names.bw_ctz_z
-         | _ -> failwith "BW_CTZ_Z")
+       (match get_bt iterm with
+        | Integer -> uninterp_same_type CN_Names.bw_ctz_z
+        | _ -> failwith "BW_CTZ_Z")
      | BW_FFS_Z ->
-        (* Copying and adjusting the bitvector version. *)
-        (* NOTE: This desugaring duplicates e1 *)
-        (match get_bt iterm with
-         | Integer ->
-            let int_ i = int_ i loc in
-            translate_term
-              s
-              (ite_
-                 (eq_ (e1, int_ 0) loc, 
-                  int_ 0, 
-                  add_ (arith_binop BW_CTZ_Z (e1,e2) loc, int_ 1) loc)
-                 loc)
-         | _ -> failwith "BW_FFS_Z")
-     | BW_FLS_Z -> 
-        (* Copying and adjusting the bitvector version. *)
-        (* NOTE: This desugaring duplicates e1 *)
-        (match get_bt iterm with
-         | Integer ->
-            let int_ i = int_ i loc in
-            translate_term
-              s
-              (ite_
-                 (eq_ (e1, int_ 0) loc, 
-                  int_ 0, 
-                  sub_ (e2, arith_binop BW_CLZ_Z (e1,e2) loc) loc)
-                 loc)
-         | _ -> failwith "BW_FLS_Z"
-        )
+       (* Copying and adjusting the bitvector version. *)
+       (* NOTE: This desugaring duplicates e1 *)
+       (match get_bt iterm with
+        | Integer ->
+          let int_ i = int_ i loc in
+          translate_term
+            s
+            (ite_
+               ( eq_ (e1, int_ 0) loc,
+                 int_ 0,
+                 add_ (arith_binop BW_CTZ_Z (e1, e2) loc, int_ 1) loc )
+               loc)
+        | _ -> failwith "BW_FFS_Z")
+     | BW_FLS_Z ->
+       (* Copying and adjusting the bitvector version. *)
+       (* NOTE: This desugaring duplicates e1 *)
+       (match get_bt iterm with
+        | Integer ->
+          let int_ i = int_ i loc in
+          translate_term
+            s
+            (ite_
+               ( eq_ (e1, int_ 0) loc,
+                 int_ 0,
+                 sub_ (e2, arith_binop BW_CLZ_Z (e1, e2) loc) loc )
+               loc)
+        | _ -> failwith "BW_FLS_Z")
      | LT ->
        (match get_bt e1 with
         | BT.Bits (BT.Signed, _) -> SMT.bv_slt s1 s2

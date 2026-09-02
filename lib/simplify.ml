@@ -269,7 +269,7 @@ module Terms = struct
         let a = aux a in
         let b = aux b in
         (match (a, b) with
-         | IT (Const (Z a), _, _), IT (Const (Z b), _, _) when (Z.lt Z.zero b) ->
+         | IT (Const (Z a), _, _), IT (Const (Z b), _, _) when Z.lt Z.zero b ->
            z_ (Z.div a b) the_loc
          | IT (Const (Z a), _, _), _ when Z.equal a Z.zero -> int_ 0 the_loc
          | _, IT (Const (Z b), _, _) when Z.equal b Z.one -> a

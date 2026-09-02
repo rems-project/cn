@@ -256,6 +256,7 @@ let json_of_unop : Terms.unop -> json =
   | BW_Compl -> unit_variant "BwCompl"
   | Abs -> failwith "todo"
 
+
 let json_of_binop : Terms.binop -> json =
   let open Terms in
   function

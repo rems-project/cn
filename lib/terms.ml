@@ -48,10 +48,10 @@ type binop =
   | BW_Or
   | ShiftLeft
   | ShiftRight
-  | BW_CLZ_Z                    (* second argument is width *)
-  | BW_CTZ_Z                    (* second argument is width *)
-  | BW_FFS_Z                    (* second argument is width *)
-  | BW_FLS_Z                    (* second argument is width *)
+  | BW_CLZ_Z (* second argument is width *)
+  | BW_CTZ_Z (* second argument is width *)
+  | BW_FFS_Z (* second argument is width *)
+  | BW_FLS_Z (* second argument is width *)
   | LT
   | LE
   | Min

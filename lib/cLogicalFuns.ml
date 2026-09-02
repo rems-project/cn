@@ -789,16 +789,19 @@ let add_logical_funs_from_c call_funinfo funs_to_convert funs =
   let@ conv_defs =
     ListM.mapM
       (fun Mu.{ c_fun_sym; loc; l_fun_sym } ->
-	let@ () = 
-          if !BT.cnBV then
-	    return ()
-	  else
-	    fail_n
-	      { loc;
-		msg =
-		  Generic !^"Deriving CN functions from C functions not yet supported in integer-mode." [@alert "-deprecated"]
-	      }
-	in
+         let@ () =
+           if !BT.cnBV then
+             return ()
+           else
+             fail_n
+               { loc;
+                 msg =
+                   Generic
+                     !^"Deriving CN functions from C functions not yet supported in \
+                        integer-mode."
+                   [@alert "-deprecated"]
+               }
+         in
          let@ def = Global.get_logical_function_def loc l_fun_sym in
          let@ fbody =
            match Pmap.lookup c_fun_sym funs with

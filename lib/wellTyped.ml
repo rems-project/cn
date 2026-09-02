@@ -32,9 +32,12 @@ let squotes, warn, dot, string, debug, item, colon, comma =
 let warn_integer_bw_operation loc =
   warn loc !^"Treating bitwise operation on integers as uninterpreted."
 
+
 let warn_integer_nia loc =
-  if !always_interp then () else
-  warn loc !^"Treating non-linear integer arithmetic as uninterpreted."
+  if !always_interp then
+    ()
+  else
+    warn loc !^"Treating non-linear integer arithmetic as uninterpreted."
 
 
 type message =
@@ -523,34 +526,44 @@ module WT = struct
   let nia_checks it =
     match it with
     | IT (Binop (Mul, t, t'), Integer, loc) ->
-      if (T.constant t || T.constant t' || !always_interp) then return () else
-       let msg =
-	 !^"Neither side of the integer multiplication"
-	 ^^^ squotes (T.pp it)
-	 ^^^ !^"is a constant."
-       in
-       return (warn loc msg)
+      if T.constant t || T.constant t' || !always_interp then
+        return ()
+      else (
+        let msg =
+          !^"Neither side of the integer multiplication"
+          ^^^ squotes (T.pp it)
+          ^^^ !^"is a constant."
+        in
+        return (warn loc msg))
     | IT (Binop ((Div | Rem | Mod), _t, t'), Integer, loc) ->
-      if T.constant t' || !always_interp then return () else
-	let msg =
-	  !^"Division" ^^^ squotes (T.pp it) ^^^ !^"does not have constant right-hand argument."
-	in
-	return (warn loc msg)
+      if T.constant t' || !always_interp then
+        return ()
+      else (
+        let msg =
+          !^"Division"
+          ^^^ squotes (T.pp it)
+          ^^^ !^"does not have constant right-hand argument."
+        in
+        return (warn loc msg))
     | IT (Binop ((ShiftLeft | ShiftRight), _t, t'), Integer, loc) ->
       (match is_const t' with
-      | Some ((Z z'), _) when Z.gt z' Z.zero -> return ()
-      | _ -> 
-	let msg = !^"Integer shift requires positive integer literal as second argument" in
-	fail { loc; msg = Generic msg } [@alert "-deprecated"])
+       | Some (Z z', _) when Z.gt z' Z.zero -> return ()
+       | _ ->
+         let msg =
+           !^"Integer shift requires positive integer literal as second argument"
+         in
+         (fail { loc; msg = Generic msg } [@alert "-deprecated"]))
     | IT (Binop (Exp, t, t'), Integer, loc) ->
-      (match T.constant t, is_const t' with
-      | true, Some ((Z z'), _) when Z.gt z' Z.zero -> return ()
-      | false, _ ->
-	let msg = !^"Integer exponentiation requires constant first argument" in
-	fail { loc; msg = Generic msg } [@alert "-deprecated"]
-      | true, _ -> 
-	let msg = !^"Integer exponentiation requires positive integer literal as second argument" in
-	fail { loc; msg = Generic msg } [@alert "-deprecated"])
+      (match (T.constant t, is_const t') with
+       | true, Some (Z z', _) when Z.gt z' Z.zero -> return ()
+       | false, _ ->
+         let msg = !^"Integer exponentiation requires constant first argument" in
+         (fail { loc; msg = Generic msg } [@alert "-deprecated"])
+       | true, _ ->
+         let msg =
+           !^"Integer exponentiation requires positive integer literal as second argument"
+         in
+         (fail { loc; msg = Generic msg } [@alert "-deprecated"]))
     | IT (Binop ((BW_And | BW_Or | BW_Xor), _t, _t'), Integer, loc) ->
       return (warn_integer_bw_operation loc)
     | IT (Binop ((BW_CLZ_Z | BW_CTZ_Z | BW_FFS_Z | BW_FLS_Z), _t, _t'), _, loc) ->
@@ -617,10 +630,15 @@ module WT = struct
             return (t, T.get_bt t)
           | Abs ->
             let@ t = infer t in
-            let@ () = match T.get_bt t with
-	    | Integer | Real -> return ()
-	    | has -> fail { loc; msg = Mismatch { has = BT.pp has; expect = !^"integer or real" } }
-	    in
+            let@ () =
+              match T.get_bt t with
+              | Integer | Real -> return ()
+              | has ->
+                fail
+                  { loc;
+                    msg = Mismatch { has = BT.pp has; expect = !^"integer or real" }
+                  }
+            in
             return (t, T.get_bt t)
           | BW_CLZ | BW_CTZ | BW_FFS | BW_FLS ->
             let@ t = infer t in
@@ -631,7 +649,7 @@ module WT = struct
             let@ () = ensure_integer_or_bits_type ~reason:loc t in
             return (t, T.get_bt t)
         in
-        let it = (IT (Unop (unop, t), ret_bt, loc)) in
+        let it = IT (Unop (unop, t), ret_bt, loc) in
         let@ () = nia_checks it in
         return it
       | Binop (SetMember, t, t') ->

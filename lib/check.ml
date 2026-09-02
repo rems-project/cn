@@ -414,6 +414,7 @@ let integer_wrapI_value loc ity n =
   let r = MT.rem_f_ (n, dlt) loc in
   MT.ite_ (le_ (r, z_ (Memory.max_integer_type ity) loc) loc, r, sub_ (r, dlt) loc) loc
 
+
 let integer_wrapI loc ity n =
   assert (not !cnBV);
   let@ provable = provable loc in
@@ -458,7 +459,7 @@ let check_conv_int loc ~expect ct arg =
       if !cnBV then
         return (cast_ (Memory.bt_of_sct ct) arg loc)
       else
-        (integer_wrapI here ity arg)
+        integer_wrapI here ity arg
     | _ ->
       (match provable (LC.T (representable_ (ct, arg) here)) with
        | `True ->
@@ -898,14 +899,16 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : T.t m =
       | _ -> assert false
     in
     let () =
-      if !Solver.always_interp then () else
-      match (op, (Terms.is_const v1, Terms.is_const v2)) with
-      | OpMul, (None, None) -> warn loc !^"Treating multiplication as uninterpreted."
-      | (OpDiv | OpRem_t | OpRem_f), (_, None) ->
-        warn loc !^"Treating division as uninterpreted."
-      | OpExp, (None, _ | _, None) ->
-        warn loc !^"Treating exponentiation as uninterpreted."
-      | _ -> ()
+      if !Solver.always_interp then
+        ()
+      else (
+        match (op, (Terms.is_const v1, Terms.is_const v2)) with
+        | OpMul, (None, None) -> warn loc !^"Treating multiplication as uninterpreted."
+        | (OpDiv | OpRem_t | OpRem_f), (_, None) ->
+          warn loc !^"Treating division as uninterpreted."
+        | OpExp, (None, _ | _, None) ->
+          warn loc !^"Treating exponentiation as uninterpreted."
+        | _ -> ())
     in
     return (fn_ (v1, v2) loc)
   | PEconv_int (ct_expr, pe)
@@ -1143,8 +1146,10 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : T.t m =
   | PEwrapI (ity, iop, pe1, pe2) (* not !cnBV *)
   | PEcatch_exceptional_condition (ity, iop, pe1, pe2) (* not !cnBV *) ->
     (match pe_ with
-    | PEwrapI _ -> assert (Mu.is_div_iop iop || Mu.is_remt_iop iop || Sctypes.is_unsigned_integer_type ity)
-    | _ -> ());
+     | PEwrapI _ ->
+       assert (
+         Mu.is_div_iop iop || Mu.is_remt_iop iop || Sctypes.is_unsigned_integer_type ity)
+     | _ -> ());
     let@ () = WellTyped.check_ct loc (Integer ity) in
     let@ () = WellTyped.ensure_base_type loc ~expect Integer in
     let@ () = WellTyped.ensure_base_type loc ~expect (Mu.bt_of_pexpr pe1) in
@@ -1152,33 +1157,43 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : T.t m =
     let@ arg1 = check_pexpr path_cs pe1 in
     let@ arg2 = check_pexpr path_cs pe2 in
     let fn_ =
-      match iop, (T.constant arg1, T.constant arg2) with
+      match (iop, (T.constant arg1, T.constant arg2)) with
       | IOpAdd, _ -> add_
       | IOpSub, _ -> sub_
-      | IOpMul, (false,false) -> WT.warn_integer_nia loc;  mul_
+      | IOpMul, (false, false) ->
+        WT.warn_integer_nia loc;
+        mul_
       | IOpMul, _ -> mul_
-      | IOpShl, (_, false) -> WT.warn_integer_nia loc; shl_
+      | IOpShl, (_, false) ->
+        WT.warn_integer_nia loc;
+        shl_
       | IOpShl, _ -> shl_
-      | IOpShr, (_, false) -> WT.warn_integer_nia loc; shr_
+      | IOpShr, (_, false) ->
+        WT.warn_integer_nia loc;
+        shr_
       | IOpShr, _ -> shr_
-      | IOpDiv, (_, false) -> WT.warn_integer_nia loc; z_div_
+      | IOpDiv, (_, false) ->
+        WT.warn_integer_nia loc;
+        z_div_
       | IOpDiv, _ -> z_div_
-      | IOpRem_t, (_, false) -> WT.warn_integer_nia loc; rem_t_
+      | IOpRem_t, (_, false) ->
+        WT.warn_integer_nia loc;
+        rem_t_
       | IOpRem_t, _ -> rem_t_
     in
     let r = fn_ (arg1, arg2) loc in
     (match pe_ with
-    | PEwrapI _ -> integer_wrapI loc ity r
-    | PEcatch_exceptional_condition _ ->
-      let@ provable = provable loc in
-      let r_representable = provable (LC.T (representable_ (Integer ity, r) loc)) in
-      (match r_representable with
-      | `True -> return r
-      | `False ->
-	let@ model = model () in
-	let ub = CF.Undefined.UB036_exceptional_condition in
-	fail (fun ctxt -> { loc; msg = Undefined_behaviour { ub; ctxt; model } }))
-    | _ -> assert false)
+     | PEwrapI _ -> integer_wrapI loc ity r
+     | PEcatch_exceptional_condition _ ->
+       let@ provable = provable loc in
+       let r_representable = provable (LC.T (representable_ (Integer ity, r) loc)) in
+       (match r_representable with
+        | `True -> return r
+        | `False ->
+          let@ model = model () in
+          let ub = CF.Undefined.UB036_exceptional_condition in
+          fail (fun ctxt -> { loc; msg = Undefined_behaviour { ub; ctxt; model } }))
+     | _ -> assert false)
   | PEif (pe, e1, e2) ->
     let@ () = WellTyped.ensure_base_type loc ~expect (Mu.bt_of_pexpr e1) in
     let@ () = WellTyped.ensure_base_type loc ~expect (Mu.bt_of_pexpr e2) in
@@ -1553,9 +1568,10 @@ let bytes_constraints
       in
       List.fold_left (fun x y -> MT.add_ (x, y) here) (List.hd shifted) (List.tl shifted)
     in
-    let rhs = if !cnBV then rhs else integer_wrapI_value loc it rhs in (* TODO: correct? *)
+    let rhs = if !cnBV then rhs else integer_wrapI_value loc it rhs in
+    (* TODO: correct? *)
     (match to_from with
-     | To -> return (and_ [all_some; all_good; eq_ (lhs, rhs) here] here)
+     | To -> return (and_ [ all_some; all_good; eq_ (lhs, rhs) here ] here)
      | From ->
        let lc = LC.T all_some in
        let@ provable = provable loc in
@@ -1656,7 +1672,10 @@ let bytes_constraints
               bytes_prov)
            here
        in
-       return (and_ [ all_some; all_good; bytes_prov_eq; eq_ (value_addr, bytes_addr) here ] here))
+       return
+         (and_
+            [ all_some; all_good; bytes_prov_eq; eq_ (value_addr, bytes_addr) here ]
+            here))
 
 
 let rec check_expr labels (e : BT.t Mu.expr) (k : T.t -> unit m) : unit m =
@@ -1816,32 +1835,36 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : T.t -> unit m) : unit m =
                (2) So, the only UB possible is unrepresentable results. *)
          let@ provable = provable loc in
          let here = Locations.other __LOC__ in
-	 let min_z = Memory.min_integer_type to_ity in
-	 let max_z = Memory.max_integer_type to_ity in
-         let@ actual_value, lc = 
-	   if !cnBV then
-	     (* §6.3.2.3#6 allows converting pointers to any integer type so long as the value of
+         let min_z = Memory.min_integer_type to_ity in
+         let max_z = Memory.max_integer_type to_ity in
+         let@ actual_value, lc =
+           if !cnBV then (
+             (* §6.3.2.3#6 allows converting pointers to any integer type so long as the value of
 		the pointer fits. If uintptr_t and intptr_t exist, then they are guaranteed to be
 		big enough to fit any valid pointer (to void). From there, it's just a matter of
 		checking the bits fit. *)
-	     let lc = 
-	       LC.T (or_
-		 [ in_z_range (cast_ Memory.uintptr_bt arg loc) (min_z, max_z) here;
-		   in_z_range (cast_ Memory.intptr_bt arg loc) (min_z, max_z) here ] here)
+             let lc =
+               LC.T
+                 (or_
+                    [ in_z_range (cast_ Memory.uintptr_bt arg loc) (min_z, max_z) here;
+                      in_z_range (cast_ Memory.intptr_bt arg loc) (min_z, max_z) here
+                    ]
+                    here)
              in
-	     let value = cast_ (Memory.bt_of_sct to_ct) arg loc in
-	     return (value, lc)
-	   else
-	     (* TODO: correct? *)
-	     let iarg = cast_ Integer arg here in
-	     let@ value = 
-	       if Memory.is_signed_integer_type to_ity
-	       then integer_wrapI here (Signed Intptr_t) iarg 
-	       else (* integer_wrapI here (Unsigned Intptr_t) *) return iarg
-	     in
-	     let lc = LC.T (in_z_range value (min_z, max_z) here) in
-	     return (value, lc)
-	 in
+             let value = cast_ (Memory.bt_of_sct to_ct) arg loc in
+             return (value, lc))
+           else (
+             (* TODO: correct? *)
+             let iarg = cast_ Integer arg here in
+             let@ value =
+               if Memory.is_signed_integer_type to_ity then
+                 integer_wrapI here (Signed Intptr_t) iarg
+               else (* integer_wrapI here (Unsigned Intptr_t) *)
+                 return iarg
+             in
+             let lc = LC.T (in_z_range value (min_z, max_z) here) in
+             return (value, lc))
+         in
          let@ () =
            match provable lc with
            | `True -> return ()
@@ -1870,18 +1893,16 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : T.t -> unit m) : unit m =
          let null_case = eq_ (result, null_ here) here in
          (* NOTE: the allocation ID is intentionally left unconstrained *)
          let@ alloc_case =
-	   let@ raw_addr = 
-	     if !cnBV then return (cast_ Memory.uintptr_bt arg here)
-	     else integer_wrapI here (Unsigned Intptr_t) arg (* TODO: correct? *)
-	   in
-	   let lc = 
-	     and_
-	       [ hasAllocId_ result here;
-		 eq_ (raw_addr, addr_ result here) here
-	       ]
-	       here
-	   in
-	   return lc
+           let@ raw_addr =
+             if !cnBV then
+               return (cast_ Memory.uintptr_bt arg here)
+             else
+               integer_wrapI here (Unsigned Intptr_t) arg (* TODO: correct? *)
+           in
+           let lc =
+             and_ [ hasAllocId_ result here; eq_ (raw_addr, addr_ result here) here ] here
+           in
+           return lc
          in
          let constr = ite_ (cond, null_case, alloc_case) here in
          let@ () = add_c loc (LC.T constr) in
@@ -2985,34 +3006,38 @@ let ctz_proxy_ft =
   let here = Locations.other __LOC__ in
   let info = (here, Some "ctz_proxy builtin ft") in
   let n_ct = Sctypes.(Integer (Unsigned Int_)) in
-  let n_width =  Memory.(bits_per_byte * size_of_integer_type (Unsigned Int_)) in
+  let n_width = Memory.(bits_per_byte * size_of_integer_type (Unsigned Int_)) in
   let n_bt = Memory.bt_of_sct n_ct in
   let n_sym, n = MT.fresh_named n_bt "n_" here in
   let ret_ct = Sctypes.(Integer (Signed Int_)) in
   let ret_bt = Memory.bt_of_sct ret_ct in
   let ret_sym, ret = MT.fresh_named ret_bt "return" here in
   let rt =
-    let value = 
-      if !cnBV then cast_ ret_bt (MT.arith_unop Terms.BW_CTZ n here) here
-      else MT.arith_binop Terms.BW_CTZ_Z (n, int_ n_width here) here
+    let value =
+      if !cnBV then
+        cast_ ret_bt (MT.arith_unop Terms.BW_CTZ n here) here
+      else
+        MT.arith_binop Terms.BW_CTZ_Z (n, int_ n_width here) here
     in
     let eq_ctz = LC.T (MT.eq_ (ret, value) here) in
     (* We could also add a derived constraint about the range of
        possible values, for non-bv mode, if that's convenient. *)
-    let range = 
-      if !cnBV then LC.T (bool_ true here)
-      else LC.T (in_z_range ret (Z.zero, Z.of_int (n_width-1)) here) 
+    let range =
+      if !cnBV then
+        LC.T (bool_ true here)
+      else
+        LC.T (in_z_range ret (Z.zero, Z.of_int (n_width - 1)) here)
     in
     RT.mComputational
       ((ret_sym, ret_bt), info)
-      (LRT.mConstraints [(eq_ctz, info);(range, info)] LRT.I)
+      (LRT.mConstraints [ (eq_ctz, info); (range, info) ] LRT.I)
   in
   let ft =
     let neq_0 = LC.T (MT.ne_ (n, MT.int_lit_ 0 n_bt here) here) in
     let in_range = LC.T (good_ (n_ct, n) here) in
     AT.mComputationals
       [ (n_sym, n_bt, info) ]
-      (AT.L (LAT.mConstraints [(neq_0, info); (in_range, info)] (LAT.I rt)))
+      (AT.L (LAT.mConstraints [ (neq_0, info); (in_range, info) ] (LAT.I rt)))
   in
   ft
 
@@ -3023,29 +3048,36 @@ let ffs_proxy_ft sz =
   let info = (here, Some ("ffs_proxy builtin ft: " ^ sz_name)) in
   let arg_ct = Sctypes.(Integer (Signed sz)) in
   let arg_bt = Memory.bt_of_sct arg_ct in
-  let n_width =  (Memory.bits_per_byte * (Memory.size_of_integer_type (Signed sz)))  in
+  let n_width = Memory.bits_per_byte * Memory.size_of_integer_type (Signed sz) in
   let ret_ct = Sctypes.(Integer (Signed Int_)) in
   let ret_bt = Memory.bt_of_sct ret_ct in
   let n_sym, n = MT.fresh_named arg_bt "n_" here in
   let ret_sym, ret = MT.fresh_named ret_bt "return" here in
-  let value = 
-    if !cnBV then MT.cast_ ret_bt (MT.arith_unop Terms.BW_FFS n here) here 
-    else MT.arith_binop Terms.BW_FFS_Z (n, int_ n_width here) here
+  let value =
+    if !cnBV then
+      MT.cast_ ret_bt (MT.arith_unop Terms.BW_FFS n here) here
+    else
+      MT.arith_binop Terms.BW_FFS_Z (n, int_ n_width here) here
   in
   let eq_ffs = LC.T (MT.eq_ (ret, value) here) in
-  let range = 
-    if !cnBV then LC.T (bool_ true here)
-    else LC.T (in_z_range ret (Z.zero, Z.of_int n_width) here)
+  let range =
+    if !cnBV then
+      LC.T (bool_ true here)
+    else
+      LC.T (in_z_range ret (Z.zero, Z.of_int n_width) here)
   in
   let rt =
     (* We could also add a derived constraint about the range of
        possible values, for non-bv mode, if that's convenient. *)
-    RT.mComputational ((ret_sym, ret_bt), info) (LRT.mConstraints [(eq_ffs, info);(range, info)] LRT.I)
+    RT.mComputational
+      ((ret_sym, ret_bt), info)
+      (LRT.mConstraints [ (eq_ffs, info); (range, info) ] LRT.I)
   in
-  let ft = 
+  let ft =
     let in_range = LC.T (good_ (arg_ct, n) here) in
-    AT.mComputationals [ (n_sym, arg_bt, info) ] 
-      (AT.L (LAT.mConstraints [(in_range, info)] (LAT.I rt))) 
+    AT.mComputationals
+      [ (n_sym, arg_bt, info) ]
+      (AT.L (LAT.mConstraints [ (in_range, info) ] (LAT.I rt)))
   in
   ft
 
@@ -3100,15 +3132,12 @@ let add_stdlib_spec =
     List.fold_left
       (fun map (name, ft) -> StrMap.add name ft map)
       StrMap.empty
-      (
-         [ ("ctz_proxy", ctz_proxy_ft);
-           ("ffs_proxy", ffs_proxy_ft Sctypes.IntegerBaseTypes.Int_);
-           ("ffsl_proxy", ffs_proxy_ft Sctypes.IntegerBaseTypes.Long);
-           ("ffsll_proxy", ffs_proxy_ft Sctypes.IntegerBaseTypes.LongLong);
-           ("memcpy_proxy", memcpy_proxy_ft)
-         ]
-
-         )
+      [ ("ctz_proxy", ctz_proxy_ft);
+        ("ffs_proxy", ffs_proxy_ft Sctypes.IntegerBaseTypes.Int_);
+        ("ffsl_proxy", ffs_proxy_ft Sctypes.IntegerBaseTypes.Long);
+        ("ffsll_proxy", ffs_proxy_ft Sctypes.IntegerBaseTypes.LongLong);
+        ("memcpy_proxy", memcpy_proxy_ft)
+      ]
   in
   let add ct fsym ft =
     Pp.debug
