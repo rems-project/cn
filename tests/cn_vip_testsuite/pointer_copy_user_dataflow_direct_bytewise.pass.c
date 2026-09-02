@@ -52,5 +52,5 @@ int main()
   /*CN_VIP*//*@ from_bytes RW<int*>(&p); @*/
   *q = 11; // is this free of undefined behaviour?
   //CN_VIP printf("*p=%d  *q=%d\n",*p,*q);
-  /*CN_VIP*//*@ assert(*q == 11i32 && *p == 11i32); @*/
+  /*CN_VIP*//*@ assert(*q == 11 && *p == 11); @*/
 }

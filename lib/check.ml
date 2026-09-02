@@ -1541,6 +1541,7 @@ let bytes_constraints
         map_get_ byte_arr index here)
     in
     let all_some = and_ (List.map (fun byte -> isSome_ byte here) bytes) here in
+    let all_good = and_ (List.map (fun byte -> good_ (Byte, byte) here) bytes) here in
     let rhs =
       let shifted =
         List.mapi
@@ -1552,9 +1553,9 @@ let bytes_constraints
       in
       List.fold_left (fun x y -> MT.add_ (x, y) here) (List.hd shifted) (List.tl shifted)
     in
-    let@ rhs = if !cnBV then return rhs else integer_wrapI loc it rhs in (* TODO: correct? *)
+    let rhs = if !cnBV then rhs else integer_wrapI_value loc it rhs in (* TODO: correct? *)
     (match to_from with
-     | To -> return (and2_ (all_some, eq_ (lhs, rhs) here) here)
+     | To -> return (and_ [all_some; all_good; eq_ (lhs, rhs) here] here)
      | From ->
        let lc = LC.T all_some in
        let@ provable = provable loc in
@@ -1584,7 +1585,9 @@ let bytes_constraints
       in
       List.fold_left (fun x y -> MT.add_ (x, y) here) (List.hd shifted) (List.tl shifted)
     in
+    (* let bytes_addr = if !cnBV then bytes_addr else integer_wrapI_value loc Uintptr_t bytes_addr in (\* TODO: correct? *\) *)
     let all_some = and_ (List.map (fun byte -> isSome_ byte here) bytes) here in
+    let all_good = and_ (List.map (fun byte -> good_ (Byte, byte) here) bytes) here in
     let bytes_prov =
       List.map (fun byte -> cast_ (BT.Option Alloc_id) (getOpt_ byte here) here) bytes
     in
@@ -1653,7 +1656,7 @@ let bytes_constraints
               bytes_prov)
            here
        in
-       return (and_ [ all_some; bytes_prov_eq; eq_ (value_addr, bytes_addr) here ] here))
+       return (and_ [ all_some; all_good; bytes_prov_eq; eq_ (value_addr, bytes_addr) here ] here))
 
 
 let rec check_expr labels (e : BT.t Mu.expr) (k : T.t -> unit m) : unit m =

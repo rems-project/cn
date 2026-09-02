@@ -6,7 +6,7 @@ int y[2], x[2];
 int main()
 /*@ accesses x; @*/
 {
-  /*CN_VIP*//*@ focus RW<int>, 1u64; @*/
+  /*CN_VIP*//*@ focus RW<int>, 1; @*/
 #ifdef ANNOT
   int *p= copy_alloc_id(
     (((uintptr_t)&(x[0])) +
@@ -19,6 +19,6 @@ int main()
 #endif
   *p = 11;  // CN VIP UB (no annot)
   //CN_VIP printf("x[1]=%d *p=%d\n",x[1],*p);
-  /*CN_VIP*//*@ assert(x[1u64] == 11i32 && *p == 11i32); @*/
+  /*CN_VIP*//*@ assert(x[1] == 11 && *p == 11); @*/
   return 0;
 }

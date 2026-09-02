@@ -17,7 +17,7 @@ requires
   // read low-order (little endian) representation byte of p
   /*CN_VIP*//*@ to_bytes RW<int*>(&p); @*/
   byte* p_char = (byte*)&p;
-  /*@ focus RW<byte>, 0u64; @*/
+  /*@ focus RW<byte>, 0; @*/
   unsigned char i = (unsigned char)*p_char;
   // check the bottom two bits of an int* are not usec
   assert(_Alignof(int) >= 4);
@@ -34,5 +34,5 @@ requires
   *p = 11;          // does this have defined behaviour?
   _Bool b = (p==q); // is this true?
   //CN_VIP printf("x=%i *p=%i (p==q)=%s\n",x,*p,b?"true":"false");
-  /*CN_VIP*//*@ assert(x == 11i32 && *p == 11i32 && ptr_eq(p, q)); @*/
+  /*CN_VIP*//*@ assert(x == 11 && *p == 11 && ptr_eq(p, q)); @*/
 }

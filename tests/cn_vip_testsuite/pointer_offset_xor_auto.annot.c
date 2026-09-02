@@ -1,4 +1,6 @@
 #include "refinedc.h"
+#include "xor_lemma.h"
+
 
 //CN_VIP #include <stdio.h>
 #include <inttypes.h>
@@ -10,6 +12,7 @@ int main() {
   uintptr_t j = (uintptr_t) q;
   uintptr_t k = i ^ j;
   uintptr_t l = k ^ i;
+  /*@ apply xor_xor(i,j); @*/
 #if defined(ANNOT)
   int *r = copy_alloc_id(l, q);
 #else
@@ -19,5 +22,5 @@ int main() {
   *r = 11;     // CN VIP UB (no annot)
   _Bool b = (r==q);
   //CN_VIP printf("x=%i y=%i *r=%i (r==p)=%s\n",x,y,*r, b?"true":"false");
-  /*CN_VIP*//*@ assert(x == 1i32 && y == 11i32 && *r == 11i32 && b == 1u8); @*/
+  /*CN_VIP*//*@ assert(x == 1 && y == 11 && *r == 11 && b == 1); @*/
 }

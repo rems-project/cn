@@ -823,6 +823,7 @@ module WT = struct
           | Loc (), Integer -> not !cnBV
           | Loc (), Alloc_id -> true
           | MemByte, Bits _ -> true
+          | MemByte, Integer -> true
           | MemByte, Option Alloc_id -> true
           | _, _ -> false
         in

@@ -1200,7 +1200,7 @@ module C_vars = struct
         m_oargs_ty )
     in
     let pointee_constrs =
-      let info = (here, Some "owned-value-representable") in
+      let info = (pred_loc, Some "owned-value-representable") in
       let qt = MT.sym_ (q, SBT.proj bt', here) in
       match pname with
       | Owned (ct, Init) ->
@@ -1213,7 +1213,7 @@ module C_vars = struct
                 ( (q, SBT.proj bt'),
                   impl_
                     ( Terms.Surface.proj guard_expr,
-                      representable_ (ct, map_get_ oarg qt here) here )
+                      representable_ (ct, map_get_ oarg qt pred_loc) here )
                     here ),
               info )
           ]
