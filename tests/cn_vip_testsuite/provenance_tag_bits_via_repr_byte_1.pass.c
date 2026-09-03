@@ -4,13 +4,18 @@
 #include <stdint.h>
 /*CN_VIP*/ [[cerb::byte]] typedef unsigned char byte;
 int x=1;
+/*@  
+lemma and_rem(integer i)
+  requires i >= 0;
+  ensures i & 3 == rem(i,4);
+@*/
 int main()
 /*@
 accesses
     x;
 
 requires
-    (u32)x & 3u32 == 0u32;
+    x & 3 == 0;
 @*/
 {
   int *p=&x, *q=&x;
@@ -21,6 +26,7 @@ requires
   unsigned char i = (unsigned char)*p_char;
   // check the bottom two bits of an int* are not usec
   assert(_Alignof(int) >= 4);
+  /*@ apply and_rem(i); @*/
   assert((i & 3u) == 0u);
   // set the low-order bit of the byte
   i = i | 1u;
@@ -36,3 +42,4 @@ requires
   //CN_VIP printf("x=%i *p=%i (p==q)=%s\n",x,*p,b?"true":"false");
   /*CN_VIP*//*@ assert(x == 11 && *p == 11 && ptr_eq(p, q)); @*/
 }
+

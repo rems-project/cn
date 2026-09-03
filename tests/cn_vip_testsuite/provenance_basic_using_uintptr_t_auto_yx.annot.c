@@ -13,7 +13,7 @@ int main() {
   uintptr_t uy = (uintptr_t)&y;
   uintptr_t offset = 4;
   ux = ux + offset;
-  /*@ apply assert_equal((integer) ux, uy); @*/
+  /*@ apply assert_equal(ux, uy); @*/
 #ifdef ANNOT
   int *p = copy_alloc_id(ux, &y);
 #else
