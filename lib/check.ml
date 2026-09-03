@@ -2796,10 +2796,16 @@ let record_globals : 'bty. (Sym.t * 'bty Mu.globs) list -> LC.t list m =
              let H.{ base; size } = H.(split (lookup_ptr ptr here) here) in
              let addr = addr_ ptr here in
              let upper = MT.upper_bound addr ct here in
+             let within_address_space =
+               if !cnBV then
+                 le_ (addr, upper) here
+               else
+                 le_ (upper, z_ Memory.max_pointer here) here
+             in
              let bounds =
                and_
                  [ le_ (base, addr) here;
-                   le_ (addr, upper) here;
+                   within_address_space;
                    le_ (upper, add_ (base, size) here) here
                  ]
                  here
