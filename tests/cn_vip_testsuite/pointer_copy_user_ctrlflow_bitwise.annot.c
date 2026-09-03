@@ -7,6 +7,11 @@
 #include <stddef.h>
 #include "cn_lemmas.h"
 int x=1;
+/*@
+lemma now_same_value(integer i, integer j)
+  requires true;
+  ensures i == j;
+@*/
 int main()
 /*CN_VIP*//*@ accesses x; @*/
 {
@@ -23,8 +28,8 @@ int main()
           ptr_eq(p, &x);
           uintptr_t_width == 64;
           (0 <= k) && (k <= 64);
-          let k_mask = shift_left(1, k) - 1u64;
-          j == i & k_mask;
+//          let k_mask = shift_left(1, k) - 1;
+//          j == i & k_mask;
   @*/
   {
     bit = (i & (((uintptr_t)1) << k)) >> k;
@@ -33,6 +38,7 @@ int main()
     else
       j = j;
   }
+  /*@ apply now_same_value(i,j); @*/
 #ifdef ANNOT
   q = copy_alloc_id(j, &x);
 #else

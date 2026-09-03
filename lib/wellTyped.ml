@@ -547,23 +547,21 @@ module WT = struct
         return (warn loc msg))
     | IT (Binop ((ShiftLeft | ShiftRight), _t, t'), Integer, loc) ->
       (match is_const t' with
-       | Some (Z z', _) when Z.gt z' Z.zero -> return ()
+       | Some (Z z', _) when Z.fits_int z' && Z.geq z' Z.zero -> return ()
        | _ ->
          let msg =
-           !^"Integer shift requires positive integer literal as second argument"
+           !^"Integer shift requires non-negative literal in int-range as second argument -- treating underlying exponentiation as uninterpreted"
          in
-         (fail { loc; msg = Generic msg } [@alert "-deprecated"]))
-    | IT (Binop (Exp, t, t'), Integer, loc) ->
-      (match (T.constant t, is_const t') with
-       | true, Some (Z z', _) when Z.gt z' Z.zero -> return ()
-       | false, _ ->
-         let msg = !^"Integer exponentiation requires constant first argument" in
-         (fail { loc; msg = Generic msg } [@alert "-deprecated"])
-       | true, _ ->
-         let msg =
-           !^"Integer exponentiation requires positive integer literal as second argument"
-         in
-         (fail { loc; msg = Generic msg } [@alert "-deprecated"]))
+         return (warn loc msg))
+    | IT (Binop (Exp, t, t'), _, loc) ->
+      (match (is_const t, is_const t') with
+       | Some _, Some ((Z z' | Bits (_, z')), _) when Z.fits_int z' && Z.geq z' Z.zero -> return ()
+       | Some _, Some _ ->
+          let msg = !^"Exponent needs to be non-negative literal in int-range -- treating as uninterpreted" in
+          return (warn loc msg)
+       | _ ->
+         let msg = !^"Exponentiation requires integer literals as arguments -- treating as uninterpreted" in
+         return (warn loc msg))
     | IT (Binop ((BW_And | BW_Or | BW_Xor), _t, _t'), Integer, loc) ->
       return (warn_integer_bw_operation loc)
     | IT (Binop ((BW_CLZ_Z | BW_CTZ_Z | BW_FFS_Z | BW_FLS_Z), _t, _t'), _, loc) ->

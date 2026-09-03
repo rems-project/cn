@@ -758,7 +758,7 @@ let rec translate_term s iterm =
         | _ -> failwith "Div")
      | Exp ->
        (match (get_num_z e1, get_num_z e2) with
-        | Some z1, Some z2 when Z.fits_int z2 ->
+        | Some z1, Some z2 when Z.fits_int z2 && Z.geq z2 Z.zero ->
           translate_term s (num_lit_ (Z.pow z1 (Z.to_int z2)) (get_bt e1) loc)
         (* | _, _ when !always_interp -> SMT.num_exp s1 s2 *)
         | _ -> uninterp_same_type CN_Names.exp)
