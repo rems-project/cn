@@ -50,7 +50,7 @@ ensures
     take DestR = each (integer i; 0 <= i && i < n ) { RW(array_shift(dest, i)) };
     Src == SrcR; Dest == DestR;
     let bits_eq = byte_array_bits_eq(Src, Dest, n);
-    (return == 0 implies bits_eq) && (return != 0 implies !bits_eq);
+    ((return == 0) == bits_eq);
 @*/
 
 /*@
@@ -73,7 +73,7 @@ ensures
     Src == SrcR; Dest == DestR;
     let all_init = byte_array_init(Src, Dest, n);
     let each_init = each (integer i: 0,7; is_some(Src[i]) && is_some(Dest[i]));
-    (all_init implies each_init) && (each_init implies all_init);
+    (all_init == each_init);
 
 lemma byte_array_bits_eq_8(pointer dest, pointer src, integer n)
 requires
@@ -86,5 +86,5 @@ ensures
     Src == SrcR; Dest == DestR;
     let arr_eq = byte_array_bits_eq(Src, Dest, n);
     let each_eq = each (integer i: 0,7; (integer) get_opt(Src[i]) == (integer) get_opt(Dest[i]) );
-    (arr_eq implies each_eq) && (each_eq implies arr_eq);
+    (arr_eq == each_eq);
 @*/

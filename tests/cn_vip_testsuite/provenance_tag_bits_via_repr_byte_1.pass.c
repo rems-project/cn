@@ -14,8 +14,8 @@ lemma or_plus(integer i)
   ensures i | 1 == i+1;
 
 lemma and_not_div(integer i)
-  requires 0 <= i; i <= MAXu64();
-  ensures i & (MAXu64() - 3) == i - rem(i,4);
+  requires 0 <= i; i <= MAXu8();
+  ensures i & (MAXu8() - 3) == i - rem(i,4);
 
 @*/
 int main()
@@ -44,7 +44,7 @@ requires
   *p_char = (byte)i;
   // [p might be passed around or copied here]
   // clear the low-order bits again
-  /*@ apply and_not_div((integer) p_char); @*/
+  /*@ apply and_not_div(i); @*/
   *(byte*)&p = (byte)((unsigned char)(*(byte*)&p) & ~3u);
   // are p and q now equivalent?
   /*CN_VIP*//*@ from_bytes RW<int*>(&p); @*/
