@@ -43,6 +43,7 @@ let verify
       allow_split_magic_comments
       disable_derived_lc1
       try_hard
+      always_interp
       disable_unfold_multiclause_preds
       check_consistency (* integermode *)
   =
@@ -67,6 +68,7 @@ let verify
   Solver.solver_type := solver_type;
   Solver.solver_flags := solver_flags;
   Solver.try_hard := try_hard;
+  Solver.always_interp := always_interp;
   Solver.inc_enabled := solver_inc_enabled;
   Solver.inc_timeout := solver_inc_timeout;
   Solver.hybrid := solver_hybrid;
@@ -99,13 +101,13 @@ let verify
     ~skip_label_inlining:false
     ~handle_error:(Common.handle_type_error ~json ?output_dir ~serialize_json:json_trace)
     ~f:(fun ~cabs_tunit:_ ~prog5:_ ~ail_prog:_ ~statement_locs:_ ~paused ->
-      let check (functions, global_var_constraints, lemmas) =
+      let check (functions, constraints_to_add, lemmas) =
         let open Typing in
         let@ errors =
           Check.time_check_c_functions
             (skip, only)
             check_consistency
-            (global_var_constraints, functions)
+            (constraints_to_add, functions)
         in
         if not quiet then
           List.iter
@@ -201,6 +203,11 @@ module Flags = struct
   let try_hard =
     let doc = "Try undecidable SMT solving using full set of assumptions" in
     Arg.(value & flag & info ~docs:s_verification [ "try-hard" ] ~doc)
+
+
+  let always_interp =
+    let doc = "Always use interpreted functions, even for NIA." in
+    Arg.(value & flag & info ~docs:s_verification [ "always-interp" ] ~doc)
 
 
   let only =
@@ -350,6 +357,7 @@ let verify_t : unit Term.t =
   $ Common.Flags.allow_split_magic_comments
   $ Flags.disable_derived_lc1
   $ Flags.try_hard
+  $ Flags.always_interp
   $ Flags.disable_unfold_multiclause_preds
   $ Flags.check_consistency
 

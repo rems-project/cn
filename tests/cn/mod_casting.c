@@ -5,8 +5,10 @@ Important: (1) signed integers must be non-negative to convert to unsigned (2) i
 is unsigned, the result will be unsigned, so any signed values must be non-negative. */
 
 unsigned int mod (unsigned int x, int y)
-/*@ requires y > 0i32;
-     ensures return == x % (u32)y; @*/
+/*@ requires y > 0;
+     ensures let r = mod (abs(x), y);
+             let result = (x < 0) ? (-r) : r;
+             return == result; @*/
 {
     return x % y;
 }

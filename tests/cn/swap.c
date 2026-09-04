@@ -1,17 +1,17 @@
 void swap_pair(unsigned long int *pair)
 /*@
 requires
-   take pairStart = each (i32 j; 0i32 <= j && j < 2i32) {RW(array_shift(pair, j))};
+   take pairStart = each (integer j; 0 <= j && j < 2) {RW(array_shift(pair, j))};
 ensures
-    take pairEnd = each (i32 j; 0i32 <= j && j < 2i32) {RW(array_shift(pair, j))};
-    pairEnd[0i32] == pairStart[1i32];
-    pairEnd[1i32] == pairStart[0i32];
+    take pairEnd = each (integer j; 0 <= j && j < 2) {RW(array_shift(pair, j))};
+    pairEnd[0] == pairStart[1];
+    pairEnd[1] == pairStart[0];
 @*/
 {
-    /*@ focus RW<unsigned long int>, 0i32; @*/
-    /*@ focus RW<unsigned long int>, 1i32; @*/
-    /*@ instantiate good<unsigned long int>, 0i32; @*/
-    /*@ instantiate good<unsigned long int>, 1i32; @*/
+    /*@ focus RW<unsigned long int>, 0; @*/
+    /*@ focus RW<unsigned long int>, 1; @*/
+    /*@ instantiate 0; @*/
+    /*@ instantiate 1; @*/
     unsigned long int tmp = pair[0];
     pair[0] = pair[1];
     pair[1] = tmp;

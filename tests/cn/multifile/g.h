@@ -1,9 +1,9 @@
 extern int g (int x);
 
-/*@ spec g (i32 x);
+/*@ spec g (integer x);
   requires
-    x >= 0i32;
+    x >= 0;
   ensures
-    return == (mod (x, 12i32));
+    return == (mod (x, 12));
 @*/
 

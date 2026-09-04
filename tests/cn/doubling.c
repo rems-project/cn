@@ -1,14 +1,16 @@
 
 unsigned int
 add_self (unsigned int x)
-/*@ ensures return == x + x; @*/
+/*@ requires x + x < MAXu32(); 
+    ensures return == x + x; @*/
 {
   return x + x;
 }
 
 unsigned int
 add_self_twice (unsigned int x)
-/*@ ensures return == x * 4u32; @*/
+/*@ requires x * 4 < MAXu32(); 
+    ensures return == x * 4; @*/
 {
   unsigned int y = add_self(x);
   return y + y;

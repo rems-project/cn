@@ -12,6 +12,8 @@ open Pp.Infix
 
 module CTS = Set.Make (Sctypes)
 
+let always_interp = MakeTerm.always_interp
+
 let cnBV = BaseTypes.cnBV
 
 let add_ct, get_cts =
@@ -25,6 +27,17 @@ let maybe_add_ct = function None -> () | Some ct -> add_ct ct
 
 let squotes, warn, dot, string, debug, item, colon, comma =
   Pp.(squotes, warn, dot, string, debug, item, colon, comma)
+
+
+let warn_integer_bw_operation loc =
+  warn loc !^"Treating bitwise operation on integers as uninterpreted."
+
+
+let warn_integer_nia loc =
+  if !always_interp then
+    ()
+  else
+    warn loc !^"Treating non-linear integer arithmetic as uninterpreted."
 
 
 type message =
@@ -510,38 +523,49 @@ module WT = struct
     | IT (Cons (it, _), _, _) | it -> return @@ T.get_loc it
 
 
-  let binop_nia_checks it =
+  let nia_checks it =
     match it with
-    | IT (Binop (bop, t, t'), _, loc) ->
-      (match (bop, T.get_bt t, is_const t, is_const t') with
-       | Mul, Integer, None, None ->
+    | IT (Binop (Mul, t, t'), Integer, loc) ->
+      if T.constant t || T.constant t' || !always_interp then
+        return ()
+      else (
+        let msg =
+          !^"Neither side of the integer multiplication"
+          ^^^ squotes (T.pp it)
+          ^^^ !^"is a constant."
+        in
+        return (warn loc msg))
+    | IT (Binop ((Div | Rem | Mod), _t, t'), Integer, loc) ->
+      if T.constant t' || !always_interp then
+        return ()
+      else (
+        let msg =
+          !^"Division"
+          ^^^ squotes (T.pp it)
+          ^^^ !^"does not have constant right-hand argument."
+        in
+        return (warn loc msg))
+    | IT (Binop ((ShiftLeft | ShiftRight), _t, t'), Integer, loc) ->
+      (match is_const t' with
+       | Some (Z z', _) when Z.fits_int z' && Z.geq z' Z.zero -> return ()
+       | _ ->
          let msg =
-           !^"Neither side of the integer multiplication"
-           ^^^ squotes (T.pp it)
-           ^^^ !^"is a constant."
+           !^"Integer shift requires non-negative literal in int-range as second argument -- treating underlying exponentiation as uninterpreted"
          in
-         (fail { loc; msg = Generic msg } [@alert "-deprecated"])
-       | (Div | Rem | Mod | ShiftLeft | ShiftRight), Integer, _, None ->
-         let op = match bop with ShiftLeft | ShiftRight -> "Shift" | _ -> "Division" in
-         let msg =
-           !^op ^^^ squotes (T.pp it) ^^^ !^"does not have constant right-hand argument."
-         in
-         (fail { loc; msg = Generic msg } [@alert "-deprecated"])
-       | (Div | Rem | Mod | ShiftLeft | ShiftRight), Integer, _, Some (Z z', _)
-         when Z.leq z' Z.zero ->
-         let op = match bop with ShiftLeft | ShiftRight -> "Shift" | _ -> "Division" in
-         let msg =
-           !^op ^^^ squotes (T.pp it) ^^^ !^"does not have positive right-hand argument."
-         in
-         (fail { loc; msg = Generic msg } [@alert "-deprecated"])
-       | Exp, (Integer | Bits _), None, _ | Exp, (Integer | Bits _), _, None ->
-         let msg =
-           !^"Exponentiation"
-           ^^^ squotes (T.pp it)
-           ^^^ !^"does not have constant left and right-hand arguments."
-         in
-         (fail { loc; msg = Generic msg } [@alert "-deprecated"])
-       | _ -> return ())
+         return (warn loc msg))
+    | IT (Binop (Exp, t, t'), _, loc) ->
+      (match (is_const t, is_const t') with
+       | Some _, Some ((Z z' | Bits (_, z')), _) when Z.fits_int z' && Z.geq z' Z.zero -> return ()
+       | Some _, Some _ ->
+          let msg = !^"Exponent needs to be non-negative literal in int-range -- treating as uninterpreted" in
+          return (warn loc msg)
+       | _ ->
+         let msg = !^"Exponentiation requires integer literals as arguments -- treating as uninterpreted" in
+         return (warn loc msg))
+    | IT (Binop ((BW_And | BW_Or | BW_Xor), _t, _t'), Integer, loc) ->
+      return (warn_integer_bw_operation loc)
+    | IT (Binop ((BW_CLZ_Z | BW_CTZ_Z | BW_FFS_Z | BW_FLS_Z), _t, _t'), _, loc) ->
+      return (warn_integer_bw_operation loc)
     | _ -> return ()
 
 
@@ -602,12 +626,30 @@ module WT = struct
             let@ t = infer t in
             let@ () = ensure_arith_type ~reason:loc t in
             return (t, T.get_bt t)
-          | BW_CLZ | BW_CTZ | BW_FFS | BW_FLS | BW_Compl ->
+          | Abs ->
+            let@ t = infer t in
+            let@ () =
+              match T.get_bt t with
+              | Integer | Real -> return ()
+              | has ->
+                fail
+                  { loc;
+                    msg = Mismatch { has = BT.pp has; expect = !^"integer or real" }
+                  }
+            in
+            return (t, T.get_bt t)
+          | BW_CLZ | BW_CTZ | BW_FFS | BW_FLS ->
             let@ t = infer t in
             let@ () = ensure_bits_type (T.get_loc t) (T.get_bt t) in
             return (t, T.get_bt t)
+          | BW_Compl ->
+            let@ t = infer t in
+            let@ () = ensure_integer_or_bits_type ~reason:loc t in
+            return (t, T.get_bt t)
         in
-        return (IT (Unop (unop, t), ret_bt, loc))
+        let it = IT (Unop (unop, t), ret_bt, loc) in
+        let@ () = nia_checks it in
+        return it
       | Binop (SetMember, t, t') ->
         let@ t = infer t in
         let@ t' = check loc (Set (T.get_bt t)) t' in
@@ -619,9 +661,10 @@ module WT = struct
           match bop with
           | Add | Sub | Mul | Div | Exp | Min | Max ->
             (ensure_arith_type ~reason:loc t, T.get_bt t)
-          | Rem | Mod | ShiftLeft | ShiftRight ->
+          | Rem | Mod | ShiftLeft | ShiftRight | BW_And | BW_Or | BW_Xor ->
             (ensure_integer_or_bits_type ~reason:loc t, T.get_bt t)
-          | BW_And | BW_Or | BW_Xor -> (ensure_bits_type loc (T.get_bt t), T.get_bt t)
+          | BW_CLZ_Z | BW_CTZ_Z | BW_FFS_Z | BW_FLS_Z ->
+            (ensure_base_type loc ~expect:Integer (T.get_bt t), Integer)
           | LT | LE -> (ensure_arith_type ~reason:loc t, BT.Bool)
           | EQ -> (return (), BT.Bool)
           | LTPointer | LEPointer ->
@@ -634,7 +677,7 @@ module WT = struct
         in
         let@ () = arg_check in
         let it = IT (Binop (bop, t, t'), rbt, loc) in
-        let@ () = binop_nia_checks it in
+        let@ () = nia_checks it in
         return it
       | ITE (t, t', t'') ->
         let@ t = check loc Bool t in
@@ -796,6 +839,7 @@ module WT = struct
           | Loc (), Integer -> not !cnBV
           | Loc (), Alloc_id -> true
           | MemByte, Bits _ -> true
+          | MemByte, Integer -> true
           | MemByte, Option Alloc_id -> true
           | _, _ -> false
         in
@@ -817,9 +861,14 @@ module WT = struct
         let@ _ty = get_struct_member_type loc tag member in
         let@ t = check loc (Loc ()) t in
         let@ decl = get_struct_decl loc tag in
-        let o = Option.get (Memory.member_offset decl member) in
-        let rs = Option.get (BT.is_bits_bt Memory.uintptr_bt) in
-        let@ () = ensure_z_fits_bits_type loc rs (Z.of_int o) in
+        let@ () =
+          if !cnBV then (
+            let o = Option.get (Memory.member_offset decl member) in
+            let rs = Option.get (BT.is_bits_bt Memory.uintptr_bt) in
+            ensure_z_fits_bits_type loc rs (Z.of_int o))
+          else
+            return ()
+        in
         (* looking at solver mapping *)
         return (IT (MemberShift (t, tag, member), BT.Loc (), loc))
       | ArrayShift { base; ct; index } ->

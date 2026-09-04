@@ -489,7 +489,10 @@ module C_vars = struct
        | None -> fail { loc; msg = No_pointee_ctype e1 })
     | CN_mul, _ -> return (IT (Binop (Mul, e1, e2), get_bt e1, loc))
     | CN_div, _ -> return (IT (Binop (Div, e1, e2), get_bt e1, loc))
-    | CN_mod, _ -> return (IT (Binop (Rem, e1, e2), get_bt e1, loc))
+    | CN_mod, _ ->
+      fail
+        { loc; msg = Generic !^"Use `rem` or `mod` instead of `%`." }
+      [@alert "-deprecated"]
     | CN_equal, _ ->
       (match (get_bt e1, get_bt e2, !pointer_eq_warned) with
        | Loc _, Loc _, false ->
@@ -540,9 +543,12 @@ module C_vars = struct
             }
       in
       return (IT (MapGet (e1, e2), rbt, loc))
-    | CN_band, (BT.Bits _ as bt) -> return (IT (Binop (BW_And, e1, e2), bt, loc))
-    | CN_bor, (BT.Bits _ as bt) -> return (IT (Binop (BW_Or, e1, e2), bt, loc))
-    | CN_bxor, (BT.Bits _ as bt) -> return (IT (Binop (BW_Xor, e1, e2), bt, loc))
+    | CN_band, ((BT.Bits _ | BT.Integer) as bt) ->
+      return (IT (Binop (BW_And, e1, e2), bt, loc))
+    | CN_bor, ((BT.Bits _ | BT.Integer) as bt) ->
+      return (IT (Binop (BW_Or, e1, e2), bt, loc))
+    | CN_bxor, ((BT.Bits _ | BT.Integer) as bt) ->
+      return (IT (Binop (BW_Xor, e1, e2), bt, loc))
     | _ -> fail { loc; msg = Illtyped_binary_it { left = e1; right = e2; binop = bop } }
 
 
@@ -1197,7 +1203,7 @@ module C_vars = struct
         m_oargs_ty )
     in
     let pointee_constrs =
-      let info = (here, Some "owned-value-representable") in
+      let info = (pred_loc, Some "owned-value-representable") in
       let qt = MT.sym_ (q, SBT.proj bt', here) in
       match pname with
       | Owned (ct, Init) ->
@@ -1210,7 +1216,7 @@ module C_vars = struct
                 ( (q, SBT.proj bt'),
                   impl_
                     ( Terms.Surface.proj guard_expr,
-                      representable_ (ct, map_get_ oarg qt here) here )
+                      representable_ (ct, map_get_ oarg qt pred_loc) here )
                     here ),
               info )
           ]

@@ -1,9 +1,9 @@
 int foo(int);
-/*@ spec foo(i32 x);
+/*@ spec foo(integer x);
 requires
     x < MAXi32();
 ensures
-    return == x + 1i32;
+    return == x + 1;
 @*/
 
 int foo(int x)

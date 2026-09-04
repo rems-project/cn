@@ -6,7 +6,7 @@ struct node {
 /*@
 datatype list {
   Nil {},
-  Cons {i32 head, list tail}
+  Cons {integer head, list tail}
 }
 
 predicate [rec] (list) List(pointer p) {
@@ -76,7 +76,7 @@ function [rec] (list) cn_mergesort(list xs) {
   }
 }
 
-function (boolean) smaller (i32 head, list xs) {
+function (boolean) smaller (integer head, list xs) {
   match xs {
     Nil {} => {
       true

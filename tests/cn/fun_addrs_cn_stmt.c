@@ -11,8 +11,8 @@ g (int x)
 }
 
 /*@
-function ({u32 x1, u32 x2}) get_globals ()
-  { {x1: (u32) (&g), x2: (u32) (&extern_f)} }
+function ({integer x1, integer x2}) get_globals ()
+  { {x1: (integer) (&g), x2: (integer) (&extern_f)} }
 @*/
 
 int
@@ -20,10 +20,10 @@ f (int x)
 /*@ accesses global_x; @*/
 {
   /* resolution of the 'g' & 'extern_f' addrs triggered a bug at one point */
-  /*@ assert (((u32) (&x)) == ((u32) (&x))); @*/;
-  /*@ assert (((u32) (&global_x)) == ((u32) (&global_x))); @*/;
+  /*@ assert (((integer) (&x)) == ((integer) (&x))); @*/;
+  /*@ assert (((integer) (&global_x)) == ((integer) (&global_x))); @*/;
   /*@ assert (get_globals () == get_globals ()); @*/;
-  /*@ assert (((u32) (&g)) == ((u32) (&g))); @*/;
+  /*@ assert (((integer) (&g)) == ((integer) (&g))); @*/;
 
   return x == global_x;
 }

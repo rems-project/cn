@@ -2,13 +2,17 @@
    no need to specify directly 10 != 0 && -10 != 0 since it is self-evident. */
 
 int divide_by_ten (int x)
-/*@ ensures return == x/10i32; @*/
+/*@ requires let q = abs(x) / 10;
+             let result = (x < 0) ? (-q) : q;
+    ensures return == result; @*/
 {
     return x/10;
 }
 
 int divide_by_neg_ten (int x)
-/*@ ensures return == x/-10i32; @*/
+/*@ requires let q = abs(x) / (-10);
+             let result = (x < 0) ? (-q) : q;
+    ensures return == result; @*/
 {
     return x/-10;
 }
@@ -22,7 +26,7 @@ int divide_by_neg_ten (int x)
 */
 
 int division_diff_sign ()
-/*@ ensures return == -2i32; @*/
+/*@ ensures return == -2; @*/
 {
     return 20 / -10;
 }

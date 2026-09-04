@@ -1,6 +1,6 @@
 return code: 1
 [1/1]: mod -- fail
-tests/cn/mod_by_0.error.c:6:12: error: Undefined behaviour
+tests/cn/mod_by_0.error.c:5:12: error: Undefined behaviour
     return x % y;
            ~~^~~ 
 the value of the second operand of a '%' operator is zero (§6.5.5#5, sentence 2)

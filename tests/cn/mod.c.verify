@@ -1,2 +1,11 @@
-return code: 0
-[1/1]: mod -- pass
+return code: 1
+[1/5]: mod_bad -- fail
+[2/5]: mod1 -- pass
+[3/5]: mod2 -- pass
+[4/5]: mod3 -- pass
+[5/5]: mod4 -- pass
+tests/cn/mod.c:7:12: error: Undefined behaviour
+    return x % 0;
+           ~~^~~ 
+the value of the second operand of a '%' operator is zero (§6.5.5#5, sentence 2)
+State file: file:///tmp/state__mod.c__mod_bad.html

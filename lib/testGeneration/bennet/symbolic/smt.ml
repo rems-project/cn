@@ -470,6 +470,7 @@ module Make (AD : Domain.T) = struct
     let open Pp in
     let operand = convert_indexterm sigma t in
     match op with
+    | Abs -> failwith "todo"
     | Not -> !^"cn_smt_not" ^^ parens operand
     | Negate -> !^"cn_smt_negate" ^^ parens operand
     | BW_CLZ -> !^"cn_smt_bw_clz" ^^ parens operand
@@ -506,6 +507,8 @@ module Make (AD : Domain.T) = struct
     | BW_Xor -> !^"cn_smt_bw_xor" ^^ args
     | ShiftLeft -> !^"cn_smt_shift_left" ^^ args
     | ShiftRight -> !^"cn_smt_shift_right" ^^ args
+    | BW_CLZ_Z | BW_CTZ_Z -> failwith "todo"
+    | BW_FFS_Z | BW_FLS_Z -> failwith "todo"
     | LT | LTPointer -> !^"cn_smt_lt" ^^ args
     | LE | LEPointer -> !^"cn_smt_le" ^^ args
     | EQ -> !^"cn_smt_eq" ^^ args

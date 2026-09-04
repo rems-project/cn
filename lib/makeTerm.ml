@@ -2,6 +2,8 @@ module BT = BaseTypes
 open Terms
 open Terms.Normal
 
+let always_interp = ref false
+
 (* shorthands *)
 
 let use_vip = ref true
@@ -131,9 +133,56 @@ let rem_ = arith_binop Rem
 
 let mod_ = arith_binop Mod
 
+let shl_ = arith_binop ShiftLeft
+
+let shr_ = arith_binop ShiftRight
+
 let divisible_ (it, it') loc = eq_ (mod_ (it, it') loc, int_lit_ 0 (get_bt it) loc) loc
 
+let abs_ it loc =
+  assert (match get_bt it with BT.Integer | BT.Real -> true | _ -> false);
+  IT (Unop (Abs, it), get_bt it, loc)
+
+
+let neg_ it loc = IT (Unop (Negate, it), get_bt it, loc)
+
 let rem_f_ (it, it') loc = mod_ (it, it') loc
+
+(* gpt says the equivalent of Z's rem operation (so Core's IntRem_t) in
+   SMT is:
+      (let ((r (mod (abs a) b))) 
+           (ite (< a 0) (- r) r))
+
+   and for Z's div
+
+   (define-fun zdiv ((a Int) (b Int)) Int
+     (let ((q (div (abs a) b)))
+       (ite (< a 0) (- q) q)))
+
+   This leads to the definitions below.
+
+   tests/cn/mod.c checks the rem_t semantics against Cerberus runtime outcomes
+*)
+
+let rem_t_ (a, b) loc =
+  assert (BT.equal (get_bt a) (get_bt b) && BT.equal (get_bt a) Integer);
+  let r_s = Sym.fresh "r" in
+  let r = sym_ (r_s, BT.Integer, loc) in
+  let_
+    ( (r_s, mod_ (abs_ a loc, b) loc),
+      ite_ (lt_ (a, int_lit_ 0 Integer loc) loc, neg_ r loc, r) loc )
+    loc
+
+
+let z_div_ (a, b) loc =
+  assert (BT.equal (get_bt a) (get_bt b) && BT.equal (get_bt a) Integer);
+  let q_s = Sym.fresh "q" in
+  let q = sym_ (q_s, BT.Integer, loc) in
+  let_
+    ( (q_s, div_ (abs_ a loc, b) loc),
+      ite_ (lt_ (a, int_lit_ 0 Integer loc) loc, neg_ q loc, q) loc )
+    loc
+
 
 let min_ = arith_binop Min
 
@@ -376,7 +425,7 @@ let in_range within (min, max) loc =
   and_ [ le_ (min, within) loc; le_ (within, max) loc ] loc
 
 
-let rec in_z_range within (min_z, max_z) loc =
+let in_z_range within (min_z, max_z) loc =
   let the_bt = get_bt within in
   match the_bt with
   | BT.Integer -> in_range within (z_ min_z loc, z_ max_z loc) loc
@@ -399,16 +448,6 @@ let rec in_z_range within (min_z, max_z) loc =
         bool_ false loc
     in
     and_ [ min_c; max_c ] loc
-  | Loc () ->
-    (* §6.3.2.3#6 allows converting pointers to any integer type so long as the value of
-       the pointer fits. If uintptr_t and intptr_t exist, then they are guaranteed to be
-       big enough to fit any valid pointer (to void). From there, it's just a matter of
-       checking the bits fit. *)
-    or_
-      [ in_z_range (cast_ Memory.uintptr_bt within loc) (min_z, max_z) loc;
-        in_z_range (cast_ Memory.intptr_bt within loc) (min_z, max_z) loc
-      ]
-      loc
   | _ -> failwith ("in_z_range: unsupported type: " ^ Pp.plain (pp_with_typ within))
 
 
@@ -456,7 +495,18 @@ let value_check mode (struct_layouts : Memory.struct_decls) ct about loc =
   let rec aux (ct_ : Sctypes.t) about =
     match ct_ with
     | Void -> bool_ true loc
-    | Byte -> if BT.(!cnBV) then bool_ true loc else failwith "todo: Byte value_check"
+    | Byte ->
+      if BT.(!cnBV) then
+        bool_ true loc
+      else (
+        let min = int_ 0 loc in
+        let max = z_ (Z.sub (Z.pow (Z.of_int 2) Memory.bits_per_byte) Z.one) loc in
+        impl_
+          ( isSome_ about loc,
+            let membyte = getOpt_ about loc in
+            let value = cast_ Integer membyte loc in
+            in_range value (min, max) loc )
+          loc)
     | Integer it ->
       in_z_range about (Memory.min_integer_type it, Memory.max_integer_type it) loc
     | Array (_, None) ->

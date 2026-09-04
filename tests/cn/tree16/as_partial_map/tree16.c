@@ -14,45 +14,45 @@ struct node {
   tree nodes[NUM_NODES];
 };
 
-/*@
-function (i32) num_nodes ()
-@*/
+/* int cn_get_num_nodes (void) */
+/* /\*@ cn_function num_nodes; @*\/ */
+/* { */
+/*   return NUM_NODES; */
+/* } */
 
-int cn_get_num_nodes (void)
-/*@ cn_function num_nodes; @*/
-{
-  return NUM_NODES;
+/*@
+function (integer) num_nodes () {
+  16
 }
 
-/*@
 datatype tree_arc {
   Arc_End {},
-  Arc_Step {i32 i, datatype tree_arc tail}
+  Arc_Step {integer i, datatype tree_arc tail}
 }
 
 datatype tree_node_option {
   Node_None {},
-  Node {i32 v}
+  Node {integer v}
 }
 
 function (map<datatype tree_arc, datatype tree_node_option>) empty ()
 function (map<datatype tree_arc, datatype tree_node_option>) construct
-    (i32 v, map<i32, map<datatype tree_arc, datatype tree_node_option> > ts)
+    (integer v, map<integer, map<datatype tree_arc, datatype tree_node_option> > ts)
 
-function (map<i32, map<datatype tree_arc, datatype tree_node_option> >) default_ns ()
+function (map<integer, map<datatype tree_arc, datatype tree_node_option> >) default_ns ()
 
 predicate [rec] {map<datatype tree_arc, datatype tree_node_option> t,
-        i32 v, map<i32, map<datatype tree_arc, datatype tree_node_option> > ns}
+        integer v, map<integer, map<datatype tree_arc, datatype tree_node_option> > ns}
   Tree (pointer p)
 {
   if (is_null(p)) {
-    return {t: (empty ()), v: 0i32, ns: default_ns ()};
+    return {t: (empty ()), v: 0, ns: default_ns ()};
   }
   else {
     take P = RW<struct node>(p);
     let V = P.v;
     let nodes_ptr = member_shift<struct node>(p,nodes);
-    take Ns = each (i32 i; (0i32 <= i) && (i < (num_nodes ())))
+    take Ns = each (integer i; (0 <= i) && (i < (num_nodes ())))
       {Indirect_Tree(array_shift<tree>(nodes_ptr, i))};
     let t = construct (V, Ns);
     return {t: t, v: V, ns: Ns};
@@ -65,35 +65,35 @@ predicate [rec] (map <datatype tree_arc, datatype tree_node_option>) Indirect_Tr
   return T.t;
 }
 
-function (datatype tree_arc) mk_arc (map <i32, i32> m, i32 i, i32 len)
+function (datatype tree_arc) mk_arc (map <integer, integer> m, integer i, integer len)
 
-predicate {datatype tree_arc arc, map<i32, i32> xs}
-        Arc (pointer p, i32 i, i32 len) {
-  assert (0i32 <= len);
+predicate {datatype tree_arc arc, map<integer, integer> xs}
+        Arc (pointer p, integer i, integer len) {
+  assert (0 <= len);
   assert (i <= len);
-  assert (0i32 <= i);
-  take Xs = each (i32 j; (0i32 <= j) && (j < len))
+  assert (0 <= i);
+  take Xs = each (integer j; (0 <= j) && (j < len))
     {RW(array_shift<signed int>(p, j))};
-  assert (each (i32 j; (0i32 <= j) && (j < len))
-    {(0i32 <= Xs[j]) && (Xs[j] < (num_nodes ()))});
+  assert (each (integer j; (0 <= j) && (j < len))
+    {(0 <= Xs[j]) && (Xs[j] < (num_nodes ()))});
   return {arc: mk_arc(Xs, i, len), xs: Xs};
 }
 
-lemma mk_arc_lemma (map <i32, i32> m, i32 i, i32 len)
+lemma mk_arc_lemma (map <integer, integer> m, integer i, integer len)
   requires
-    ((0i32 <= len) && (0i32 <= i) && (i <= len));
+    ((0 <= len) && (0 <= i) && (i <= len));
     len <= LEN_LIMIT;
   ensures (mk_arc(m, i, len)) ==
     (i < len ?
-        Arc_Step {i: m[i], tail: mk_arc(m, i + 1i32, len)} :
+        Arc_Step {i: m[i], tail: mk_arc(m, i + 1, len)} :
         Arc_End {});
 
 lemma empty_lemma (datatype tree_arc arc)
   requires true;
   ensures ((empty ())[arc]) == Node_None {};
 
-function (datatype tree_node_option) construct_app_rhs (i32 v,
-        map<i32, map<datatype tree_arc, datatype tree_node_option> > ns,
+function (datatype tree_node_option) construct_app_rhs (integer v,
+        map<integer, map<datatype tree_arc, datatype tree_node_option> > ns,
         datatype tree_arc arc)
 {
   match arc {
@@ -113,14 +113,14 @@ function (boolean) arc_first_idx_valid (datatype tree_arc arc)
       true
     }
     Arc_Step {i: i, tail: tail} => {
-      (0i32 <= i) && (i < num_nodes())
+      (0 <= i) && (i < num_nodes())
     }
   }
 }
 
 
-lemma construct_lemma (i32 v,
-        map<i32, map<datatype tree_arc, datatype tree_node_option> > ns,
+lemma construct_lemma (integer v,
+        map<integer, map<datatype tree_arc, datatype tree_node_option> > ns,
         datatype tree_arc arc)
   requires
     arc_first_idx_valid(arc);
@@ -134,21 +134,21 @@ lookup_rec (tree t, int *path, int i, int path_len, int *v)
 /*@ requires
              path_len <= LEN_LIMIT;
              take T = Tree(t);
-             take Xs = each (i32 j; (0i32 <= j) && (j < path_len))
+             take Xs = each (integer j; (0 <= j) && (j < path_len))
                             {RW(array_shift(path, j))};
-             ((0i32 <= path_len) && (0i32 <= i) && (i <= path_len));
-             each (i32 j; (0i32 <= j) && (j < path_len))
-                  {(0i32 <= (Xs[j])) && ((Xs[j]) < (num_nodes ()))};
+             ((0 <= path_len) && (0 <= i) && (i <= path_len));
+             each (integer j; (0 <= j) && (j < path_len))
+                  {(0 <= (Xs[j])) && ((Xs[j]) < (num_nodes ()))};
              take V = RW(v);
              let arc = mk_arc(Xs, i, path_len);
     ensures take T2 = Tree(t);
             T2.t == {T.t}@start;
-            take Xs2 = each (i32 j; (0i32 <= j) && (j < path_len))
+            take Xs2 = each (integer j; (0 <= j) && (j < path_len))
                             {RW(array_shift(path, j))};
             Xs2 == {Xs}@start;
             take V2 = RW(v);
-            ((return == 0i32) && ((T2.t[arc]) == Node_None {}))
-              || ((return == 1i32) && ((T2.t[arc]) == Node {v: V2})); @*/
+            ((return == 0) && ((T2.t[arc]) == Node_None {}))
+              || ((return == 1) && ((T2.t[arc]) == Node {v: V2})); @*/
 {
   int idx = 0;
   int r = 0;

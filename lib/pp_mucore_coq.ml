@@ -805,6 +805,7 @@ let pp_binop = function
   | Terms.BW_Or -> pp_constructor0 "Terms.BW_Or"
   | Terms.ShiftLeft -> pp_constructor0 "Terms.ShiftLeft"
   | Terms.ShiftRight -> pp_constructor0 "Terms.ShiftRight"
+  | Terms.(BW_CTZ_Z | BW_CLZ_Z | BW_FFS_Z | BW_FLS_Z) -> failwith "todo"
   | Terms.LT -> pp_constructor0 "Terms.LT"
   | Terms.LE -> pp_constructor0 "Terms.LE"
   | Terms.Min -> pp_constructor0 "Terms.Min"
@@ -1126,6 +1127,7 @@ let pp_trusted = function
 let pp_unop = function
   | Terms.Not -> pp_constructor0 "Not"
   | Negate -> pp_constructor0 "Negate"
+  | Abs -> pp_constructor0 "Abs"
   | BW_CLZ -> pp_constructor0 "BW_CLZ"
   | BW_CTZ -> pp_constructor0 "BW_CTZ"
   | BW_FFS -> pp_constructor0 "BW_FFS"

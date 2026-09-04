@@ -1,2 +1,14 @@
 return code: 0
+tests/cn_vip_testsuite/pointer_offset_xor_auto.annot.c:5:14: warning: Treating bitwise operation on integers as uninterpreted.
+    ensures (i ^ j) ^ i == j;
+             ~~^~~ 
+tests/cn_vip_testsuite/pointer_offset_xor_auto.annot.c:5:13: warning: Treating bitwise operation on integers as uninterpreted.
+    ensures (i ^ j) ^ i == j;
+            ~~~~~~~~^~~ 
+tests/cn_vip_testsuite/pointer_offset_xor_auto.annot.c:16:17: warning: Treating bitwise operation on integers as uninterpreted.
+  uintptr_t k = i ^ j;
+                ~~^~~ 
+tests/cn_vip_testsuite/pointer_offset_xor_auto.annot.c:17:17: warning: Treating bitwise operation on integers as uninterpreted.
+  uintptr_t l = k ^ i;
+                ~~^~~ 
 [1/1]: main -- pass

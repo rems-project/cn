@@ -7,7 +7,7 @@
 
 int y=2, x=1;
 int main()
-/*CN_VIP*//*@ accesses x; accesses y; requires y == 2i32; @*/
+/*CN_VIP*//*@ accesses x; accesses y; requires y == 2; @*/
 {
   int *p = &x+1;
   int *q = &y;
@@ -29,6 +29,6 @@ int main()
     r=r-1;  // is this free of UB?
     *r=11;  // and this?
     //CN_VIP printf("x=%d y=%d *q=%d *r=%d\n",x,y,*q,*r);
-    /*CN_VIP*//*@ assert (x == 11i32 && y == 2i32 && *q == 2i32 && *r == 11i32); @*/
+    /*CN_VIP*//*@ assert (x == 11 && y == 2 && *q == 2 && *r == 11); @*/
   }
 }

@@ -6,16 +6,16 @@ void globals()
 {
   /*@ derive_constraints(RW<int>(&x), RW<int>(&y)); @*/
 
-  /*@ assert((u64) &x != (u64) &y); @*/
+  /*@ assert((integer) &x != (integer) &y); @*/
 
-  /*@ assert((u64)&x < (u64)&x + 4u64); @*/
-  /*@ assert((u64)&x < MAXu64() - 4u64); @*/
+  /*@ assert((integer)&x < (integer)&x + 4); @*/
+  /*@ assert((integer)&x < MAXu64() - 4); @*/
 
-  /*@ assert((u64)&y < MAXu64() - 4u64); @*/
-  /*@ assert((u64)&y < (u64)&y + 4u64); @*/
+  /*@ assert((integer)&y < MAXu64() - 4); @*/
+  /*@ assert((integer)&y < (integer)&y + 4); @*/
 
-  /*@ assert((u64)&x < (u64)&y || (u64)&x > (u64)&y); @*/
-  /*@ assert((u64)&x + 4u64 <= (u64)&y || (u64)&y + 4u64 <= (u64)&x); @*/
+  /*@ assert((integer)&x < (integer)&y || (integer)&x > (integer)&y); @*/
+  /*@ assert((integer)&x + 4 <= (integer)&y || (integer)&y + 4 <= (integer)&x); @*/
 
 }
 
@@ -26,15 +26,15 @@ int main()
 
   /*@ derive_constraints(RW<int>(&p), RW<int>(&q)); @*/
 
-  /*@ assert((u64) &p != (u64) &q); @*/
+  /*@ assert((integer) &p != (integer) &q); @*/
 
-  /*@ assert((u64)&p < (u64)&p + 4u64); @*/
-  /*@ assert((u64)&p < MAXu64() - 4u64); @*/
+  /*@ assert((integer)&p < (integer)&p + 4); @*/
+  /*@ assert((integer)&p < MAXu64() - 4); @*/
 
-  /*@ assert((u64)&q < MAXu64() - 4u64); @*/
-  /*@ assert((u64)&q < (u64)&q + 4u64); @*/
+  /*@ assert((integer)&q < MAXu64() - 4); @*/
+  /*@ assert((integer)&q < (integer)&q + 4); @*/
 
-  /*@ assert((u64)&p < (u64)&q || (u64)&p > (u64)&q); @*/
-  /*@ assert((u64)&p + 4u64 <= (u64)&q || (u64)&q + 4u64 <= (u64)&p); @*/
+  /*@ assert((integer)&p < (integer)&q || (integer)&p > (integer)&q); @*/
+  /*@ assert((integer)&p + 4 <= (integer)&q || (integer)&q + 4 <= (integer)&p); @*/
 
 }

@@ -2,9 +2,9 @@ int myval;
 
 int foo(int i); 
 /*@
-spec foo(i32 i);
+spec foo(integer i);
 accesses myval; 
-requires myval == 1i32; 
-         i == 1i32; 
-ensures  return == 0i32; 
+requires myval == 1; 
+         i == 1; 
+ensures  return == 0; 
 @*/
