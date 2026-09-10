@@ -151,7 +151,7 @@ void print_error_msg_info_single(struct cn_error_message_info* info) {
     } else {
       // TODO: introduce new --source-locs-mode, so --exec-c-locs-mode is the default
       cn_printf(CN_LOGGING_ERROR,
-          "no source location found (try running with --exec-c-locs-mode enabled)")
+          "no source location found (try running with --source-locs-mode disabled)")
     }
   }
 }

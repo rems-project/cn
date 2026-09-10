@@ -349,7 +349,7 @@ module Flags = struct
        Otherwise, Fulminate reports the location from the instrumented C file by \
        default."
     in
-    Arg.(value & flag & info ~docs:s_fulminate [ "exec-c-locs-mode" ] ~doc)
+    Arg.(value & flag & info ~docs:s_fulminate [ "source-locs-mode" ] ~doc)
 
 
   let experimental_ownership_stack_mode ~docs =
