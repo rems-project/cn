@@ -22,7 +22,7 @@ signed long cn_stack_depth;
 
 signed long nr_owned_predicates;
 
-_Bool exec_c_locs_mode;
+_Bool source_locs_mode;
 _Bool correct_missing_ownership;
 _Bool ownership_stack_mode;
 
@@ -65,7 +65,7 @@ void fulminate_init_global_ghost_state(_Bool with_ghost_args) {
 }
 
 void fulminate_init_global_flags(struct fulm_init_flags flags) {
-  init_exec_c_locs_mode(flags.exec_c_locs_mode);
+  init_source_locs_mode(flags.source_locs_mode);
   init_correct_missing_ownership(flags.correct_missing_ownership);
   init_ownership_stack_mode(flags.ownership_stack_mode);
 }
@@ -138,7 +138,7 @@ enum cn_trace_granularity set_cn_trace_granularity(
 }
 
 void print_error_msg_info_single(struct cn_error_message_info* info) {
-  if (exec_c_locs_mode) {
+  if (!source_locs_mode) {
     cn_printf(CN_LOGGING_ERROR,
         "function %s, file %s, line %d\n",
         info->function_name,
@@ -282,8 +282,8 @@ void init_ghost_stack_depth(void) {
   cn_stack_depth = 0;
 }
 
-void init_exec_c_locs_mode(_Bool flag) {
-  exec_c_locs_mode = flag;
+void init_source_locs_mode(_Bool flag) {
+  source_locs_mode = flag;
 }
 
 void init_correct_missing_ownership(_Bool flag) {

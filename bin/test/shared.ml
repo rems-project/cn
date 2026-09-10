@@ -28,7 +28,7 @@ let run
       allow_split_magic_comments
       (* Executable spec *)
         without_ownership_checking
-      exec_c_locs_mode
+      source_locs_mode
       correct_missing_ownership_mode
       experimental_ownership_stack_mode
       (* without_loop_invariants *)
@@ -209,7 +209,7 @@ let run
            ~with_loop_leak_checks:false
            ~without_lemma_checks:false
            ~without_inline_statements:false
-           ~exec_c_locs_mode
+           ~source_locs_mode
            ~correct_missing_ownership_mode
            ~experimental_ownership_stack_mode
            ~experimental_curly_braces:false
@@ -775,7 +775,7 @@ let mk_term
   $ Common.Flags.magic_comment_char_dollar
   $ Common.Flags.allow_split_magic_comments
   $ Instrument.Flags.without_ownership_checking
-  $ Instrument.Flags.exec_c_locs_mode
+  $ Instrument.Flags.source_locs_mode
   $ Instrument.Flags.correct_missing_ownership_mode
   $ Instrument.Flags.experimental_ownership_stack_mode
       ~docs:(experimental_section s_compilation)
@@ -930,7 +930,7 @@ let mk_release_term ~(engine : TestGeneration.engine) ~(preset : TestGeneration.
   $ Common.Flags.magic_comment_char_dollar
   $ Common.Flags.allow_split_magic_comments
   $ const false (* without_ownership_checking *)
-  $ const false (* exec_c_locs_mode *)
+  $ const false (* source_locs_mode *)
   $ const false (* correct_missing_ownership_mode *)
   $ const false (* experimental_ownership_stack_mode *)
   $ Flags.print_steps

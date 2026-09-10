@@ -98,7 +98,7 @@ let generate_executable_specs
       with_testing
       run
       no_debug_info
-      exec_c_locs_mode
+      source_locs_mode
       correct_missing_ownership_mode
       experimental_ownership_stack_mode
       experimental_unions
@@ -147,7 +147,7 @@ let generate_executable_specs
     ~magic_comment_char_dollar
     ~allow_split_magic_comments (* Callbacks *)
     ~save_cpp:(Some pp_file)
-    ~disable_linemarkers:exec_c_locs_mode
+    ~disable_linemarkers:(not source_locs_mode)
       (* If output locations requested, disable linemarkers in preproc step *)
     ~skip_label_inlining:true
     ~handle_error
@@ -170,7 +170,7 @@ let generate_executable_specs
                 ~with_loop_leak_checks
                 ~without_lemma_checks
                 ~without_inline_statements
-                ~exec_c_locs_mode
+                ~source_locs_mode
                 ~correct_missing_ownership_mode
                 ~experimental_ownership_stack_mode
                 ~experimental_curly_braces
@@ -343,10 +343,11 @@ module Flags = struct
     Arg.(value & flag & info ~docs:s_fulminate [ "no-debug-info" ] ~doc)
 
 
-  let exec_c_locs_mode =
+  let source_locs_mode =
     let doc =
-      "At errors, report the location in the Fulminated output, not the source. This \
-       flag needs to be enabled for lldb to be usable on the instrumented binary."
+      "[BUGGY] At errors, report the location from the specification in the source. \
+       Otherwise, Fulminate reports the location from the instrumented C file by \
+       default."
     in
     Arg.(value & flag & info ~docs:s_fulminate [ "exec-c-locs-mode" ] ~doc)
 
@@ -431,7 +432,7 @@ let cmd =
         (Term.product Flags.with_test_gen Flags.with_testing)
     $ Flags.run
     $ Flags.no_debug_info
-    $ Flags.exec_c_locs_mode
+    $ Flags.source_locs_mode
     $ Flags.correct_missing_ownership_mode
     $ Flags.experimental_ownership_stack_mode ~docs:s_fulminate
     $ Flags.experimental_unions

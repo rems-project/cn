@@ -40,7 +40,7 @@ enum region_owned {
 
 struct fulm_init_flags {
   bool with_ghost_args;
-  bool exec_c_locs_mode;
+  bool source_locs_mode;
   bool correct_missing_ownership;
   bool ownership_stack_mode;
 };
@@ -166,7 +166,7 @@ typedef hash_table cn_map;
 void init_ownership_ghost_state(void);
 void free_ownership_ghost_state(void);
 void init_ghost_stack_depth(void);
-void init_exec_c_locs_mode(bool flag);
+void init_source_locs_mode(bool flag);
 void init_correct_missing_ownership(bool flag);
 void init_ownership_stack_mode(bool flag);
 signed long get_cn_stack_depth(void);
