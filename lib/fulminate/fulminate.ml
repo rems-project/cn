@@ -539,7 +539,7 @@ let main
       ~with_loop_leak_checks
       ~without_lemma_checks
       ~without_inline_statements
-      ~exec_c_locs_mode
+      ~source_locs_mode
       ~correct_missing_ownership_mode
       ~experimental_ownership_stack_mode
       ~experimental_curly_braces
@@ -753,7 +753,7 @@ let main
       (* Inject ownership init function calls and mapping and unmapping of globals into provided main function *)
       let global_ownership_init_pair =
         generate_global_assignments
-          ~exec_c_locs_mode
+          ~source_locs_mode
           ~correct_missing_ownership_mode
           ~experimental_ownership_stack_mode
           ?max_bump_blocks

@@ -669,7 +669,7 @@ let has_main (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma) =
 let get_global_init_stats
       ?max_bump_blocks
       ?bump_block_size
-      ?(exec_c_locs_mode = false)
+      ?(source_locs_mode = false)
       ?(correct_missing_ownership_mode = false)
       ?(experimental_ownership_stack_mode = false)
       ()
@@ -681,7 +681,7 @@ let get_global_init_stats
   let flags_struct_tag = Sym.fresh "fulm_init_flags" in
   let flags_member_pairs =
     [ ("with_ghost_args", true);
-      ("exec_c_locs_mode", exec_c_locs_mode);
+      ("source_locs_mode", source_locs_mode);
       ("correct_missing_ownership", correct_missing_ownership_mode);
       ("ownership_stack_mode", experimental_ownership_stack_mode)
     ]
@@ -725,7 +725,7 @@ let get_global_init_stats
 
 
 let generate_global_assignments
-      ?(exec_c_locs_mode = false)
+      ?(source_locs_mode = false)
       ?(correct_missing_ownership_mode = false)
       ?(experimental_ownership_stack_mode = false)
       ?max_bump_blocks
@@ -735,8 +735,8 @@ let generate_global_assignments
       (prog5 : unit Mucore.file)
   =
   (* For the experimental ownership stack mode, source locations are required *)
-  let exec_c_locs_mode =
-    if experimental_ownership_stack_mode then false else exec_c_locs_mode
+  let source_locs_mode =
+    if experimental_ownership_stack_mode then true else source_locs_mode
   in
   match get_main sigm with
   | [] -> []
@@ -748,7 +748,7 @@ let generate_global_assignments
       get_global_init_stats
         ?max_bump_blocks
         ?bump_block_size
-        ~exec_c_locs_mode
+        ~source_locs_mode
         ~correct_missing_ownership_mode
         ~experimental_ownership_stack_mode
         ()
