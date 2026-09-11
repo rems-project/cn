@@ -350,7 +350,7 @@ void cn_smt_init(void);
       .max_bump_blocks = 0,                                                              \
       .bump_block_size = 0,                                                              \
       .flags = (struct fulm_init_flags){.with_ghost_args = 0,                            \
-          .exec_c_locs_mode = 0,                                                         \
+          .source_locs_mode = 0,                                                         \
           .correct_missing_ownership = 0,                                                \
           .ownership_stack_mode = 0},                                                    \
   });                                                                                    \
