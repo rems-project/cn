@@ -856,13 +856,33 @@ let translate_structs (struct_decls : Memory.struct_decls) =
     | Some (id, ctyp) ->
       (match ctyp with
        | Void -> rets "unsupported ctype void"
-       | Integer _ -> make_owned "Owned_int" id
+       | Integer int_ty ->
+         (match int_ty with
+          | Signed int_bt ->
+            (match int_bt with
+             | Ichar -> make_owned "Owned_Char" id
+             | Short -> make_owned "Owned_Short" id
+             | Int_ -> make_owned "Owned_Int" id
+             | Long -> make_owned "Owned_Long" id
+             | LongLong -> rets "unsupported integer ctype LongLong"
+             | _ -> rets "Unsupported integer ctype")
+          | Unsigned int_bt ->
+            (match int_bt with
+             | Ichar -> make_owned "Owned_UChar" id
+             | Short -> make_owned "Owned_UShort" id
+             | Int_ -> make_owned "Owned_UInt" id
+             | Long -> make_owned "Owned_ULong" id
+             | LongLong -> rets "unsupported integer ctype LongLong"
+             | _ -> rets "Unsupported integer ctype")
+          | Char -> rets "unsupported integer ctype Char"
+          | Bool -> rets "unsupported integer ctype Bool"
+          | _ -> rets "Unsupported integer ctype")
        | Array _ -> rets "unsupported ctype array"
        (* todo: probably not right? *)
-       | Pointer _ -> make_owned "Owned_int" id
+       | Pointer _ -> make_owned "Owned_UInt" id
        | Struct s -> make_owned ("Owned_" ^ Sym.pp_string s) id
        | Function _ -> rets "unsupported ctype function"
-       | Byte -> rets "unsupported ctype function")
+       | Byte -> rets "unsupported ctype byte")
       (* TODO(HK): added for plumbing *)
     | None ->
       !^"padding "
