@@ -3,6 +3,9 @@ version = "0.1.0"
 defaultTargets = ["Main"]
 
 [[lean_lib]]
+name = "CN_Lib"
+
+[[lean_lib]]
 name = "Inst_Params"
 
 [[lean_lib]]
@@ -19,9 +22,3 @@ name = "iris"
 git.url = "https://github.com/leanprover-community/iris-lean.git" 
 git.subDir = "Iris" 
 rev = "master"
-
-[[require]]
-name = "CN_Lib"
-git.url = "https://github.com/yinamy/CN_Lib.git" 
-git.subDir = "" 
-rev = "main"
