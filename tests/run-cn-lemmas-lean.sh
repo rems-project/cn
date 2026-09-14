@@ -3,6 +3,7 @@ set -euo pipefail -o noclobber
 
 DIRNAME=$(dirname "$0")
 LEMMA_DIR="${DIRNAME}/rocq_lemmas"
+LIB_DIR="${DIRNAME}/../lean/CN_Lib"
 WORK_DIR=$(mktemp -d /tmp/cn-lean-lemmas.XXXXXX)
 trap 'rm -rf "${WORK_DIR}"' EXIT HUP INT TERM
 
@@ -15,6 +16,8 @@ run_proof_case() {
 
   mkdir -p "${project_dir}"
   cp -r "${proof_dir}"/* "${project_dir}/"
+  echo ${LIB_DIR}
+  cp -r "${LIB_DIR}"/* "${project_dir}/"
 
   cn verify "${LEMMA_DIR}/cases/${source_dir}/${input_file}" \
           --lemmata_lean "${project_dir}/Gen_Spec/Gen_Spec.lean"
