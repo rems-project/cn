@@ -943,7 +943,7 @@ let generate (global : Global.t) directions (lemmata : (Sym.t * (Loc.t * AT.lemm
     let open_predtypes = open_predtypes preds in
     let structs =
       if global.struct_decls == Sym.Map.empty then
-        [ Pp.string "(* no struct definitions required *)" ]
+        [ Pp.string "-- no struct definitions required" ]
       else
         translate_structs global.struct_decls
     in
