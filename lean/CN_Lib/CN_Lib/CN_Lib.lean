@@ -13,13 +13,13 @@ abbrev min_ULong : Int := 0
 abbrev max_ULong : Int := 2 ^ 64 - 1
 
 -- Bounds on the signed integer types.
-abbrev min_Char : Int := -(2 ^ 7 - 1)
+abbrev min_Char : Int := - (2 ^ 7)
 abbrev max_Char : Int := 2 ^ 7 - 1
-abbrev min_Short : Int := -(2 ^ 15 - 1)
+abbrev min_Short : Int := - (2 ^ 15)
 abbrev max_Short : Int := 2 ^ 15 - 1
-abbrev min_Int : Int := -(2 ^ 31 - 1)
+abbrev min_Int : Int := - (2 ^ 31)
 abbrev max_Int : Int := 2 ^ 31 - 1
-abbrev min_Long : Int := -(2 ^ 63 - 1)
+abbrev min_Long : Int := - (2 ^ 63)
 abbrev max_Long : Int := 2 ^ 63 - 1
 
 -- We roll our own pseudo-bitvectors below to match CN's representation of C
