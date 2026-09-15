@@ -1,7 +1,4 @@
 return code: 1
-tests/cn/mask_ptr.c:29:10: warning: Division 'mod((integer)return, alignment)' does not have constant right-hand argument.
-         mod((integer) return, alignment) == 0;
-         ~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
 tests/cn/mask_ptr.c:47:3: warning: Treating bitwise operation on integers as uninterpreted.
   x &= ~((1UL << SHIFT_AMOUNT) - 1);
   ~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
