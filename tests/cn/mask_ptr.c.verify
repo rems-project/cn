@@ -1,4 +1,29 @@
 return code: 1
-tests/cn/mask_ptr.c:12:7: error: Argument-type mismatch between integer (from size_t) and u64
-void *cn_aligned_alloc(size_t alignment, size_t size);
+cn/mask_ptr.c:27:10: warning: Division 'mod((integer)return, alignment)' does not have constant right-hand argument.
+         mod((integer) return, alignment) == 0;
+         ~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
+cn/mask_ptr.c:45:3: warning: Treating bitwise operation on integers as uninterpreted.
+  x &= ~((1UL << SHIFT_AMOUNT) - 1);
+  ~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
+cn/mask_ptr.c:45:3: warning: Treating bitwise operation on integers as uninterpreted.
+  x &= ~((1UL << SHIFT_AMOUNT) - 1);
+  ~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
+[1/2]: foo_integer -- fail
+cn/mask_ptr.c:56:3: warning: Treating bitwise operation on integers as uninterpreted.
+  x &= ~((1UL << SHIFT_AMOUNT) - 1);
+  ~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
+[2/2]: foo -- fail
+cn/mask_ptr.c:46:7: error: Unprovable constraint
+  /*@ assert (x == y); @*/
       ^~~~~~~~~~~~~~~~ 
+Constraint from cn/mask_ptr.c:46:7:
+  /*@ assert (x == y); @*/
+      ^~~~~~~~~~~~~~~~ 
+State file: file:///var/folders/w_/hgkdv10j4rb_039wjkmbkd0c0000gn/T/state__mask_ptr.c__foo_integer.html
+cn/mask_ptr.c:59:7: error: Unprovable constraint
+  /*@ assert ((integer) p2 == (integer) p); @*/
+      ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
+Constraint from cn/mask_ptr.c:59:7:
+  /*@ assert ((integer) p2 == (integer) p); @*/
+      ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
+State file: file:///var/folders/w_/hgkdv10j4rb_039wjkmbkd0c0000gn/T/state__mask_ptr.c__foo.html

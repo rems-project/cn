@@ -4,6 +4,8 @@
    issues for the SMT solver for unclear reasons.
 */
 
+/* Sep 2026: in-progress. RB tried porting from integers to bitvectors but incomplete */
+
 #include <stddef.h>
 
 typedef unsigned long long u64;
@@ -60,7 +62,9 @@ int *foo(int *p)
   return p2;
 }
 
-int main(void) {
+int main(void)
+/*@ trusted; @*/
+{
   u64 r1 = foo_integer(128);
   int *p = cn_aligned_alloc(32, sizeof(int));
   int *r2 = foo(p);
