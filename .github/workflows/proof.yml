@@ -98,7 +98,7 @@ jobs:
       with:
         repository: rems-project/cn-tutorial
         path: cn-tutorial
-	ref: fix-integers       # remove once the PR is ready
+        ref: fix-integers # remove once the PR is ready
 
     - name: Run CN tests
       run: |
