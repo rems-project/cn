@@ -1,29 +1,29 @@
 return code: 1
-cn/mask_ptr.c:27:10: warning: Division 'mod((integer)return, alignment)' does not have constant right-hand argument.
+tests/cn/mask_ptr.c:29:10: warning: Division 'mod((integer)return, alignment)' does not have constant right-hand argument.
          mod((integer) return, alignment) == 0;
          ~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
-cn/mask_ptr.c:45:3: warning: Treating bitwise operation on integers as uninterpreted.
+tests/cn/mask_ptr.c:47:3: warning: Treating bitwise operation on integers as uninterpreted.
   x &= ~((1UL << SHIFT_AMOUNT) - 1);
   ~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
-cn/mask_ptr.c:45:3: warning: Treating bitwise operation on integers as uninterpreted.
+tests/cn/mask_ptr.c:47:3: warning: Treating bitwise operation on integers as uninterpreted.
   x &= ~((1UL << SHIFT_AMOUNT) - 1);
   ~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
 [1/2]: foo_integer -- fail
-cn/mask_ptr.c:56:3: warning: Treating bitwise operation on integers as uninterpreted.
+tests/cn/mask_ptr.c:58:3: warning: Treating bitwise operation on integers as uninterpreted.
   x &= ~((1UL << SHIFT_AMOUNT) - 1);
   ~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
 [2/2]: foo -- fail
-cn/mask_ptr.c:46:7: error: Unprovable constraint
+tests/cn/mask_ptr.c:48:7: error: Unprovable constraint
   /*@ assert (x == y); @*/
       ^~~~~~~~~~~~~~~~ 
-Constraint from cn/mask_ptr.c:46:7:
+Constraint from tests/cn/mask_ptr.c:48:7:
   /*@ assert (x == y); @*/
       ^~~~~~~~~~~~~~~~ 
-State file: file:///var/folders/w_/hgkdv10j4rb_039wjkmbkd0c0000gn/T/state__mask_ptr.c__foo_integer.html
-cn/mask_ptr.c:59:7: error: Unprovable constraint
+State file: file:///tmp/state__mask_ptr.c__foo_integer.html
+tests/cn/mask_ptr.c:61:7: error: Unprovable constraint
   /*@ assert ((integer) p2 == (integer) p); @*/
       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
-Constraint from cn/mask_ptr.c:59:7:
+Constraint from tests/cn/mask_ptr.c:61:7:
   /*@ assert ((integer) p2 == (integer) p); @*/
       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
-State file: file:///var/folders/w_/hgkdv10j4rb_039wjkmbkd0c0000gn/T/state__mask_ptr.c__foo.html
+State file: file:///tmp/state__mask_ptr.c__foo.html
