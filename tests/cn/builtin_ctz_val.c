@@ -7,14 +7,14 @@ f (void)
   unsigned int y;
 
   y = __builtin_ffs(x);
-  /*@ assert (y == 1u32); @*/
+  /*@ assert (y == 1); @*/
 
   y = __builtin_ctz(x);
-  /*@ assert (y == 0u32); @*/
+  /*@ assert (y == 0); @*/
 
   x *= 2;
   y = __builtin_ctz(x);
-  /*@ assert (y == 1u32); @*/
+  /*@ assert (y == 1); @*/
 
   return 1;
 }

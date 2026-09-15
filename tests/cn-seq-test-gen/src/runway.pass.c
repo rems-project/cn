@@ -1,6 +1,6 @@
-/*@ function (i32) INACTIVE () { 0i32 } @*/
+/*@ function (integer) INACTIVE () { 0 } @*/
 static int c_INACTIVE() { return 0; }
-/*@ function (i32) ACTIVE () { 1i32 } @*/
+/*@ function (integer) ACTIVE () { 1 } @*/
 static int c_ACTIVE() { return 1; }
 
 struct State {
@@ -17,17 +17,17 @@ function (boolean) valid_state (struct State s) {
      (s.ModeD == INACTIVE() || s.ModeD == ACTIVE()) &&
      (s.ModeA == INACTIVE() || s.ModeD == INACTIVE()) &&
 
-     (s.W_A >= 0i32 && s.W_D >= 0i32) &&
-     (0i32 <= s.Runway_Time && s.Runway_Time <= 5i32) &&
-     (0i32 <= s.Plane_Counter && s.Plane_Counter <= 3i32) &&
+     (s.W_A >= 0 && s.W_D >= 0) &&
+     (0 <= s.Runway_Time && s.Runway_Time <= 5) &&
+     (0 <= s.Plane_Counter && s.Plane_Counter <= 3) &&
 
      (s.ModeA == INACTIVE() && s.ModeD == INACTIVE()
-        implies s.Plane_Counter == 0i32) &&
-     (s.Runway_Time > 0i32
+        implies s.Plane_Counter == 0) &&
+     (s.Runway_Time > 0
         implies (s.ModeA == ACTIVE() || s.ModeD == ACTIVE())) &&
 
-     (s.Plane_Counter > 0i32 && s.ModeA == ACTIVE() implies s.W_D > 0i32) &&
-     (s.Plane_Counter > 0i32 && s.ModeD == ACTIVE() implies s.W_A > 0i32)
+     (s.Plane_Counter > 0 && s.ModeA == ACTIVE() implies s.W_D > 0) &&
+     (s.Plane_Counter > 0 && s.ModeD == ACTIVE() implies s.W_A > 0)
 }
 @*/
 struct State init()
@@ -40,13 +40,13 @@ struct State init()
 }
 struct State increment_Plane_Counter(struct State s)
     /*@ requires valid_state(s);
-                 0i32 <= s.Plane_Counter;
-                 s.Plane_Counter <= 2i32;
+                 0 <= s.Plane_Counter;
+                 s.Plane_Counter <= 2;
                  s.ModeA == ACTIVE() || s.ModeD == ACTIVE();
-                 s.ModeA == ACTIVE() implies s.W_D > 0i32;
-                 s.ModeD == ACTIVE() implies s.W_A > 0i32;
+                 s.ModeA == ACTIVE() implies s.W_D > 0;
+                 s.ModeD == ACTIVE() implies s.W_A > 0;
         ensures  valid_state(return);
-                 s.Plane_Counter == return.Plane_Counter - 1i32;
+                 s.Plane_Counter == return.Plane_Counter - 1;
                  s.Runway_Time == return.Runway_Time;
                  s.ModeA == return.ModeA;
                  s.ModeD == return.ModeD;
@@ -61,7 +61,7 @@ struct State increment_Plane_Counter(struct State s)
 struct State reset_Plane_Counter(struct State s)
     /*@ requires valid_state(s);
         ensures  valid_state(return);
-                 return.Plane_Counter == 0i32;
+                 return.Plane_Counter == 0;
                  s.Runway_Time == return.Runway_Time;
                  s.ModeA == return.ModeA;
                  s.ModeD == return.ModeD;
@@ -78,7 +78,7 @@ struct State increment_Runway_Time(struct State s)
     /* --BEGIN-- */
     /*@ requires valid_state(s);
                  0i32 <= s.Runway_Time;
-                 s.Runway_Time <= 4i32;
+                 s.Runway_Time <= 4;
                  s.ModeA == ACTIVE() || s.ModeD == ACTIVE();
         ensures  valid_state(return);
                  s.Plane_Counter == return.Plane_Counter;
@@ -95,7 +95,7 @@ struct State reset_Runway_Time(struct State s)
     /* --BEGIN-- */
     /*@ requires valid_state(s);
         ensures  valid_state(return);
-                 return.Runway_Time == 0i32;
+                 return.Runway_Time == 0;
                  s.ModeA == return.ModeA;
                  s.ModeD == return.ModeD;
                  s.W_A == return.W_A;
@@ -111,17 +111,17 @@ struct State reset_Runway_Time(struct State s)
 struct State arrive(struct State s)
     /* --BEGIN-- */
     /*@ requires valid_state(s);
-                 s.ModeA == ACTIVE() && s.W_A >= 1i32;
-                 s.Plane_Counter <= 2i32;
+                 s.ModeA == ACTIVE() && s.W_A >= 1;
+                 s.Plane_Counter <= 2;
         ensures  valid_state(return);
                  s.Runway_Time == return.Runway_Time;
                  s.ModeA == return.ModeA;
                  s.ModeD == return.ModeD;
                  s.W_D == return.W_D;
-                 s.W_D == 0i32
+                 s.W_D == 0
                    implies s.Plane_Counter == return.Plane_Counter;
-                 s.W_D > 0i32
-                   implies s.Plane_Counter == return.Plane_Counter - 1i32;
+                 s.W_D > 0
+                   implies s.Plane_Counter == return.Plane_Counter - 1;
     @*/
     /* --END-- */
 {
@@ -135,8 +135,8 @@ struct State arrive(struct State s)
 struct State depart(struct State s)
     /* --BEGIN-- */
     /*@ requires valid_state(s);
-                 s.ModeD == ACTIVE() && s.W_D >=1i32;
-                 s.Plane_Counter <= 2i32;
+                 s.ModeD == ACTIVE() && s.W_D >=1;
+                 s.Plane_Counter <= 2;
         ensures  valid_state(return);
                   s.Runway_Time == return.Runway_Time;
                   s.ModeA == return.ModeA;
@@ -156,7 +156,7 @@ struct State switch_modes(struct State s)
     /* --BEGIN-- */
     /*@ requires valid_state(s);
                  s.ModeA == ACTIVE() || s.ModeD == ACTIVE();
-                 s.Plane_Counter == 0i32;
+                 s.Plane_Counter == 0;
         ensures  valid_state(return);
                  return.ModeA == ACTIVE() || return.ModeD == ACTIVE();
                  return.ModeA == s.ModeD;
@@ -192,13 +192,13 @@ struct State switch_modes(struct State s)
 struct State tick(struct State s)
     /* --BEGIN-- */
     /*@ requires valid_state(s);
-                 (i64) s.Plane_Counter < 2147483647i64;
-                 (i64) s.W_A < 2147483647i64;
-                 (i64) s.W_D < 2147483647i64;
+                 s.Plane_Counter < 2147483647;
+                 s.W_A < 2147483647;
+                 s.W_D < 2147483647;
         ensures valid_state(return);
-                (s.W_A > 0i32 && s.W_D == 0i32 && s.Runway_Time == 0i32
+                (s.W_A > 0 && s.W_D == 0 && s.Runway_Time == 0
                    implies return.ModeA == ACTIVE());
-                (s.W_D > 0i32 && s.W_A == 0i32 && s.Runway_Time == 0i32
+                (s.W_D > 0 && s.W_A == 0 && s.Runway_Time == 0
                    implies return.ModeD == ACTIVE());
     @*/
     /* --END-- */

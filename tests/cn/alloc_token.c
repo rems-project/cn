@@ -9,8 +9,8 @@ trusted;
 requires
     take log = Alloc(p);
     allocs[(alloc_id)p] == log;
-    let base = array_shift<char>(p, -2i64);
-    log.base == (u64) base;
+    let base = array_shift<char>(p, -2);
+    log.base == (integer) base;
     log.size == sizeof<int>;
     take i = W<int>(base);
 ensures
@@ -26,7 +26,7 @@ trusted;
 ensures
     take log = Alloc(return);
     allocs[(alloc_id)return] == log;
-    log.base == (u64) return;
+    log.base == (integer) return;
     log.size == sizeof<int>;
     take i = W<int>(return);
 @*/

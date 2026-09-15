@@ -3,9 +3,9 @@ typedef struct s {
     uint8_t a;
 } s;
 /*@
-predicate (map<u64,u8>) Array_u8 (pointer p, u64 l)
+predicate (map<integer,integer>) Array_u8 (pointer p, integer l)
 {
-  take pv = each(u64 i; i >= 0u64 && i < l) {RW<uint8_t>(array_shift<uint8_t>(p,i))};
+  take pv = each(integer i; i >= 0 && i < l) {RW<uint8_t>(array_shift<uint8_t>(p,i))};
   return pv;
 }
 @*/

@@ -1,23 +1,14 @@
 return code: 0
-tests/cn/extract_verbose.c:10:22: warning: 'focus' prefers a 'u64', but '1' has type 'integer'.
-  /*@ focus RW<int>, 1; @*/
+tests/cn/extract_verbose.c:12:22: warning: 'focus' prefers a 'integer', but '1'u64' has type 'u64'.
+  /*@ focus RW<int>, 1u64; @*/
                      ^
-tests/cn/extract_verbose.c:11:22: warning: 'focus' prefers a 'u64', but '1' has type 'integer'.
-  /*@ focus RW<int>, 1; @*/
-                     ^
-tests/cn/extract_verbose.c:14:22: warning: 'focus' prefers a 'u64', but '12' has type 'integer'.
-  /*@ focus RW<int>, 12; @*/
-                     ^
-tests/cn/extract_verbose.c:10:7: warning: focus: index added, no effect on existing resources (yet).
-  /*@ focus RW<int>, 1; @*/
-      ^~~~~~~~~~~~~~~~~ 
-tests/cn/extract_verbose.c:11:7: warning: focus: index added, no effect on existing resources (yet).
-  /*@ focus RW<int>, 1; @*/
-      ^~~~~~~~~~~~~~~~~ 
-tests/cn/extract_verbose.c:13:7: warning: focus: index added, no effect on existing resources (yet).
+tests/cn/extract_verbose.c:13:21: warning: 'focus' prefers a 'integer', but '1'u64' has type 'u64'.
+  /*@ focus W<int>, 1u64; @*/
+                    ^
+tests/cn/extract_verbose.c:12:7: warning: focus: index added, no effect on existing resources (yet).
   /*@ focus RW<int>, 1u64; @*/
       ^~~~~~~~~~~~~~~~~~~~ 
-tests/cn/extract_verbose.c:14:7: warning: focus: index added, no effect on existing resources (yet).
-  /*@ focus RW<int>, 12; @*/
-      ^~~~~~~~~~~~~~~~~~ 
+tests/cn/extract_verbose.c:13:7: warning: focus: index added, no effect on existing resources (yet).
+  /*@ focus W<int>, 1u64; @*/
+      ^~~~~~~~~~~~~~~~~~~ 
 [1/1]: f -- pass

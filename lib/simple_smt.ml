@@ -175,6 +175,9 @@ let num_mod x y = app_ "mod" [ x; y ]
 (** Numeric reminder. Nonstandard. *)
 let num_rem x y = app_ "rem" [ x; y ]
 
+(** Numeric exponentiation. *)
+let num_exp x y = app_ "**" [ x; y ]
+
 (** Is the number divisible by the given constant? *)
 let num_divisible x n = app (ifam "divisible" [ n ]) [ x ]
 

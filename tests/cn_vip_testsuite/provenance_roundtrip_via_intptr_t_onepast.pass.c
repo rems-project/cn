@@ -7,7 +7,7 @@ accesses
     x;
 
 requires
-    (u64)(&x) < 9223372036854775804u64;
+    (integer)(&x) < 9223372036854775804;
 @*/
 {
   int *p = &x;
@@ -20,5 +20,5 @@ requires
   q=q-1;
   *q = 11; // is this free of undefined behaviour?
   //CN_VIP printf("*q=%d\n",*q);
-  /*CN_VIP*//*@ assert(*q == 11i32); @*/
+  /*CN_VIP*//*@ assert(*q == 11); @*/
 }

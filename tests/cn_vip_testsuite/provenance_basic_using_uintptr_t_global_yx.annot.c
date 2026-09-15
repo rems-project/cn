@@ -7,13 +7,13 @@
 #include "cn_lemmas.h"
 int y=2, x=1;
 int main()
-/*CN_VIP*//*@ accesses x; accesses y; requires x == 1i32; @*/
+/*CN_VIP*//*@ accesses x; accesses y; requires x == 1; @*/
 {
   uintptr_t ux = (uintptr_t)&x;
   uintptr_t uy = (uintptr_t)&y;
   uintptr_t offset = 4;
   ux = ux + offset;
-  /*@ apply assert_equal((u64) ux, uy); @*/
+  /*@ apply assert_equal(ux, uy); @*/
 #ifdef ANNOT
   int *p = copy_alloc_id(ux, &y);
 #else
@@ -32,7 +32,7 @@ int main()
   if (result == 0) {
     *p = 11; // CN VIP UB (no annot)
     //CN_VIP printf("x=%d  y=%d  *p=%d  *q=%d\n",x,y,*p,*q);
-    /*CN_VIP*//*@ assert(x == 1i32 && y == 11i32 && *p == 11i32 && *q == 11i32); @*/
+    /*CN_VIP*//*@ assert(x == 1 && y == 11 && *p == 11 && *q == 11); @*/
   }
 }
 

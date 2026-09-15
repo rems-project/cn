@@ -1,4 +1,4 @@
-void f() /*@ requires cn_ghost i32 x; x < 10i32; @*/ {}
+void f() /*@ requires cn_ghost integer x; x < 10; @*/ {}
 
 int main() {
     int i = 0;

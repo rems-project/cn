@@ -11,24 +11,24 @@ struct int_list {
 /*@
 datatype seq {
   Seq_Nil {},
-  Seq_Cons {i32 head, datatype seq tail}
+  Seq_Cons {integer head, datatype seq tail}
 }
 
 predicate [rec] (datatype seq) IntList(pointer p) {
   if (is_null(p)) {
     return Seq_Nil{};
   } else {
-    take H = Owned<struct int_list>(p);
+    take H = RW<struct int_list>(p);
     take tl = IntList(H.tail);
     return (Seq_Cons { head: H.head, tail: tl });
   }
 }
 @*/
 /*@
-function (i32) hd (datatype seq xs) {
+function (integer) hd (datatype seq xs) {
   match xs {
     Seq_Nil {} => {
-      0i32
+      0
     }
     Seq_Cons {head : h, tail : _} => {
       h
@@ -67,13 +67,13 @@ struct int_list* IntList_cons(int h, struct int_list* t)
 }
 
 /*@
-function [rec] (u32) length(datatype seq xs) {
+function [rec] (integer) length(datatype seq xs) {
   match xs {
     Seq_Nil {} => {
-      0u32
+      0
     }
     Seq_Cons {head : h, tail : zs}  => {
-      1u32 + length(zs)
+      1 + length(zs)
     }
   }
 }
@@ -99,10 +99,10 @@ struct sized_stack {
   struct int_list* data;
 };
 /*@
-type_synonym sizeAndData = {u32 s, datatype seq d}
+type_synonym sizeAndData = {integer s, datatype seq d}
 
 predicate (sizeAndData) SizedStack(pointer p) {
-    take S = Owned<struct sized_stack>(p);
+    take S = RW<struct sized_stack>(p);
     let s = S.size;
     take d = IntList(S.data);
     assert(s == length(d));
@@ -111,7 +111,7 @@ predicate (sizeAndData) SizedStack(pointer p) {
 @*/
 struct sized_stack* create()
 /*@ ensures take S = SizedStack(return);
-            S.s == 0u32;
+            S.s == 0;
 @*/
 {
   struct sized_stack *p = (struct sized_stack *)cn_malloc(sizeof(struct sized_stack));
@@ -142,7 +142,7 @@ void push (struct sized_stack *p, int x)
 }
 int pop (struct sized_stack *p)
 /*@ requires take S = SizedStack(p);
-             S.s > 0u32;
+             S.s > 0;
     ensures  take S_ = SizedStack(p);
              S_.d == tl(S.d);
 @*/
@@ -161,14 +161,14 @@ int pop (struct sized_stack *p)
 }
 int top (struct sized_stack *p)
 /*@ requires take S = SizedStack(p);
-             S.s > 0u32;
+             S.s > 0;
     ensures  take S_ = SizedStack(p);
              S_ == S;
              return == hd(S.d);
 @*/
 {
   /*@ unfold length(S.d); @*/
-  // from S.s > 0u32 it follows that the 'else' branch is impossible
+  // from S.s > 0 it follows that the 'else' branch is impossible
   if (p->data != 0) {
     return (p->data)->head;
   }

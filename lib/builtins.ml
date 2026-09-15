@@ -80,7 +80,8 @@ let min_bits_def (sign, n) =
     | Signed -> (Z.(neg @@ shift_left one (Int.sub n 1)), "i")
   in
   let name = "MIN" ^ letter ^ Int.to_string n in
-  MT.num_lit_ num (BT.Bits (sign, n)) loc |> mk_builtin_arg0 name
+  let bt = if !BT.cnBV then BT.Bits (sign, n) else Integer in
+  MT.num_lit_ num bt loc |> mk_builtin_arg0 name
 
 
 let max_bits_def (sign, n) =
@@ -90,7 +91,8 @@ let max_bits_def (sign, n) =
     | Signed -> (Z.(shift_left one (Int.sub n 1) - one), "i")
   in
   let name = "MAX" ^ letter ^ Int.to_string n in
-  MT.num_lit_ num (BT.Bits (sign, n)) loc |> mk_builtin_arg0 name
+  let bt = if !BT.cnBV then BT.Bits (sign, n) else Integer in
+  MT.num_lit_ num bt loc |> mk_builtin_arg0 name
 
 
 let max_min_bits =
@@ -176,6 +178,8 @@ let power_def =
     mk_arg2 (fun (it, it') loc -> MT.binop Exp (it, it') loc (Terms.get_bt it)) )
 
 
+let abs_def = ("abs", Sym.fresh "abs", mk_arg1 (fun it loc -> MT.arith_unop Abs it loc))
+
 let rem_def =
   ( "rem",
     Sym.fresh "rem",
@@ -209,6 +213,7 @@ let builtin_funs
     shift_left_def;
     shift_right_def;
     power_def;
+    abs_def;
     rem_def;
     mod_def;
     has_alloc_id_def;

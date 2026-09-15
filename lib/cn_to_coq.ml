@@ -207,7 +207,7 @@ let it_to_itp_ir global it b =
        | Min -> CI.ITP_ite (CI.ITP_binop (CI.ITP_lt, x, y, bt), x, y)
        | Max -> CI.ITP_ite (CI.ITP_binop (CI.ITP_lt, x, y, bt), y, x)
        | ShiftLeft | ShiftRight | SetUnion | SetIntersection | SetDifference | SetMember
-       | Subset ->
+       | Subset | BW_CLZ_Z | BW_CTZ_Z | BW_FFS_Z | BW_FLS_Z ->
          CI.ITP_unsupported_pure "Unsupported binop")
     | Terms.Match (x, cases) ->
       let comp = Some (it, "case-discriminant") in

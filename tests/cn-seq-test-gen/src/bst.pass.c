@@ -16,12 +16,12 @@ extern void cn_free_sized(void *ptr, size_t size);
 
 /*@
 
-type_synonym KEY = i32
-type_synonym VALUE = i64
+type_synonym KEY = integer
+type_synonym VALUE = integer
 type_synonym NodeData = { KEY key, VALUE value }
 
-function (KEY) defaultKey() { 0i32 }
-function (VALUE) defaultValue() { 0i64 }
+function (KEY) defaultKey() { 0 }
+function (VALUE) defaultValue() { 0 }
 function (NodeData) defaultNodeData() { 
   { key: defaultKey(), value: defaultValue() }
 }
@@ -211,7 +211,7 @@ type_synonym RangedNode = {
 }
 
 predicate [rec] RangedNode RangedNode(pointer root) {
-   take node = Owned<struct MapNode>(root);
+   take node = RW<struct MapNode>(root);
    take smaller = RangedBST(node.smaller);
    take larger  = RangedBST(node.larger);
    let rangeOpt = joinInterval(smaller.range, node.key, larger.range);
@@ -260,7 +260,7 @@ predicate [rec] RangedBST BSTNodeUpTo(pointer p, pointer c, struct MapNode child
   if (ptr_eq(p,c)) {
     return { tree: Leaf {}, range: IntervalSome { i: range } };
   } else {
-    take parent = Owned<struct MapNode>(p);
+    take parent = RW<struct MapNode>(p);
     take result = BSTNodeChildUpTo(c, child, range, parent);
     return result;
   }
@@ -333,7 +333,7 @@ struct MapNode *newNode(KEY key, VALUE value)
 requires
   true;
 ensures
-  take node = Owned<struct MapNode>(return);
+  take node = RW<struct MapNode>(return);
   node.key == key;
   node.value == value;
   is_null(node.smaller);
@@ -352,10 +352,10 @@ ensures
 struct MapNode *findParent(struct MapNode **node, KEY key)
 /*@
 requires
-  take tree_ptr = Owned<struct MapNode*>(node);
+  take tree_ptr = RW<struct MapNode*>(node);
   take tree     = BST(tree_ptr);
 ensures
-  take cur_ptr  = Owned<struct MapNode*>(node);
+  take cur_ptr  = RW<struct MapNode*>(node);
   let not_found = is_null(cur_ptr);
   not_found == !member(key, tree);
   take fcs = BSTFocus(tree_ptr, return);
@@ -391,10 +391,10 @@ ensures
 void map_insert(struct MapNode **root, KEY key, VALUE value)
 /*@
 requires
-  take root_ptr = Owned(root);
+  take root_ptr = RW(root);
   take tree = BST(root_ptr);
 ensures
-  take new_root = Owned(root);
+  take new_root = RW(root);
   take new_tree = BST(new_root);
   new_tree == insert(key, value, tree);
 @*/
@@ -442,7 +442,7 @@ predicate (void) DeleteSmallest(pointer cur, NodeData data) {
     assert(data == defaultNodeData());
     return;
   } else {
-    take node = Owned<struct MapNode>(cur);
+    take node = RW<struct MapNode>(cur);
     assert(node.key == data.key);
     assert(node.value == data.value);
     return;
@@ -453,10 +453,10 @@ predicate (void) DeleteSmallest(pointer cur, NodeData data) {
 struct MapNode* deleteSmallest(struct MapNode **root)
 /*@
   requires
-    take root_ptr = Owned(root);
+    take root_ptr = RW(root);
     take tree = BST(root_ptr);
   ensures
-    take new_root = Owned(root);
+    take new_root = RW(root);
     take new_tree = BST(new_root);
     let res = delLeast(tree);
     new_tree == res.tree;
@@ -517,10 +517,10 @@ function [rec] (BST) delKey(KEY key, BST root) {
 void deleteKey(struct MapNode **root, KEY key)
 /*@
 requires
-  take root_ptr = Owned(root);
+  take root_ptr = RW(root);
   take tree = BST(root_ptr);
 ensures
-  take new_ptr = Owned(root);
+  take new_ptr = RW(root);
   take new_tree = BST(new_ptr);
   delKey(key, tree) == new_tree;
 @*/

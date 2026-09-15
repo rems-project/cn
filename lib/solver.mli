@@ -26,6 +26,8 @@ val inc_timeout : int option ref
 
 val hybrid : bool ref
 
+val always_interp : bool ref
+
 (* Create a solver *)
 val make : Global.t -> (Sym.t * BaseTypes.t) list -> solver
 

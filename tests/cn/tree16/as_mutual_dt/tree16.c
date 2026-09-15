@@ -17,7 +17,7 @@ struct node {
 /*@
 datatype tree {
   Empty_Tree {},
-  Node {i32 v, datatype tree_list children}
+  Node {integer v, datatype tree_list children}
 }
 
 datatype tree_list {
@@ -25,21 +25,21 @@ datatype tree_list {
   Cons_List {datatype tree t, datatype tree_list tail}
 }
 
-function (datatype tree_list) array_to_tree_list (map<i32, datatype tree> arr, i32 len)
+function (datatype tree_list) array_to_tree_list (map<integer, datatype tree> arr, integer len)
 
-function (map <i32, datatype tree>) default_children ()
+function (map <integer, datatype tree>) default_children ()
 
-predicate [rec] {datatype tree t, i32 v, map <i32, datatype tree> children}
+predicate [rec] {datatype tree t, integer v, map <integer, datatype tree> children}
   Tree (pointer p)
 {
   if (is_null(p)) {
-    return {t: Empty_Tree {}, v: 0i32, children: default_children ()};
+    return {t: Empty_Tree {}, v: 0, children: default_children ()};
   }
   else {
     take P = RW<struct node>(p);
     let V = P.v;
     let nodes_ptr = member_shift<struct node>(p,nodes);
-    take Ns = each (i32 i; (0i32 <= i) && (i < NUM_NODES))
+    take Ns = each (integer i; (0 <= i) && (i < NUM_NODES))
       {Indirect_Tree(array_shift<tree>(nodes_ptr, i))};
     let ts = array_to_tree_list (Ns, NUM_NODES);
     return {t: Node {v: V, children: ts}, v: V, children: Ns};
@@ -52,21 +52,21 @@ predicate [rec] (datatype tree) Indirect_Tree (pointer p) {
   return T.t;
 }
 
-type_synonym arc_in_array = ({map <i32, i32> arr, i32 i, i32 len})
+type_synonym arc_in_array = ({map <integer, integer> arr, integer i, integer len})
 
 function (boolean) in_tree (datatype tree t, arc_in_array arc)
-function (i32) tree_v (datatype tree t, arc_in_array arc)
+function (integer) tree_v (datatype tree t, arc_in_array arc)
 
-function (datatype tree) nth_tree_list (datatype tree_list ts, i32 i)
+function (datatype tree) nth_tree_list (datatype tree_list ts, integer i)
 
-function [coq_unfold] (i32) tree_v_step (datatype tree t, arc_in_array arc)
+function [coq_unfold] (integer) tree_v_step (datatype tree t, arc_in_array arc)
 {
   match t {
     Empty_Tree {} => {
-      0i32
+      0
     }
     Node {v: v, children: children} => {
-      let arc2 = {arr: arc.arr, i: arc.i + 1i32, len: arc.len};
+      let arc2 = {arr: arc.arr, i: arc.i + 1, len: arc.len};
       ((arc.i < arc.len) ?
         (tree_v(nth_tree_list(children, (arc.arr)[arc.i]), arc2)) :
         v)
@@ -81,7 +81,7 @@ function [coq_unfold] (boolean) in_tree_step (datatype tree t, arc_in_array arc)
       false
     }
     Node {v: v, children: children} => {
-      let arc2 = {arr: arc.arr, i: arc.i + 1i32, len: arc.len};
+      let arc2 = {arr: arc.arr, i: arc.i + 1, len: arc.len};
       ((arc.i < arc.len) ?
         (in_tree(nth_tree_list(children, (arc.arr)[arc.i]), arc2)) :
         true)
@@ -90,15 +90,15 @@ function [coq_unfold] (boolean) in_tree_step (datatype tree t, arc_in_array arc)
 }
 
 lemma in_tree_tree_v_lemma (datatype tree t, arc_in_array arc,
-    map <i32, datatype tree> t_children)
+    map <integer, datatype tree> t_children)
   requires
-    0i32 <= arc.i;
+    0 <= arc.i;
     arc.len <= LEN_LIMIT;
   ensures
     (tree_v(t, arc)) == (tree_v_step(t, arc));
     (in_tree(t, arc)) == (in_tree_step(t, arc));
     let i = (arc.arr)[arc.i];
-    ((0i32 <= i) && (i < NUM_NODES))
+    ((0 <= i) && (i < NUM_NODES))
     ? (nth_tree_list(array_to_tree_list (t_children, NUM_NODES), i) == t_children[i])
     : true;
 @*/
@@ -108,22 +108,22 @@ lookup_rec (tree t, int *path, int i, int path_len, int *v)
 /*@ requires
              path_len <= LEN_LIMIT;
              take T = Tree(t);
-             take Xs = each (i32 j; (0i32 <= j) && (j < path_len))
+             take Xs = each (integer j; (0 <= j) && (j < path_len))
     {RW(array_shift(path, j))};
-             ((0i32 <= path_len) && (0i32 <= i) && (i <= path_len));
-             each (i32 j; (0i32 <= j) && (j < path_len))
-    {(0i32 <= (Xs[j])) && ((Xs[j]) < NUM_NODES)};
+             ((0 <= path_len) && (0 <= i) && (i <= path_len));
+             each (integer j; (0 <= j) && (j < path_len))
+    {(0 <= (Xs[j])) && ((Xs[j]) < NUM_NODES)};
              take V = RW(v);
              let arc = {arr: Xs, i: i, len: path_len};
     ensures take T2 = Tree(t);
             T2.t == {T.t}@start;
             T2.children == {T.children}@start;
-            take Xs2 = each (i32 j; (0i32 <= j) && (j < path_len))
+            take Xs2 = each (integer j; (0 <= j) && (j < path_len))
                             {RW(array_shift(path, j))};
             Xs2 == {Xs}@start;
             take V2 = RW(v);
-            ((return == 0i32) && (not (in_tree (T2.t, arc))))
-  || ((return == 1i32) && (in_tree (T2.t, arc)) && ((tree_v (T2.t, arc)) == V2)); @*/
+            ((return == 0) && (not (in_tree (T2.t, arc))))
+  || ((return == 1) && (in_tree (T2.t, arc)) && ((tree_v (T2.t, arc)) == V2)); @*/
 {
   int idx = 0;
   int r = 0;

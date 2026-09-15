@@ -1,9 +1,9 @@
 
 
 /*@
-type_synonym xy_tup = ({u32 x, u32 y})
+type_synonym xy_tup = ({integer x, integer y})
 
-function (xy_tup) mk_tup (u32 x, u32 y)
+function (xy_tup) mk_tup (integer x, integer y)
   { {x : x, y : y} }
 @*/
 

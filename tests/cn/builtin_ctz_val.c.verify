@@ -1,2 +1,9 @@
-return code: 0
-[1/1]: f -- pass
+return code: 1
+[1/1]: f -- fail
+tests/cn/builtin_ctz_val.c:10:7: error: Unprovable constraint
+  /*@ assert (y == 1); @*/
+      ^~~~~~~~~~~~~~~~ 
+Constraint from tests/cn/builtin_ctz_val.c:10:7:
+  /*@ assert (y == 1); @*/
+      ^~~~~~~~~~~~~~~~ 
+State file: file:///tmp/state__builtin_ctz_val.c__f.html

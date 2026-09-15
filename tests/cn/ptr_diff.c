@@ -1,15 +1,15 @@
 int live_RW_footprint(char *p, char *q)
 /*@
  requires
-    take P = RW<int[11]>(array_shift<char>(p, -2i64));
-    ptr_eq(q, array_shift<char>(p, 12i64));
+    take P = RW<int[11]>(array_shift<char>(p, -2));
+    ptr_eq(q, array_shift<char>(p, 12));
 ensures
-    take P2 = RW<int[11]>(array_shift<char>(p, -2i64));
+    take P2 = RW<int[11]>(array_shift<char>(p, -2));
     P == P2;
-    return == 12i32;
+    return == 12;
 @*/
 {
-  /*@ focus RW<int>, 7u64; @*/
+  /*@ focus RW<int>, 7; @*/
   // NOTE: neither argument needs to be in the footprint of the RW
   // The bounds check for the allocation are done separately to the resource
   // lookup
@@ -23,13 +23,13 @@ int live_RW_both(int *p, int *q)
  requires
     take P = RW(p);
     take Q = RW(q);
-    ptr_eq(q, array_shift(p, 10i32));
+    ptr_eq(q, array_shift(p, 10));
 ensures
     take P2 = RW(p);
     P == P2;
     take Q2 = RW(q);
     Q == Q2;
-    return == -10i32;
+    return == -10;
 @*/
 {
   return p - q;
@@ -39,14 +39,14 @@ int live_RW_one(int *p, int *q)
 /*@
  requires
     take P = RW(p);
-    ptr_eq(q, array_shift(p, 10i32));
+    ptr_eq(q, array_shift(p, 10));
     let A = allocs[(alloc_id)p];
-    (u64) p <= (u64) q;
-    (u64) q <= A.base + A.size;
+    (integer) p <= (integer) q;
+    (integer) q <= A.base + A.size;
 ensures
     take P2 = RW(p);
     P == P2;
-    return == -10i32;
+    return == -10;
 @*/
 {
   return p - q;
@@ -56,13 +56,13 @@ int live_alloc(int *p, int *q)
 /*@
  requires
     !is_null(p);
-    ptr_eq(q, array_shift(p, 10i32));
+    ptr_eq(q, array_shift(p, 10));
     take A = Alloc(p);
-    A.base <= (u64) p;
-    (u64) p <= (u64) q;
-    (u64) q <= A.base + A.size;
+    A.base <= (integer) p;
+    (integer) p <= (integer) q;
+    (integer) q <= A.base + A.size;
 ensures
-    return == -10i32;
+    return == -10;
     take A2 = Alloc(p);
     A == A2;
 @*/
@@ -75,8 +75,8 @@ int main(void)
 {
     int arr[11] = { 0 };
     live_alloc(&arr[0], &arr[10]);
-    /*@ focus RW<int>, 0u64; @*/
-    /*@ focus RW<int>, 10u64; @*/
+    /*@ focus RW<int>, 0; @*/
+    /*@ focus RW<int>, 10; @*/
     live_RW_one(&arr[0], &arr[10]);
     live_RW_both(&arr[0], &arr[10]);
     char *p = (char*) arr;

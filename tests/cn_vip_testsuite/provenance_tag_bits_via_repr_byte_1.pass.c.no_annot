@@ -1,8 +1,47 @@
 return code: 0
-tests/cn_vip_testsuite/provenance_tag_bits_via_repr_byte_1.pass.c:18:17: warning: experimental keyword 'to_bytes' (use of experimental features is discouraged)
+tests/cn_vip_testsuite/provenance_tag_bits_via_repr_byte_1.pass.c:37:17: warning: experimental keyword 'to_bytes' (use of experimental features is discouraged)
   /*CN_VIP*//*@ to_bytes RW<int*>(&p); @*/
                 ^~~~~~~~ 
-tests/cn_vip_testsuite/provenance_tag_bits_via_repr_byte_1.pass.c:33:17: warning: experimental keyword 'from_bytes' (use of experimental features is discouraged)
+tests/cn_vip_testsuite/provenance_tag_bits_via_repr_byte_1.pass.c:56:17: warning: experimental keyword 'from_bytes' (use of experimental features is discouraged)
   /*CN_VIP*//*@ from_bytes RW<int*>(&p); @*/
                 ^~~~~~~~~~ 
+tests/cn_vip_testsuite/provenance_tag_bits_via_repr_byte_1.pass.c:10:11: warning: Treating bitwise operation on integers as uninterpreted.
+  ensures i & 3 == mod(i,4);
+          ~~^~~ 
+tests/cn_vip_testsuite/provenance_tag_bits_via_repr_byte_1.pass.c:14:11: warning: Treating bitwise operation on integers as uninterpreted.
+  ensures i | 1 == i+1;
+          ~~^~~ 
+tests/cn_vip_testsuite/provenance_tag_bits_via_repr_byte_1.pass.c:19:11: warning: Treating bitwise operation on integers as uninterpreted.
+  ensures i & (MAXu8() - 3) == i - 1;
+          ~~^~~~~~~~~~~~~~~ 
+tests/cn_vip_testsuite/provenance_tag_bits_via_repr_byte_1.pass.c:23:11: warning: Treating bitwise operation on integers as uninterpreted.
+  ensures i & (MAXu32() - 3) == i & (MAXu8() - 3);
+          ~~^~~~~~~~~~~~~~~~ 
+tests/cn_vip_testsuite/provenance_tag_bits_via_repr_byte_1.pass.c:23:33: warning: Treating bitwise operation on integers as uninterpreted.
+  ensures i & (MAXu32() - 3) == i & (MAXu8() - 3);
+                                ~~^~~~~~~~~~~~~~~ 
+tests/cn_vip_testsuite/provenance_tag_bits_via_repr_byte_1.pass.c:32:5: warning: Treating bitwise operation on integers as uninterpreted.
+    x & 3 == 0;
+    ~~^~~ 
+tests/cn_vip_testsuite/provenance_tag_bits_via_repr_byte_1.pass.c:44:10: warning: Treating bitwise operation on integers as uninterpreted.
+  assert((i & 3u) == 0u);
+         ^~~~~~~~ 
+tests/cn_vip_testsuite/provenance_tag_bits_via_repr_byte_1.pass.c:47:7: warning: Treating bitwise operation on integers as uninterpreted.
+  i = i | 1u;
+      ~~^~~~ 
+tests/cn_vip_testsuite/provenance_tag_bits_via_repr_byte_1.pass.c:47:7: warning: Treating bitwise operation on integers as uninterpreted.
+  i = i | 1u;
+      ~~^~~~ 
+tests/cn_vip_testsuite/provenance_tag_bits_via_repr_byte_1.pass.c:47:7: warning: Treating bitwise operation on integers as uninterpreted.
+  i = i | 1u;
+      ~~^~~~ 
+tests/cn_vip_testsuite/provenance_tag_bits_via_repr_byte_1.pass.c:47:7: warning: Treating bitwise operation on integers as uninterpreted.
+  i = i | 1u;
+      ~~^~~~ 
+tests/cn_vip_testsuite/provenance_tag_bits_via_repr_byte_1.pass.c:47:7: warning: Treating bitwise operation on integers as uninterpreted.
+  i = i | 1u;
+      ~~^~~~ 
+tests/cn_vip_testsuite/provenance_tag_bits_via_repr_byte_1.pass.c:54:22: warning: Treating bitwise operation on integers as uninterpreted.
+  *(byte*)&p = (byte)((unsigned char)(*(byte*)&p) & ~3u);
+                     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
 [1/1]: main -- pass

@@ -4,15 +4,15 @@
 
 char
 get_from_arr (char *in_arr)
-/*@ requires take IA = each (i32 j; 0i32 <= j && j < 10i32)
+/*@ requires take IA = each (integer j; 0 <= j && j < 10)
   {RW<char>(in_arr + j)};
-    ensures take IA2 = each (i32 j; 0i32 <= j && j < 10i32)
+    ensures take IA2 = each (integer j; 0 <= j && j < 10)
   {RW<char>(in_arr + j)}; @*/
 {
   char c;
 
-  /*@ focus RW<char>, 4i32; @*/
-  /*@ instantiate good<char>, 4i32; @*/
+  /*@ focus RW<char>, 4; @*/
+  /*@ instantiate 4; @*/
   c = in_arr[4];
 
   return c;

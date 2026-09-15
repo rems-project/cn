@@ -6,22 +6,12 @@
 
 int *global_array;
 
-enum {
-  global_array_width = 42,
-};
+/*@ 
+function (integer) global_array_width() {42}
 
-/*@ function (i32) global_array_width () @*/
-
-static inline int get_global_array_width_for_cn (void)
-/*@ cn_function global_array_width; @*/
+predicate (map<integer, integer>) Global_Array (pointer p)
 {
-  return global_array_width;
-}
-
-/*@
-predicate (map<i32, i32>) Global_Array (pointer p)
-{
-  take Arr = each (i32 i; 0i32 <= i && i < global_array_width ())
+  take Arr = each (integer i; 0 <= i && i < global_array_width ())
     { RW(array_shift<int>(p, i)) };
   return Arr;
 }
@@ -31,14 +21,13 @@ void set_a_pointer(int *p, int x)
 /*@ accesses global_array;
     requires (alloc_id) global_array == (alloc_id) p;
              take Arr = Global_Array(global_array);
-             let offs = ((u64)p - (u64)global_array);
-             mod(offs, (u64) (sizeof<int>)) == 0u64;
-             let idx = (offs / ((u64) (sizeof<int>)));
-             0u64 <= idx && idx < ((u64) (global_array_width ()));
+             let offs = ((integer)p - (integer)global_array);
+             mod(offs, (sizeof<int>)) == 0;
+             let idx = (offs / (sizeof<int>));
+             0 <= idx && idx < ( (global_array_width ()));
     ensures take Arr2 = Global_Array(global_array); @*/
 {
-  /*@ focus RW<int>, ((i32) idx); @*/
-  /*@ instantiate good<int>, ((i32) idx); @*/
+  /*@ focus RW<int>, (idx); @*/
   *p = x;
 }
 

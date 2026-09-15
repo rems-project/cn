@@ -9,18 +9,18 @@ struct two_ints {
    is correctly aligned to point at a particular type */
 
 /*@
-predicate {i32 k} Tagged_Pointer (pointer p, i32 k) {
-  if (k == 0i32) {
+predicate {integer k} Tagged_Pointer (pointer p, integer k) {
+  if (k == 0) {
     return {k: k};
   }
-  else { if (k == 1i32) {
-    assert (mod((u64)p, ((u64) (sizeof<int>))) == 0u64);
+  else { if (k == 1) {
+    assert (mod((integer)p, sizeof<int>) == 0);
     take V = RW<int>(p);
     return {k: k};
   }
   else {
-    assert (k == 2i32);
-    assert (mod((u64)p, ((u64) (sizeof<struct two_ints>))) == 0u64);
+    assert (k == 2);
+    assert (mod((integer)p, (sizeof<struct two_ints>)) == 0);
     take V = RW<struct two_ints>(p);
     return {k: k};
   } }

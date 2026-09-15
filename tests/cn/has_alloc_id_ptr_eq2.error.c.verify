@@ -7,6 +7,6 @@ tests/cn/has_alloc_id_ptr_eq2.error.c:10:5: error: Unprovable constraint
     return p == q;
     ^~~~~~~~~~~~~~ 
 Constraint from tests/cn/has_alloc_id_ptr_eq2.error.c:7:5:
-    return == 0i32;
-    ^~~~~~~~~~~~~~~ 
+    return == 0;
+    ^~~~~~~~~~~~ 
 State file: file:///tmp/state__has_alloc_id_ptr_eq2.error.c__f.html

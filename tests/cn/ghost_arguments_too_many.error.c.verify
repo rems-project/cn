@@ -1,6 +1,6 @@
 return code: 1
 tests/cn/ghost_arguments_too_many.error.c:4:3: warning: experimental keyword 'cn_ghost' (use of experimental features is discouraged)
-  cn_ghost i32 n;
+  cn_ghost integer n;
   ^~~~~~~~ 
 [1/2]: foo -- pass
 [2/2]: main -- fail

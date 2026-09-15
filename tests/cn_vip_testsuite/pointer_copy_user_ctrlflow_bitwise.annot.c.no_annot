@@ -1,6 +1,21 @@
 return code: 1
+tests/cn_vip_testsuite/pointer_copy_user_ctrlflow_bitwise.annot.c:35:16: warning: Treating non-linear integer arithmetic as uninterpreted.
+    bit = (i & (((uintptr_t)1) << k)) >> k;
+               ^~~~~~~~~~~~~~~~~~~~~ 
+tests/cn_vip_testsuite/pointer_copy_user_ctrlflow_bitwise.annot.c:35:11: warning: Treating bitwise operation on integers as uninterpreted.
+    bit = (i & (((uintptr_t)1) << k)) >> k;
+          ^~~~~~~~~~~~~~~~~~~~~~~~~~~ 
+tests/cn_vip_testsuite/pointer_copy_user_ctrlflow_bitwise.annot.c:35:11: warning: Treating non-linear integer arithmetic as uninterpreted.
+    bit = (i & (((uintptr_t)1) << k)) >> k;
+          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~ 
+tests/cn_vip_testsuite/pointer_copy_user_ctrlflow_bitwise.annot.c:37:15: warning: Treating non-linear integer arithmetic as uninterpreted.
+      j = j | ((uintptr_t)1 << k);
+              ^~~~~~~~~~~~~~~~~~~ 
+tests/cn_vip_testsuite/pointer_copy_user_ctrlflow_bitwise.annot.c:37:11: warning: Treating bitwise operation on integers as uninterpreted.
+      j = j | ((uintptr_t)1 << k);
+          ~~^~~~~~~~~~~~~~~~~~~~~ 
 [1/1]: main -- fail
-tests/cn_vip_testsuite/pointer_copy_user_ctrlflow_bitwise.annot.c:41:3: error: Missing resource for writing
+tests/cn_vip_testsuite/pointer_copy_user_ctrlflow_bitwise.annot.c:47:3: error: Missing resource for writing
   *q = 11; // CN VIP UB (no annot)
   ~~~^~~~ 
 Resource needed: W<signed int>(intToPtr)

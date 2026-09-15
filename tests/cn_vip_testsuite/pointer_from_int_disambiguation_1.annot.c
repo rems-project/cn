@@ -7,7 +7,7 @@
 #include "cn_lemmas.h"
 int y=2, x=1;
 int main()
-/*CN_VIP*//*@ accesses y; accesses x; requires x == 1i32; @*/
+/*CN_VIP*//*@ accesses y; accesses x; requires x == 1; @*/
 {
   int *p = &x+1;
   int *q = &y;
@@ -28,7 +28,7 @@ int main()
     int *r = (int *)i;
 #endif
     *r=11;  // is this free of UB?
-    /*CN_VIP*//*@ assert (x == 1i32 && y == 11i32 && *q == 11i32 && *r == 11i32); @*/
+    /*CN_VIP*//*@ assert (x == 1 && y == 11 && *q == 11 && *r == 11); @*/
     //CN_VIP printf("x=%d y=%d *q=%d *r=%d\n",x,y,*q,*r);
   }
 }

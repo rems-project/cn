@@ -2,19 +2,4 @@ return code: 0
 tests/cn/tree16/as_mutual_dt/tree16.c:43:22: warning: annotation on array_shift suggests nodes_ptr has type struct node** but it has type struct node*[16]*.
       {Indirect_Tree(array_shift<tree>(nodes_ptr, i))};
                      ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
-tests/cn/tree16/as_mutual_dt/tree16.c:42:10: warning: 'each' prefers a 'u64', but 'i' has type 'i32'.
-    take Ns = each (i32 i; (0i32 <= i) && (i < NUM_NODES))
-         ^
-tests/cn/tree16/as_mutual_dt/tree16.c:111:19: warning: 'each' prefers a 'u64', but 'j' has type 'i32'.
-             take Xs = each (i32 j; (0i32 <= j) && (j < path_len))
-                  ^
-tests/cn/tree16/as_mutual_dt/tree16.c:121:18: warning: 'each' prefers a 'u64', but 'j' has type 'i32'.
-            take Xs2 = each (i32 j; (0i32 <= j) && (j < path_len))
-                 ^
-tests/cn/tree16/as_mutual_dt/tree16.c:140:22: warning: 'focus' prefers a 'u64', but 'read_&i1' has type 'i32'.
-  /*@ focus RW<int>, i; @*/
-                     ^
-tests/cn/tree16/as_mutual_dt/tree16.c:142:28: warning: 'focus' prefers a 'u64', but 'read_&idx0' has type 'i32'.
-  /*@ focus Indirect_Tree, idx; @*/
-                           ^
 [1/1]: lookup_rec -- pass

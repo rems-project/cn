@@ -28,6 +28,6 @@ int main() {
   if (result == 0) {
     *p = 11; // CN VIP UB (no annot)
     //CN_VIP printf("x=%d y=%d *p=%d *q=%d\n",x,y,*p,*q);
-    /*CN_VIP*//*@ assert(x == 1i32 && y == 11i32 && *p == 11i32 && *q == 11i32); @*/
+    /*CN_VIP*//*@ assert(x == 1 && y == 11 && *p == 11 && *q == 11); @*/
   }
 }

@@ -4,6 +4,6 @@ tests/cn/mod_return_size.error.c:9:5: error: Unprovable constraint
     return x % y;
     ^~~~~~~~~~~~~ 
 Constraint from tests/cn/mod_return_size.error.c:7:13:
-    ensures return == x % (i32)y; @*/
+    ensures return == rem (x, y); @*/
             ^~~~~~~~~~~~~~~~~~~~~ 
 State file: file:///tmp/state__mod_return_size.error.c__different_size.html

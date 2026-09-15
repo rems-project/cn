@@ -308,6 +308,7 @@ let cn_to_ail_unop bt =
   let bt_typedef_str_opt = get_typedef_string (bt_to_ail_ctype bt) in
   function
   | Terms.Not -> Some "cn_bool_not"
+  | Abs -> failwith "todo"
   | Negate ->
     (match bt_typedef_str_opt with
      | Some typedef_str -> Some (typedef_str ^ "_negate")
@@ -376,6 +377,10 @@ let cn_to_ail_binop bt1 bt2 =
   | BW_Or -> Some (get_cn_int_type_str bt1 bt2 ^ "_bwor")
   | ShiftLeft -> Some (get_cn_int_type_str bt1 bt2 ^ "_shift_left")
   | ShiftRight -> Some (get_cn_int_type_str bt1 bt2 ^ "_shift_right")
+  | BW_CLZ_Z -> failwith "todo"
+  | BW_CTZ_Z -> failwith "todo"
+  | BW_FFS_Z -> failwith "todo"
+  | BW_FLS_Z -> failwith "todo"
   | LT -> Some (get_cn_int_type_str bt1 bt2 ^ "_lt")
   | LE -> Some (get_cn_int_type_str bt1 bt2 ^ "_le")
   | Min -> Some (get_cn_int_type_str bt1 bt2 ^ "_min")
@@ -1475,7 +1480,9 @@ let rec cn_to_ail_expr_aux
     let ail_expr_ = A.(AilEunary (Indirection, e)) in
     dest d spec_mode_opt (b, s, mk_expr ail_expr_)
   | Tail _xs -> failwith (__LOC__ ^ ": TODO Tail")
-  | Representable (_ct, _t) -> failwith (__LOC__ ^ ": TODO Representable")
+  | Representable (_ct, _t) ->
+    dest d spec_mode_opt ([], [], cn_bool_true_expr)
+    (* `representable` and `good` both need to be fixed *)
   | Good (_ct, _t) -> dest d spec_mode_opt ([], [], cn_bool_true_expr)
   | Aligned _t_and_align -> failwith (__LOC__ ^ ": TODO Aligned")
   | WrapI (_ct, t) ->
@@ -2904,7 +2911,11 @@ let get_while_bounds_and_cond (i_sym, i_bt) it =
   let i_it = IT (Sym i_sym, i_bt, Cerb_location.unknown) in
   (* Start of range *)
   let lower_bound =
-    if BT.equal_sign (fst (Option.get (BT.is_bits_bt i_bt))) BT.Unsigned then
+    let i_bits_bt_opt = BT.is_bits_bt i_bt in
+    if
+      Option.is_some i_bits_bt_opt
+      && BT.equal_sign (fst (Option.get i_bits_bt_opt)) BT.Unsigned
+    then
       TermBounds.get_lower_bound (i_sym, i_bt) it
     else (
       match TermBounds.get_lower_bound_opt (i_sym, i_bt) it with
