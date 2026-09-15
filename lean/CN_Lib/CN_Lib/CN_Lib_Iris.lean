@@ -86,11 +86,6 @@ def Block (l : Ptr) : IProp GF := iprop% (l ↦ none) ∧ ⌜l ≠ 0⌝
 
 def arrayshift (l : Ptr) (pos : Int) (size : Int) : Ptr := l + pos * size
 
-def padding (l : Ptr) (n : Nat) : IProp GF :=
-  match n with
-  | 0 => l ↦ none
-  | Nat.succ n' => iprop% (Block l ∗ padding (l + 1) n')
-
 -- 4, Pointer non-null theorems
 theorem Owned_UChar_nonnull {l : Ptr} {v : Int} :
   ⊢@{IProp GF} Owned_UChar l v → ⌜l ≠ 0⌝ :=
