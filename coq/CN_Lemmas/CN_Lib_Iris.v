@@ -44,6 +44,12 @@ Definition shift (l: Ptr) (offset : Z) (size : Z) :=
 (* padding *)
 
 Definition arrayshift (l: Ptr) (pos : Z) (size : Z) := Z.add (Z.mul pos size) l.
+
+Fixpoint padding (l : Ptr) (n : nat) := 
+  match n with
+  | 0 => (l ↦ None)%I
+  | S n' => (Block l ∗ padding (l + 1) n')%I
+  end.
  
 (* Iterated ownership *)
 
