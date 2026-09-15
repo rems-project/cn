@@ -82,7 +82,6 @@ jobs:
         with:
           repository: rems-project/cn-tutorial
           path: cn-tutorial
-          ref: fix-integers # FIXME: remove once the branch is merged
 
       - name: Run Fulminate CI tests (CN tutorial)
         run: |
