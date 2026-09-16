@@ -21,6 +21,7 @@ abbrev myHeapF := fun V => Std.ExtTreeMap Int V compare
 
 -- Pointers are just integers for now
 abbrev Ptr := Int
+instance : OfNat Ptr n := ⟨n⟩
 -- Values are option integers for now
 abbrev Val := Option Int
 
@@ -82,11 +83,16 @@ def Owned_Long (l : Ptr) (v : Int) : IProp GF :=
   ∗ ⌜ min_Long ≤ v ∧ v ≤ max_Long ⌝
 
 -- 3, Array ownership
-def Block (l : Ptr) : IProp GF := iprop% (l ↦ none) ∧ ⌜l ≠ 0⌝
+def Block_Char (l : Ptr) : IProp GF := iprop%
+  (l ↦ none) ∧ ⌜l ≠ 0⌝
+def Block_Short (l : Ptr) : IProp GF := iprop%
+  Block_Char l ∗ Block_Char (l + 1)
+def Block_Int (l : Ptr) : IProp GF := iprop%
+  ([∗list] i ∈ [0, 1, 2, 3], Block_Char (l + i))
+def Block_Long (l : Ptr) : IProp GF := iprop%
+  ([∗list] i ∈ [0, 1, 2, 3, 4, 5, 6, 7], Block_Char (l + i))
 
-def arrayshift (l : Ptr) (pos : Int) (size : Int) : Ptr := l + pos * size
-
--- 4, Pointer non-null theorems
+-- 4, Pointer non-null theorems for Owned and Block
 theorem Owned_UChar_nonnull {l : Ptr} {v : Int} :
   ⊢@{IProp GF} Owned_UChar l v → ⌜l ≠ 0⌝ :=
 by
@@ -139,8 +145,31 @@ by
   iintro ⟨H , _⟩; simp
   icases H with ⟨⟨_ , ⟨H , _⟩⟩ , _⟩; iframe
 
--- 5, Value equality theorems for ownership predicates
+theorem Block_Char_nonnull {l : Ptr} :
+  ⊢@{IProp GF} Block_Char l → ⌜l ≠ 0⌝ :=
+by
+  unfold Block_Char
+  iintro ⟨_ , _⟩; iframe
 
+theorem Block_Short_nonnull {l : Ptr} :
+  ⊢@{IProp GF} Block_Short l → ⌜l ≠ 0⌝ :=
+by
+  unfold Block_Short
+  iintro ⟨_ , _⟩; iapply Block_Char_nonnull; iframe
+
+theorem Block_Int_nonnull {l : Ptr} :
+  ⊢@{IProp GF} Block_Int l → ⌜l ≠ 0⌝ :=
+by
+  unfold Block_Int; simp
+  iintro ⟨_ , _⟩; iapply Block_Char_nonnull; iframe
+
+theorem Block_Long_nonnull {l : Ptr} :
+  ⊢@{IProp GF} Block_Long l → ⌜l ≠ 0⌝ :=
+by
+  unfold Block_Long; simp
+  iintro ⟨_ , _⟩; iapply Block_Char_nonnull; iframe
+
+-- 5, Value equality theorems for Owned
 theorem Owned_UChar_eq {l : Ptr} {v v' : Int} :
   ⊢@{IProp GF} Owned_UChar l v -∗ Owned_UChar l v' -∗ ⌜v = v'⌝ :=
 by
@@ -203,7 +232,7 @@ by
   simp [-ULong_bytes]
   solve_owned_eq Owned_UChar_eq (HOwn, HOwn') v v' H H'
 
--- 6, Pointer inequality theorems for ownership predicates
+-- 6, Pointer inequality theorems for Owned and Block
 
 theorem Owned_UChar_neq {l l' : Ptr} {v v' : Int} :
   ⊢@{IProp GF} Owned_UChar l v -∗ Owned_UChar l' v' -∗ ⌜l ≠ l'⌝ :=
@@ -248,3 +277,28 @@ theorem Owned_Long_neq {l l' : Ptr} {v v' : Int} :
   ⊢@{IProp GF} Owned_Long l v -∗ Owned_Long l' v' -∗ ⌜l ≠ l'⌝ :=
 by
   solve_own_neq Owned_Long Owned_UChar_neq
+
+theorem Block_Char_neq {l l' : Ptr} :
+  ⊢@{IProp GF} Block_Char l -∗ Block_Char l' -∗ ⌜l ≠ l'⌝ :=
+by
+  unfold Block_Char
+  iintro ⟨H , _⟩ ⟨H' , _⟩
+  iapply pointsTo_ne $$ H H'
+
+theorem Block_Short_neq {l l' : Ptr} :
+  ⊢@{IProp GF} Block_Short l -∗ Block_Short l' -∗ ⌜l ≠ l'⌝ :=
+by
+  unfold Block_Short
+  iintro ⟨H , _⟩ ⟨H' , _⟩; iapply Block_Char_neq $$ H H'
+
+theorem Block_Int_neq {l l' : Ptr} :
+  ⊢@{IProp GF} Block_Int l -∗ Block_Int l' -∗ ⌜l ≠ l'⌝ :=
+by
+  unfold Block_Int; simp
+  iintro ⟨H , _⟩ ⟨H' , _⟩; iapply Block_Char_neq $$ H H'
+
+theorem Block_Long_neq {l l' : Ptr} :
+  ⊢@{IProp GF} Block_Long l -∗ Block_Long l' -∗ ⌜l ≠ l'⌝ :=
+by
+  unfold Block_Long; simp
+  iintro ⟨H , _⟩ ⟨H' , _⟩; iapply Block_Char_neq $$ H H'
