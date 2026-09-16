@@ -7,7 +7,7 @@ tests/cn/ghost_arguments_type_mismatch.error.c:4:3: warning: experimental keywor
 tests/cn/ghost_arguments_type_mismatch.error.c:15:11: error: Type error
   int x = 3;
           ^ 
-Expression '3'i32' has type 'i32'.
+Expression '3' has type 'integer'.
 I expected it to have type 'boolean' because of tests/cn/ghost_arguments_type_mismatch.error.c:1:1:
 int foo(int p)
 ~~~~^~~~~~~~~~ 

@@ -1,10 +1,10 @@
 
 extern int f (int x);
 
-/*@ spec f (i32 x);
+/*@ spec f (integer x);
   requires
-    x >= 0i32;
+    x >= 0;
   ensures
-    return == (mod (x, 12i32));
+    return == (mod (x, 12));
 @*/
 

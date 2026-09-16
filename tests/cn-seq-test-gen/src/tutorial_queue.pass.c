@@ -11,24 +11,24 @@ struct sllist {
 /*@
 datatype List {
   Nil {},
-  Cons {i32 Head, datatype List Tail}
+  Cons {integer Head, datatype List Tail}
 }
 
 predicate [rec] (datatype List) SLList_At(pointer p) {
   if (is_null(p)) {
     return Nil{};
   } else {
-    take H = Owned<struct sllist>(p);
+    take H = RW<struct sllist>(p);
     take T = SLList_At(H.tail);
     return (Cons { Head: H.head, Tail: T });
   }
 }
 @*/
 /*@
-function (i32) Hd (datatype List L) {
+function (integer) Hd (datatype List L) {
   match L {
     Nil {} => {
-      0i32
+      0
     }
     Cons {Head : H, Tail : _} => {
       H
@@ -48,7 +48,7 @@ function (datatype List) Tl (datatype List L) {
 }
 @*/
 /*@
-function [rec] (datatype List) Snoc(datatype List Xs, i32 Y) {
+function [rec] (datatype List) Snoc(datatype List Xs, integer Y) {
   match Xs {
     Nil {} => {
       Cons {Head: Y, Tail: Nil{}}
@@ -73,7 +73,7 @@ predicate [rec] (datatype List) QueueAux (pointer f, pointer b) {
   if (ptr_eq(f,b)) {
     return Nil{};
   } else {
-    take F = Owned<struct queue_cell>(f);
+    take F = RW<struct queue_cell>(f);
     assert (!is_null(F.next));  
     assert (ptr_eq(F.next, b) || !addr_eq(F.next, b));
     take B = QueueAux(F.next, b);
@@ -86,7 +86,7 @@ predicate (datatype List) QueueFB (pointer front, pointer back) {
   if (is_null(front)) {
     return Nil{};
   } else {
-    take B = Owned<struct queue_cell>(back);
+    take B = RW<struct queue_cell>(back);
     assert (is_null(B.next));
     assert (ptr_eq(front, back) || !addr_eq(front, back));
     take L = QueueAux (front, back);
@@ -96,7 +96,7 @@ predicate (datatype List) QueueFB (pointer front, pointer back) {
 @*/
 /*@
 predicate (datatype List) QueuePtr_At (pointer q) {
-  take Q = Owned<struct queue>(q);
+  take Q = RW<struct queue>(q);
   assert (   (is_null(Q.front)  && is_null(Q.back)) 
           || (!is_null(Q.front) && !is_null(Q.back)));
   take L = QueueFB(Q.front, Q.back);
@@ -121,7 +121,7 @@ lemma push_lemma (pointer front, pointer p)
   requires
       ptr_eq(front, p) || !addr_eq(front, p);
       take Q = QueueAux(front, p);
-      take P = Owned<struct queue_cell>(p);
+      take P = RW<struct queue_cell>(p);
   ensures
       ptr_eq(front, P.next) || !addr_eq(front, P.next);
       take Q_post = QueueAux(front, P.next);
@@ -150,13 +150,13 @@ void push_queue (int x, struct queue *q)
   }
 }
 /*@
-lemma snoc_facts (pointer front, pointer back, i32 x)
+lemma snoc_facts (pointer front, pointer back, integer x)
   requires
       take Q = QueueAux(front, back);
-      take B = Owned<struct queue_cell>(back);
+      take B = RW<struct queue_cell>(back);
   ensures
       take Q_post = QueueAux(front, back);
-      take B_post = Owned<struct queue_cell>(back);
+      take B_post = RW<struct queue_cell>(back);
       Q == Q_post; B == B_post;
       let L = Snoc (Cons{Head: x, Tail: Q}, B.first);
       Hd(L) == x;

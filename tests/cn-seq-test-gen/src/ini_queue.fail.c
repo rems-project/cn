@@ -4,15 +4,15 @@
 // copying from list_cn_types.h
 datatype seq {
   Seq_Nil {},
-  Seq_Cons {i32 head, datatype seq tail}
+  Seq_Cons {integer head, datatype seq tail}
 }
 @*/
 
 /*@
-function (i32) hd (datatype seq xs) {
+function (integer) hd (datatype seq xs) {
   match xs {
     Seq_Nil {} => {
-      0i32
+      0
     }
     Seq_Cons {head : h, tail : _} => {
       h
@@ -32,7 +32,7 @@ function (datatype seq) tl (datatype seq xs) {
 }
 @*/
 /*@
-function [rec] (datatype seq) snoc(datatype seq xs, i32 y) {
+function [rec] (datatype seq) snoc(datatype seq xs, integer y) {
   match xs {
     Seq_Nil {} => {
       Seq_Cons {head: y, tail: Seq_Nil{}}
@@ -46,28 +46,28 @@ function [rec] (datatype seq) snoc(datatype seq xs, i32 y) {
 
 /*@
 // copying from list_length.c
-function [rec] (i32) length(datatype seq xs) {
+function [rec] (integer) length(datatype seq xs) {
   match xs {
     Seq_Nil {} => {
-      0i32
+      0
     }
     Seq_Cons {head : h, tail : zs}  => {
-      1i32 + length(zs)
+      1 + length(zs)
     }
   }
 }
 
-function (i32) queue_size (i32 inp, i32 outp, i32 bufsize)
+function (integer) queue_size (integer inp, integer outp, integer bufsize)
 {
   ((inp - outp) + bufsize) % bufsize
 }
 
 
-function [rec] (datatype seq) seq_of_buf (map<i32,i32> buf, i32 inp, i32 outp, i32 bufsize) {
-  if (queue_size (inp, outp, bufsize) > 0i32) {
+function [rec] (datatype seq) seq_of_buf (map<integer,integer> buf, integer inp, integer outp, integer bufsize) {
+  if (queue_size (inp, outp, bufsize) > 0) {
     Seq_Cons {
       head: buf[outp],
-      tail: seq_of_buf(buf, inp, (outp + 1i32) % bufsize, bufsize)
+      tail: seq_of_buf(buf, inp, (outp + 1) % bufsize, bufsize)
     }
   }
   else {
@@ -87,27 +87,27 @@ struct queue
 };
 
 /*@
-function (boolean) queue_wf (i32 inp, i32 outp, i32 bufsize)
+function (boolean) queue_wf (integer inp, integer outp, integer bufsize)
 {
-  bufsize > 0i32
-  && (i64) bufsize + (i64) bufsize <= 2147483647i64
-  && (0i32 <= inp && inp < bufsize)
-  && (0i32 <= outp && outp < bufsize)
+  bufsize > 0
+  && bufsize + bufsize <= 2147483647i64
+  && (0 <= inp && inp < bufsize)
+  && (0 <= outp && outp < bufsize)
 }
 
 
 type_synonym state = {
   datatype seq content,
-  i32 size  // max size
+  integer size  // max size
 }
 
 predicate state QueueAbs(pointer p)
 {
-  take q = Owned<struct queue>(p);
-  take buf = each (i32 i; 0i32 <= i && i < q.size) { Owned<int>(q.buf + i) };
+  take q = RW<struct queue>(p);
+  take buf = each (integer i; 0 <= i && i < q.size) { RW<int>(q.buf + i) };
   assert (queue_wf (q.inp, q.outp, q.size));
   let content = seq_of_buf(buf, q.inp, q.outp, q.size);
-  return {content: content, size: q.size - 1i32};
+  return {content: content, size: q.size - 1};
 }
 
 @*/
@@ -115,8 +115,8 @@ predicate state QueueAbs(pointer p)
 void* cn_malloc(unsigned long size);
 
 struct queue* new(int n)
-  /*@ requires 0i32 < n;
-               (i64) n + (i64) n + 2i64 < 8192i64;
+  /*@ requires 0 < n;
+               (integer) n + (integer) n + 2 < 8192;
       ensures take queue_out = QueueAbs(return);
               queue_out.size == n;
               queue_out.content == Seq_Nil {};
@@ -138,21 +138,21 @@ void put(struct queue* q, int n)
             queue_out.size == queue.size;
 @*/
 {
-  /*@ extract Owned<int>, q->inp; @*/
+  /*@ extract RW<int>, q->inp; @*/
   q->buf[q->inp] = n;
   q->inp = (q->inp + 1) % q->size;
 }
 
 int get(struct queue* q)
 /*@ requires take queue = QueueAbs(q);
-             length(queue.content) > 1i32;
+             length(queue.content) > 1;
     ensures take queue_out = QueueAbs(q);
             return == hd(queue.content);
             queue_out.content == tl(queue.content);
             queue_out.size == queue.size;
 @*/
 {
-  /*@ extract Owned<int>, q->outp; @*/
+  /*@ extract RW<int>, q->outp; @*/
   int ans = q->buf[q->outp];
   q->outp = q->outp % q->size;
   return ans;

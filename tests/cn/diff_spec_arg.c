@@ -1,16 +1,16 @@
 int foo(int);
-/*@ spec foo(i32 y);
+/*@ spec foo(integer y);
 requires
     y < MAXi32();
 ensures 
-    return == y + 1i32;
+    return == y + 1;
 @*/
 
 int foo(int x)
 {
     /*@ assert (x == y); @*/
     x = x + 1;
-    /*@ assert (x == y + 1i32); @*/
+    /*@ assert (x == y + 1); @*/
     return x;
 }
 

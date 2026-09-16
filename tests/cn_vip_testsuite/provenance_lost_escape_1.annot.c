@@ -14,7 +14,7 @@ int main()
   uintptr_t i2 = i1 & 0x00000000FFFFFFFF;//
   uintptr_t i3 = i2 & 0xFFFFFFFF00000000;// (@1,0x0)
   uintptr_t i4 = i3 + ADDR_PLE_1;        // (@1,ADDR_PLE_1)
-  /*CN_VIP*//*@ apply assert_equal(i4, (u64)&x); @*/
+  /*CN_VIP*//*@ apply assert_equal(i4, (integer)&x); @*/
 #ifdef ANNOT
   int *q = copy_alloc_id(i4, p);
 #else
@@ -31,7 +31,7 @@ int main()
   if (result == 0) {
     *q = 11;  // CN VIP UB (no annot)
     //CN_VIP printf("x=%d *p=%d *q=%d\n",x,*p,*q);
-    /*CN_VIP*//*@ assert(x == 11i32 && *p == 11i32 && *q == 11i32); @*/
+    /*CN_VIP*//*@ assert(x == 11 && *p == 11 && *q == 11); @*/
   }
 }
 

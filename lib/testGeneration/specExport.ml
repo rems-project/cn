@@ -254,6 +254,7 @@ let json_of_unop : Terms.unop -> json =
   | BW_FFS -> unit_variant "BwFfs"
   | BW_FLS -> unit_variant "BwFls"
   | BW_Compl -> unit_variant "BwCompl"
+  | Abs -> failwith "todo"
 
 
 let json_of_binop : Terms.binop -> json =
@@ -274,6 +275,10 @@ let json_of_binop : Terms.binop -> json =
   | BW_Or -> unit_variant "BwOr"
   | ShiftLeft -> unit_variant "ShiftLeft"
   | ShiftRight -> unit_variant "ShiftRight"
+  | BW_CLZ_Z -> failwith "todo"
+  | BW_CTZ_Z -> failwith "todo"
+  | BW_FFS_Z -> failwith "todo"
+  | BW_FLS_Z -> failwith "todo"
   | LT -> unit_variant "Lt"
   | LE -> unit_variant "Le"
   | Min -> unit_variant "Min"

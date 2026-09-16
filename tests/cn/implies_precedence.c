@@ -5,6 +5,6 @@
 */
 
 int foo (int x, int y) {
-    /*@ assert (x == 0i32 && y == 0i32 || x==y implies y!=0i32 && x!=0i32); @*/
+    /*@ assert (x == 0 && y == 0 || x==y implies y!=0 && x!=0); @*/
     return 0;
 }

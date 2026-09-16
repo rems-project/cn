@@ -1,9 +1,10 @@
 int f(int *p)
-/*@ requires take vs = each(i32 i; i == -1i32) { RW<int>(array_shift(p,i)) };
-    ensures take ws = each(i32 i; i == -1i32) { RW<int>(array_shift(p,i)) };
+/*@ requires take vs = each(integer i; i == -1) { RW<int>(array_shift(p,i)) };
+    ensures take ws = each(integer i; i == -1) { RW<int>(array_shift(p,i)) };
 @*/
 {
-  /*@ focus RW<int>, -1i32; @*/
+  /*@ focus RW<int>, -1; @*/
+  /*@ instantiate -1; @*/
   return p[-1];
 }
 

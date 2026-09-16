@@ -7,8 +7,8 @@ void f(int *p)
 requires
     is_null(p);
 ensures
-    let x = array_shift<char>(p,1u64);
-    ptr_eq(x, NULL) || (u64) x == 1u64;
+    let x = array_shift<char>(p,1);
+    ptr_eq(x, NULL) || (integer) x == 1;
 @*/
 {
 }

@@ -7,6 +7,11 @@
 #include <stddef.h>
 #include "cn_lemmas.h"
 int x=1;
+/*@
+lemma now_same_value(integer i, integer j)
+  requires true;
+  ensures i == j;
+@*/
 int main()
 /*CN_VIP*//*@ accesses x; @*/
 {
@@ -19,12 +24,12 @@ int main()
   /*CN_VIP*/int *q = NULL;
   /*CN_VIP*/bit=0;
   for (int k=0; k<uintptr_t_width; k++)
-  /*@ inv i == (u64) p;
+  /*@ inv i == (integer) p;
           ptr_eq(p, &x);
-          uintptr_t_width == 64u64;
-          (0i32 <= k) && (k <= 64i32);
-          let k_mask = shift_left(1u64, (u64) k) - 1u64;
-          j == i & k_mask;
+          uintptr_t_width == 64;
+          (0 <= k) && (k <= 64);
+//          let k_mask = shift_left(1, k) - 1;
+//          j == i & k_mask;
   @*/
   {
     bit = (i & (((uintptr_t)1) << k)) >> k;
@@ -33,6 +38,7 @@ int main()
     else
       j = j;
   }
+  /*@ apply now_same_value(i,j); @*/
 #ifdef ANNOT
   q = copy_alloc_id(j, &x);
 #else
@@ -40,5 +46,5 @@ int main()
 #endif
   *q = 11; // CN VIP UB (no annot)
   //CN_VIP printf("*p=%d  *q=%d\n",*p,*q);
-  /*CN_VIP*//*@ assert(*p == 11i32 && *q == 11i32); @*/
+  /*CN_VIP*//*@ assert(*p == 11 && *q == 11); @*/
 }

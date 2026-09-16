@@ -4,9 +4,9 @@ tests/cn_vip_testsuite/provenance_equality_auto_yx.nondet.c:10:13: warning: Cann
             ^~~~~~ 
 [1/1]: main -- fail
 tests/cn_vip_testsuite/provenance_equality_auto_yx.nondet.c:15:17: error: Unprovable constraint
-  /*CN_VIP*//*@ assert (b == 0u8); @*/ // non-det in PNVI-ae-udi; true in VIP
-                ^~~~~~~~~~~~~~~~~~ 
+  /*CN_VIP*//*@ assert (b == 0); @*/ // non-det in PNVI-ae-udi; true in VIP
+                ^~~~~~~~~~~~~~~~ 
 Constraint from tests/cn_vip_testsuite/provenance_equality_auto_yx.nondet.c:15:17:
-  /*CN_VIP*//*@ assert (b == 0u8); @*/ // non-det in PNVI-ae-udi; true in VIP
-                ^~~~~~~~~~~~~~~~~~ 
+  /*CN_VIP*//*@ assert (b == 0); @*/ // non-det in PNVI-ae-udi; true in VIP
+                ^~~~~~~~~~~~~~~~ 
 State file: file:///tmp/state__provenance_equality_auto_yx.nondet.c__main.html

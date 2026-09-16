@@ -2,26 +2,4 @@ return code: 0
 tests/cn/tree16/as_partial_map/tree16.c:56:22: warning: annotation on array_shift suggests nodes_ptr has type struct node** but it has type struct node*[16]*.
       {Indirect_Tree(array_shift<tree>(nodes_ptr, i))};
                      ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
-tests/cn/tree16/as_partial_map/tree16.c:22:5: warning: experimental keyword 'cn_function' (use of experimental features is discouraged)
-/*@ cn_function num_nodes; @*/
-    ^~~~~~~~~~~ 
-tests/cn/tree16/as_partial_map/tree16.c:55:10: warning: 'each' prefers a 'u64', but 'i' has type 'i32'.
-    take Ns = each (i32 i; (0i32 <= i) && (i < (num_nodes ())))
-         ^
-tests/cn/tree16/as_partial_map/tree16.c:75:8: warning: 'each' prefers a 'u64', but 'j' has type 'i32'.
-  take Xs = each (i32 j; (0i32 <= j) && (j < len))
-       ^
-tests/cn/tree16/as_partial_map/tree16.c:137:19: warning: 'each' prefers a 'u64', but 'j' has type 'i32'.
-             take Xs = each (i32 j; (0i32 <= j) && (j < path_len))
-                  ^
-tests/cn/tree16/as_partial_map/tree16.c:146:18: warning: 'each' prefers a 'u64', but 'j' has type 'i32'.
-            take Xs2 = each (i32 j; (0i32 <= j) && (j < path_len))
-                 ^
-tests/cn/tree16/as_partial_map/tree16.c:166:22: warning: 'focus' prefers a 'u64', but 'read_&i2' has type 'i32'.
-  /*@ focus RW<int>, i; @*/
-                     ^
-tests/cn/tree16/as_partial_map/tree16.c:169:28: warning: 'focus' prefers a 'u64', but 'read_&idx0' has type 'i32'.
-  /*@ focus Indirect_Tree, idx; @*/
-                           ^
-[1/2]: cn_get_num_nodes -- pass
-[2/2]: lookup_rec -- pass
+[1/1]: lookup_rec -- pass

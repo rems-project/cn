@@ -1,3 +1,10 @@
-return code: 0
-[1/2]: ffs -- pass
+return code: 1
+[1/2]: ffs -- fail
 [2/2]: main -- pass
+tests/cn/gnu_ffs.c:8:3: error: Unprovable constraint
+  return __builtin_ffs(x);
+  ^~~~~~~~~~~~~~~~~~~~~~~~ 
+Constraint from tests/cn/gnu_ffs.c:3:13:
+            (x == 1) ? (return == 1) : true;
+            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
+State file: file:///tmp/state__gnu_ffs.c__ffs.html

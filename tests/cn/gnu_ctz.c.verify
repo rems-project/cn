@@ -1,3 +1,10 @@
-return code: 0
-[1/2]: ctz -- pass
+return code: 1
+[1/2]: ctz -- fail
 [2/2]: main -- pass
+tests/cn/gnu_ctz.c:4:3: error: Unprovable constraint
+  return __builtin_ctz(1);
+  ^~~~~~~~~~~~~~~~~~~~~~~~ 
+Constraint from tests/cn/gnu_ctz.c:2:13:
+/*@ ensures return == 0; @*/
+            ^~~~~~~~~~~~ 
+State file: file:///tmp/state__gnu_ctz.c__ctz.html

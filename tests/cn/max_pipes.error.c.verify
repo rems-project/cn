@@ -38,7 +38,7 @@ uint64_t OSReadSwapInt64() {}
 ~~~~~~~~~^~~~~~~~~~~~~~~~~~~~ 
 the value of a non-void function that ended without a return statement is used
 State file: file:///tmp/state__max_pipes.error.c__OSReadSwapInt64.html
-tests/cn/max_pipes.error.c:82:17: error: `&(&&d_47[(u64)0'i32])[(u64)O_c1]` out of bounds
+tests/cn/max_pipes.error.c:82:17: error: `&(&&d_47[0])[O_c1]` out of bounds
         switch (d_47[c][s]) {
                 ^~~~~~~ 
 (UB missing short message): UB_CERB004_unspecified__pointer_add

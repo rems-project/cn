@@ -4,7 +4,7 @@ requires
     has_alloc_id(p);
     has_alloc_id(q);
 ensures
-    return == 0i32;
+    return == 0;
 @*/
 {
     return p == q;

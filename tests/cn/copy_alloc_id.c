@@ -15,9 +15,9 @@ void f2 (int *p)
 /*@
 requires
     take A = Alloc(p);
-    A.base <= (u64) p;
-    (u64) p <= (u64) p + sizeof<int>;
-    (u64)p + sizeof<int> <= A.base + A.size;
+    A.base <= (integer) p;
+    (integer) p <= (integer) p + sizeof<int>;
+    (integer)p + sizeof<int> <= A.base + A.size;
     has_alloc_id(p);
 ensures
     take A2 = Alloc(p);
@@ -32,7 +32,7 @@ ensures
 int main(void)
 {
   int p[1] = {1};
-  /*@ focus RW<int>, 0u64; @*/
+  /*@ focus RW<int>, 0; @*/
   f1(p);
   f2(p);
 }

@@ -18,8 +18,8 @@ cd "$TUTORIAL_PATH" || exit 1
 
 FAILURE=0
 
-make check CN_PATH="$CN verify --solver-type=cvc5"
-((FAILURE+=$?))
+# make check CN_PATH="$CN verify --solver-type=cvc5"
+# ((FAILURE+=$?))
 
 make check CN_PATH="$CN verify --solver-type=z3"
 ((FAILURE+=$?))

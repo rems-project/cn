@@ -5,7 +5,7 @@
 void callee(int x)
 /*@
 requires
-  x >= 0i32;
+  x >= 0;
 ensures
   true;
 @*/

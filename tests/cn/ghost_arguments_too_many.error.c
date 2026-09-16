@@ -1,7 +1,7 @@
 int foo(int p)
 /*@
 requires
-  cn_ghost i32 n;
+  cn_ghost integer n;
   true;
 ensures
   true;

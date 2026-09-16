@@ -1,10 +1,10 @@
-void f() /*@ requires cn_ghost i32 x; x < 10i32; @*/ {}
+void f() /*@ requires cn_ghost integer x; x < 10; @*/ {}
 
 int main() {
     int h = 20;
     goto t;
 
 t:
-    f(/*@ h + 4i32 @*/);
+    f(/*@ h + 4 @*/);
     return 0;
 }

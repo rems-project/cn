@@ -18,7 +18,7 @@ enum {
 /*@
 datatype key_list {
   K_Nil {},
-  K_Cons {i32 k, datatype key_list tail}
+  K_Cons {integer k, datatype key_list tail}
 }
 
 function (datatype key_list) a_tree_keys (datatype a_tree t)
@@ -45,7 +45,7 @@ lemma inc_list_lemma (datatype key_list xs)
     });
   ensures (inc_list (xs)) == (match xs {
     K_Nil {} => {K_Nil {}}
-    K_Cons {k: k, tail: ys} => {K_Cons {k: k + 1i32, tail: inc_list (ys)}}
+    K_Cons {k: k, tail: ys} => {K_Cons {k: k + 1, tail: inc_list (ys)}}
   });
 
 lemma a_tree_keys_lemma (datatype a_tree atree)
@@ -125,7 +125,7 @@ a_tree_keys_node_concat_cons_inc_lemma (int k, struct b_node *right)
     ensures take R2 = B_Tree (right);
             R2.t == R.t;
             (inc_list (K_Cons {k: k, tail: (b_tree_keys(R2.t))}))
-  == (K_Cons {k: k + 1i32, tail: inc_list (b_tree_keys(R2.t))}); @*/
+  == (K_Cons {k: k + 1, tail: inc_list (b_tree_keys(R2.t))}); @*/
 {
   /*@ apply inc_list_lemma (K_Cons {k: k, tail: b_tree_keys(R.t)}); @*/
   return;
@@ -236,7 +236,7 @@ inc_a_tree (struct a_node *p)
 /*@ requires is_null(p) || !addr_eq(p, NULL);
              take T = A_Tree (p);
     ensures take T2 = A_Tree (p);
-            (return == 0i32) || ((a_tree_keys(T2.t)) == (inc_list(a_tree_keys(T.t)))); @*/
+            (return == 0) || ((a_tree_keys(T2.t)) == (inc_list(a_tree_keys(T.t)))); @*/
 {
   int r = 0;
   /*@ apply a_tree_keys_lemma(T.t); @*/
@@ -260,7 +260,7 @@ inc_b_tree (struct b_node *p)
 /*@ requires is_null(p) || !addr_eq(p, NULL);
              take T = B_Tree (p);
     ensures take T2 = B_Tree (p);
-            (return == 0i32) || ((b_tree_keys(T2.t)) == (inc_list(b_tree_keys(T.t)))); @*/
+            (return == 0) || ((b_tree_keys(T2.t)) == (inc_list(b_tree_keys(T.t)))); @*/
 {
   struct a_node *tmp = NULL;
   int r = 0;

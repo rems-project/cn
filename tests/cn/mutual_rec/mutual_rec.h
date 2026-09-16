@@ -20,7 +20,7 @@ struct b_node {
 /*@
 datatype a_tree {
   A_Leaf {},
-  A_Node {i32 k, i32 v, datatype b_tree left, datatype b_tree right}
+  A_Node {integer k, integer v, datatype b_tree left, datatype b_tree right}
 }
 
 datatype b_tree {

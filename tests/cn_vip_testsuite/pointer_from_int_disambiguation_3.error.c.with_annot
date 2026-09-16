@@ -6,7 +6,7 @@ tests/cn_vip_testsuite/pointer_from_int_disambiguation_3.error.c:22:17: warning:
   /*CN_VIP*//*@ from_bytes RW<int*>(&p); @*/
                 ^~~~~~~~~~ 
 [1/1]: main -- fail
-tests/cn_vip_testsuite/pointer_from_int_disambiguation_3.error.c:31:7: error: `&copy_alloc_id((u64)&&x[1'u64], value)[(u64)(0'i32 - 1'i32)]` out of bounds
+tests/cn_vip_testsuite/pointer_from_int_disambiguation_3.error.c:31:7: error: `&copy_alloc_id((integer)&&x[1], value)[0 - 1]` out of bounds
     r=r-1;  // CN VIP UB if  ANNOT
       ~^~ 
 (UB missing short message): UB_CERB004_unspecified__pointer_add

@@ -22,6 +22,7 @@ type const =
 [@@deriving eq, ord]
 
 type unop =
+  | Abs
   | Not
   | Negate
   | BW_CLZ
@@ -47,6 +48,10 @@ type binop =
   | BW_Or
   | ShiftLeft
   | ShiftRight
+  | BW_CLZ_Z (* second argument is width *)
+  | BW_CTZ_Z (* second argument is width *)
+  | BW_FFS_Z (* second argument is width *)
+  | BW_FLS_Z (* second argument is width *)
   | LT
   | LE
   | Min
@@ -225,6 +230,7 @@ let pp
     | Unop (uop, it1) ->
       let prefix x op p = wrap_after x (!^op ^^ aux p it1) in
       (match uop with
+       | Abs -> c_app !^"abs" [ aux 0 it1 ]
        | BW_CLZ -> c_app !^"bw_clz" [ aux 0 it1 ]
        | BW_CTZ -> c_app !^"bw_ctz" [ aux 0 it1 ]
        | BW_FFS -> c_app !^"bw_ffs" [ aux 0 it1 ]
@@ -254,7 +260,7 @@ let pp
        | Mul -> infix 13 !^"*" 13 13
        | Div -> infix 13 slash 14 14
        | Exp -> prefix "power"
-       | Rem -> infix 13 !^"%" 14 14
+       | Rem -> prefix "rem"
        | Mod -> prefix "mod"
        | EQ -> infix 9 (equals ^^ equals) 9 9
        | LT -> infix 10 (langle ()) 10 10
@@ -270,6 +276,10 @@ let pp
          infix 0 (langle () ^^ langle ()) 1 1 (* easier to read with parens *)
        | ShiftRight ->
          infix 0 (rangle () ^^ rangle ()) 1 1 (* easier to read with parens *)
+       | BW_CLZ_Z -> prefix "clz_z"
+       | BW_CTZ_Z -> prefix "ctz_z"
+       | BW_FFS_Z -> prefix "ffs_z"
+       | BW_FLS_Z -> prefix "fls_z"
        | SetMember -> prefix "member"
        | SetUnion -> prefix "union"
        | SetIntersection -> prefix "inter"
@@ -1040,4 +1050,59 @@ module Normal = struct
   let get_loc = get_loc
 
   let fold_subterms = fold_subterms
+
+  let constant =
+    let loc = Locations.other __LOC__ in
+    let subst su = subst (make_subst su) in
+    let default bt = IT (Const (Default bt), bt, loc) in
+    let rec aux (IT (t, _, _)) =
+      match t with
+      | Const _ -> true
+      | Sym _ -> false
+      | Unop (_, t) -> aux t
+      | Binop (_, t1, t2) -> aux_list [ t1; t2 ]
+      | ITE (t1, t2, t3) -> aux_list [ t1; t2; t3 ]
+      | EachI ((_, (i, bt), _), t) -> aux (subst [ (i, default bt) ] t)
+      | Tuple es -> aux_list es
+      | NthTuple (_, t) -> aux t
+      | Struct (_, ms) -> aux_list (List.map snd ms)
+      | StructMember (t, _) -> aux t
+      | StructUpdate ((t1, _), t2) -> aux_list [ t1; t2 ]
+      | Record ms -> aux_list (List.map snd ms)
+      | RecordMember (t, _) -> aux t
+      | RecordUpdate ((t1, _), t2) -> aux_list [ t1; t2 ]
+      | Constructor (_, ms) -> aux_list (List.map snd ms)
+      | MemberShift (t, _, _) -> aux t
+      | ArrayShift { base; ct = _; index } -> aux_list [ base; index ]
+      | CopyAllocId { addr; loc } -> aux_list [ addr; loc ]
+      | HasAllocId t -> aux t
+      | SizeOf _ -> true
+      | OffsetOf _ -> true
+      | Nil _ -> true
+      | Cons (t1, t2) -> aux_list [ t1; t2 ]
+      | Head t -> aux t
+      | Tail t -> aux t
+      | Representable (_, t) -> aux t
+      | Good (_, t) -> aux t
+      | Aligned { t; align } -> aux_list [ t; align ]
+      | WrapI (_, t) -> aux t
+      | MapConst (_, t) -> aux t
+      | MapSet (t1, t2, t3) -> aux_list [ t1; t2; t3 ]
+      | MapGet (t1, t2) -> aux_list [ t1; t2 ]
+      | MapDef _ -> false
+      | Apply (_, ts) -> List.is_empty ts
+      | Let ((s, t1), t2) -> aux (subst [ (s, t1) ] t2)
+      | Match (t, cases) ->
+        let case (pat, t) =
+          let f (s, bt) = (s, default bt) in
+          subst (List.map f (bound_by_pattern pat)) t
+        in
+        aux_list (t :: List.map case cases)
+      | Cast (_, t) -> aux t
+      | CN_None _ -> true
+      | CN_Some t -> aux t
+      | IsSome t -> aux t
+      | GetOpt t -> aux t
+    and aux_list ts = List.for_all aux ts in
+    aux
 end

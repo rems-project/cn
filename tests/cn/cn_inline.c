@@ -6,7 +6,7 @@ enum size {
   small,
 };
 
-/*@ function (i32) lookup_size_shift_cn (u32 sz) @*/
+/*@ function (integer) lookup_size_shift_cn (integer sz) @*/
 
 static inline int
 lookup_size_shift (enum size sz)
@@ -31,7 +31,7 @@ lookup_size_shift (enum size sz)
 
 int
 f (void)
-/*@ ensures return < (1000i32); @*/
+/*@ ensures return < (1000); @*/
 {
   int x;
   x = 3 * lookup_size_shift(medium);
