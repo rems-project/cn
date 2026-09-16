@@ -29,32 +29,32 @@ abbrev max_Long : Int := 2 ^ 63 - 1
 -- This function converts an integer to a vector of n bytes (represented as
 --    integers) in big-endian order.
 @[simp, reducible]
-def to_CN_BitVec (n : Nat) : Int → (Fin n → Int) :=
+def to_CN_Bytes (n : Nat) : Int → (Fin n → Int) :=
   fun v i => (v % 2 ^(8 * (n - i.toNat))) / (2 ^ (8 * (n - 1 - i.toNat)))
 @[simp, reducible]
-def from_CN_BitVec {n : Nat} (f : Fin n → Int) : Int :=
+def from_CN_Bytes {n : Nat} (f : Fin n → Int) : Int :=
   List.foldl
     (fun acc i => acc + f i * 2 ^ (8 * (n - 1 - i.toNat)))
     0
     (List.finRange n)
 
 @[simp, reducible]
-def UShort_bytes (v : Int) : Fin 2 → Int := to_CN_BitVec 2 v
+def UShort_bytes (v : Int) : Fin 2 → Int := to_CN_Bytes 2 v
 
 @[simp, reducible]
-def UInt_bytes (v : Int) : Fin 4 → Int := to_CN_BitVec 4 v
+def UInt_bytes (v : Int) : Fin 4 → Int := to_CN_Bytes 4 v
 
 @[simp, reducible]
-def ULong_bytes (v : Int) : Fin 8 → Int := to_CN_BitVec 8 v
+def ULong_bytes (v : Int) : Fin 8 → Int := to_CN_Bytes 8 v
 
 @[simp, reducible]
-def bytes_UShort (f : Fin 2 → Int) : Int := from_CN_BitVec f
+def bytes_UShort (f : Fin 2 → Int) : Int := from_CN_Bytes f
 
 @[simp, reducible]
-def bytes_UInt (f : Fin 4 → Int) : Int := from_CN_BitVec f
+def bytes_UInt (f : Fin 4 → Int) : Int := from_CN_Bytes f
 
 @[simp, reducible]
-def bytes_ULong (f : Fin 8 → Int) : Int := from_CN_BitVec f
+def bytes_ULong (f : Fin 8 → Int) : Int := from_CN_Bytes f
 
 theorem UShort_idem {v : Int} :
    min_UShort ≤ v ∧ v ≤ max_UShort
@@ -68,7 +68,7 @@ theorem UInt_idem {v : Int} :
   → v = bytes_UInt (UInt_bytes v) :=
 by
   intro ⟨Hv , Hv'⟩
-  unfold UInt_bytes  bytes_UInt from_CN_BitVec to_CN_BitVec List.finRange
+  unfold UInt_bytes  bytes_UInt from_CN_Bytes to_CN_Bytes List.finRange
   simp only [List.ofFn, Fin.foldr, Fin.foldr.loop, List.foldl]
   simp only [Fin.toNat]
   lia
@@ -78,7 +78,7 @@ theorem ULong_idem {v : Int} :
   → v = bytes_ULong (ULong_bytes v) :=
 by
   intro ⟨Hv , Hv'⟩
-  unfold ULong_bytes  bytes_ULong from_CN_BitVec to_CN_BitVec List.finRange
+  unfold ULong_bytes  bytes_ULong from_CN_Bytes to_CN_Bytes List.finRange
   simp only [List.ofFn, Fin.foldr, Fin.foldr.loop, List.foldl]
   simp only [Fin.toNat]
   lia
