@@ -188,7 +188,7 @@ by
 
 theorem wrapI_pos_neg_neq :
   ∀ {max Umax v v' : Int} {_: Umax = 2 * max + 1},
-  0 ≤ v ∧ v ≤ max → -max ≤ v' ∧ v' < 0 →
+  0 ≤ v ∧ v ≤ max → -max - 1 ≤ v' ∧ v' < 0 →
   wrapI 0 Umax v ≠ wrapI 0 Umax v' :=
 by
   intros max Umax v v' inv Hv Hv'
@@ -204,7 +204,7 @@ by
   rw [hvrem, hvrem']; omega
 
 theorem wrapI_cong_pos :
-  ∀ {max Umax v v' : Int} {_ : 0 ≤ max}
+  ∀ {max Umax v v' : Int} {_ : 0 < max}
     {_ : Umax = (2 * max + 1)},
     0 ≤ v ∧ v ≤ max → 0 ≤ v' ∧ v' ≤ max
   → wrapI 0 Umax v = wrapI 0 Umax v'
@@ -218,9 +218,9 @@ by
   rw [HEq, HEq'] at Hwrap; assumption
 
 theorem wrapI_cong_neg :
-  ∀ {max Umax v v' : Int} {_ : 0 ≤ max}
+  ∀ {max Umax v v' : Int} {_ : 0 < max}
     {_ : Umax = (2 * max + 1)},
-    -max ≤ v ∧ v < 0 → -max ≤ v' ∧ v' < 0
+    -max - 1 ≤ v ∧ v < 0 → -max - 1 ≤ v' ∧ v' < 0
   → wrapI 0 Umax v = wrapI 0 Umax v'
   → v = v' :=
 by
@@ -242,8 +242,8 @@ by
   rw [hvrem, hvrem'] at hEq; omega
 
 theorem wrapI_cong :
-  ∀ {max v v' : Int}, 0 ≤ max
-  → -max ≤ v ∧ v ≤ max → -max ≤ v' ∧ v' ≤ max
+  ∀ {max v v' : Int}, 0 < max
+  → -max - 1 ≤ v ∧ v ≤ max → -max - 1 ≤ v' ∧ v' ≤ max
   → wrapI 0 (2 * max + 1) v = wrapI 0 (2 * max + 1) v'
   → v = v' :=
 by
@@ -255,14 +255,14 @@ by
       apply wrapI_cong_pos h h' Hwrap
       assumption; rfl
     · exfalso
-      have h' : -max ≤ v' ∧ v' < 0 := by omega
+      have h' : -max - 1 ≤ v' ∧ v' < 0 := by omega
       apply wrapI_pos_neg_neq h h' Hwrap; rfl
-  · have h : -max ≤ v ∧ v < 0 := by omega
+  · have h : -max - 1 ≤ v ∧ v < 0 := by omega
     by_cases h0' : 0 ≤ v'
     · exfalso
       have h' : 0 ≤ v' ∧ v' ≤ max := by omega
       apply wrapI_pos_neg_neq h' h Hwrap.symm; rfl
-    · have h' : -max ≤ v' ∧ v' < 0 := by omega
+    · have h' : -max - 1 ≤ v' ∧ v' < 0 := by omega
       apply wrapI_cong_neg h h' Hwrap
       assumption; rfl
 
@@ -273,7 +273,7 @@ theorem wrapI_Char_cong :
   → v = v' :=
 by
   intro Hv Hv' Hwrap
-  apply wrapI_cong _ Hv Hv' Hwrap; omega
+  apply wrapI_cong (max := max_Char) (by lia) Hv Hv' Hwrap
 
 theorem wrapI_Short_cong :
   min_Short ≤ v ∧ v ≤ max_Short
@@ -282,7 +282,7 @@ theorem wrapI_Short_cong :
   → v = v' :=
 by
   intro Hv Hv' Hwrap
-  apply wrapI_cong _ Hv Hv' Hwrap; omega
+  apply wrapI_cong (max := max_Short) (by lia) Hv Hv' Hwrap
 
 theorem wrapI_Int_cong :
   min_Int ≤ v ∧ v ≤ max_Int
@@ -291,7 +291,7 @@ theorem wrapI_Int_cong :
   → v = v' :=
 by
   intro Hv Hv' Hwrap
-  apply wrapI_cong _ Hv Hv' Hwrap; omega
+  apply wrapI_cong (max := max_Int) (by lia) Hv Hv' Hwrap
 
 theorem wrapI_Long_cong :
   min_Long ≤ v ∧ v ≤ max_Long
@@ -300,4 +300,4 @@ theorem wrapI_Long_cong :
   → v = v' :=
 by
   intro Hv Hv' Hwrap
-  apply wrapI_cong _ Hv Hv' Hwrap; omega
+  apply wrapI_cong (max := max_Long) (by lia) Hv Hv' Hwrap
