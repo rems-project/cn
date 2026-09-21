@@ -75,6 +75,15 @@ Ethan Chou. Thesis for MSc at the University of Maryland, 2025.
 </li>
 
 <li>
+<a name="cn2islaris-thesis">
+<a href="https://github.com/rems-project/CN2Islaris">CN2Islaris: Automated Verification of Compiled Programs</a>.
+Mete Polat. Thesis for the Technical University of Munich MSc, hosted at the University of Cambridge, 2023.
+[
+<a href="https://github.com/rems-project/CN2Islaris/blob/main/thesis.pdf">pdf</a> 
+]
+</li>
+
+<li>
 <a name="2023-popl-cn"></a>
 <a href="http://www.cl.cam.ac.uk/users/pes20/cn-draft.pdf">CN: Verifying systems C code with separation-logic refinement types</a>.
  Christopher Pulte, Dhruv&nbsp;C. Makwana, Thomas Sewell, Kayvan Memarian, Peter Sewell, and Neel Krishnaswami.
