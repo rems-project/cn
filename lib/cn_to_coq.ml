@@ -290,7 +290,9 @@ let it_to_itp_ir global it b =
     | Terms.Tail _ -> CI.ITP_unsupported_pure "Unsupported tail"
     | Terms.Representable (_, _) -> CI.ITP_unsupported_pure "Unsupported representable"
     | Terms.Aligned a ->
-      f comp_bool (MT.divisible_ (MT.addr_ a.t (Terms.get_loc it), a.align) (Terms.get_loc it))
+      f
+        comp_bool
+        (MT.divisible_ (MT.addr_ a.t (Terms.get_loc it), a.align) (Terms.get_loc it))
     | Terms.MapConst (_, _) -> CI.ITP_unsupported_pure "Unsupported map const"
     | Terms.MapDef (_, _) -> CI.ITP_unsupported_pure "Unsupported map def"
     | Terms.CN_None _ | Terms.CN_Some _ | Terms.IsSome _ | Terms.GetOpt _ ->
