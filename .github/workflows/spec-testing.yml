@@ -33,6 +33,7 @@ jobs:
 
       - name: System dependencies (ubuntu)
         run: |
+          sudo apt-get update
           sudo apt-get install build-essential libgmp-dev z3 opam cmake lcov
 
       - name: Set up Python
