@@ -25,6 +25,7 @@ jobs:
 
       - name: System dependencies (ubuntu)
         run: |
+          sudo apt-get update
           sudo apt-get install build-essential libgmp-dev z3 opam
 
       - name: Install Clang
@@ -88,6 +89,7 @@ jobs:
 
     - name: System dependencies (Ubuntu)
       run: |
+        sudo apt-get update
         sudo apt-get install build-essential libgmp-dev z3 opam
 
     - name: Restore OPAM cache
@@ -141,6 +143,7 @@ jobs:
 
     - name: System dependencies (Ubuntu)
       run: |
+        sudo apt-get update
         sudo apt-get install build-essential libgmp-dev z3 opam cmake
 
     - name: Install Clang

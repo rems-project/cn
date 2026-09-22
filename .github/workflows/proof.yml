@@ -34,6 +34,7 @@ jobs:
 
     - name: System dependencies (Ubuntu)
       run: |
+        sudo apt-get update
         sudo apt-get install build-essential libgmp-dev z3 opam
 
     - name: Restore OPAM cache
