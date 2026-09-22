@@ -93,7 +93,8 @@ let collect_memory_accesses (_, sigm) =
     | AilEsizeof _
     (* the sub-expr is not evaluated; TODO(vla): except if it is possible
            to have an expression with VLA type here (?) *)
-    | AilEsizeof_expr _ | AilEalignof _ | AilEreg_load _ | AilEinvalid _ ->
+    | AilEsizeof_expr _ | AilEalignof _ | AilEreg_load _ | AilEinvalid _
+    | AilElabel_addressGNU _ ->
       ()
     | AilEunary (_, e)
     | AilEcast (_, _, e)
@@ -251,7 +252,8 @@ let contains_compound_literal s =
     | AilEgcc_statement (_, ss) -> List.fold_left ( || ) false (List.map aux_stmt ss)
     | AilEunion (_, _, None)
     | AilEoffsetof _ | AilEbuiltin _ | AilEstr _ | AilEconst _ | AilEident _
-    | AilEsizeof _ | AilEalignof _ | AilEreg_load _ | AilEinvalid _ ->
+    | AilEsizeof _ | AilEalignof _ | AilEreg_load _ | AilEinvalid _
+    | AilElabel_addressGNU _ ->
       false
     | AilEsizeof_expr e
     | AilErvalue e
@@ -343,7 +345,8 @@ let gen_single_stat_control_flow_injs statement =
     | AilEgcc_statement (_, ss) -> List.concat (List.map aux_stmt ss)
     | AilEunion (_, _, None)
     | AilEoffsetof _ | AilEbuiltin _ | AilEstr _ | AilEconst _ | AilEident _
-    | AilEsizeof _ | AilEalignof _ | AilEreg_load _ | AilEinvalid _ ->
+    | AilEsizeof _ | AilEalignof _ | AilEreg_load _ | AilEinvalid _
+    | AilElabel_addressGNU _ ->
       []
     | AilEsizeof_expr e
     | AilErvalue e

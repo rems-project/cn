@@ -429,7 +429,8 @@ let get_c_block_entry_exit_injs_aux bindings s =
        | None -> empty_block_local_injs)
     | AilEunion (_, _, None)
     | AilEoffsetof _ | AilEbuiltin _ | AilEstr _ | AilEconst _ | AilEident _
-    | AilEsizeof _ | AilEalignof _ | AilEreg_load _ | AilEinvalid _ ->
+    | AilEsizeof _ | AilEalignof _ | AilEreg_load _ | AilEinvalid _
+    | AilElabel_addressGNU _ ->
       empty_block_local_injs
     | AilEsizeof_expr e
     | AilErvalue e
