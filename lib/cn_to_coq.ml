@@ -175,10 +175,11 @@ let it_to_itp_ir global it b =
        | BW_Or -> CI.ITP_binop (CI.ITP_bwor, x, y, bt)
        | EQ ->
          let comp = Some (it, "argument of equality") in
+         let operand_bt = bt_to_itp_ir global (Terms.get_bt a) in
          if enc_prop then
-           CI.ITP_binop (CI.ITP_eq_prop, f comp a, f comp b, bt)
+           CI.ITP_binop (CI.ITP_eq_prop, f comp a, f comp b, operand_bt)
          else
-           CI.ITP_binop (CI.ITP_eq, f comp a, f comp b, bt)
+           CI.ITP_binop (CI.ITP_eq, f comp a, f comp b, operand_bt)
        | LEPointer ->
          if enc_prop then
            CI.ITP_binop (CI.ITP_le_prop, x, y, bt)
@@ -206,6 +207,12 @@ let it_to_itp_ir global it b =
            CI.ITP_binop (CI.ITP_impl, x, y, bt)
        | Min -> CI.ITP_ite (CI.ITP_binop (CI.ITP_lt, x, y, bt), x, y)
        | Max -> CI.ITP_ite (CI.ITP_binop (CI.ITP_lt, x, y, bt), y, x)
+       | ShiftLeft when BT.equal (Terms.get_bt it) BT.Integer ->
+         let two = CI.ITP_const (CI.ITP_Z (Z.of_int 2)) in
+         CI.ITP_binop (CI.ITP_mul, x, CI.ITP_binop (CI.ITP_exp, two, y, bt), bt)
+       | ShiftRight when BT.equal (Terms.get_bt it) BT.Integer ->
+         let two = CI.ITP_const (CI.ITP_Z (Z.of_int 2)) in
+         CI.ITP_binop (CI.ITP_div, x, CI.ITP_binop (CI.ITP_exp, two, y, bt), bt)
        | ShiftLeft | ShiftRight | SetUnion | SetIntersection | SetDifference | SetMember
        | Subset | BW_CLZ_Z | BW_CTZ_Z | BW_FFS_Z | BW_FLS_Z ->
          CI.ITP_unsupported_pure "Unsupported binop")
@@ -257,7 +264,7 @@ let it_to_itp_ir global it b =
     | Terms.WrapI (ity, arg) ->
       let maxInt = Memory.max_integer_type ity in
       let minInt = Memory.min_integer_type ity in
-      CI.ITP_wrapI (maxInt, minInt, aux arg)
+      CI.ITP_wrapI (minInt, maxInt, aux arg)
     | Terms.Let ((nm, x), y) -> CI.ITP_let_pure (CI.ITP_sym nm, aux x, aux y)
     | Terms.ArrayShift { base; ct; index } ->
       let size_of_ct = Z.of_int @@ Memory.size_of_ctype ct in
@@ -282,7 +289,8 @@ let it_to_itp_ir global it b =
     | Terms.Head _ -> CI.ITP_unsupported_pure "Unsupported head"
     | Terms.Tail _ -> CI.ITP_unsupported_pure "Unsupported tail"
     | Terms.Representable (_, _) -> CI.ITP_unsupported_pure "Unsupported representable"
-    | Terms.Aligned _ -> CI.ITP_unsupported_pure "Unsupported aligned"
+    | Terms.Aligned a ->
+      f comp_bool (MT.divisible_ (MT.addr_ a.t (Terms.get_loc it), a.align) (Terms.get_loc it))
     | Terms.MapConst (_, _) -> CI.ITP_unsupported_pure "Unsupported map const"
     | Terms.MapDef (_, _) -> CI.ITP_unsupported_pure "Unsupported map def"
     | Terms.CN_None _ | Terms.CN_Some _ | Terms.IsSome _ | Terms.GetOpt _ ->
