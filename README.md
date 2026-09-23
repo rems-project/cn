@@ -16,14 +16,6 @@ It builds on the [Cerberus C semantics](https://github.com/rems-project/cerberus
 
 <ul>
 
-<li>
-<a name="silver-fulminate-thesis">
-<a href="https://www.saljuk.com/research/silver-fulminate">Evaluating a Lua runtime for CN separation-logic testing in Fulminate</a>.
-Muhammad Saljuk Gondal. Thesis for MPhil at the University of Cambridge, 2026.
-[
-<a href="https://www.saljuk.com/research/silver-fulminate">pdf</a> 
-]
-</li>
 
 <li>
 <a name="code-spec-test-debug-prove-pldi26">
@@ -35,24 +27,6 @@ Zain K Aamer*, Rini Banerjee*, Hiroyuki Katsura*, David Kaloper-Meršinjak*, Dim
 ]
 </li>
 
-<li>
-<a name="cn-lemmata-thesis">
-<a href="https://www.cl.cam.ac.uk/~nk480/amy-yin-cn-lemmata-mphil-thesis.pdf">Translating CN Separation Logic Lemmas to the Rocq Proof Assistant</a>.
-Amy Yin. Thesis for MPhil at the University of Cambridge, 2025.
-[
-<a href="https://www.cl.cam.ac.uk/~nk480/amy-yin-cn-lemmata-mphil-thesis.pdf">pdf</a> 
-]
-</li>
-   
-<li>
-<a name="seq-test-thesis">
-<a href="https://api.drum.lib.umd.edu/server/api/core/bitstreams/8425d7be-a500-4598-85f6-1b888712bbb3/content">Model-free Stateful Random Testing</a>.
-Ethan Chou. Thesis for MSc at the University of Maryland, 2025.
-[
-<a href="https://doi.org/10.13016/0awe-79tb">doi</a>&nbsp;| 
-<a href="https://api.drum.lib.umd.edu/server/api/core/bitstreams/8425d7be-a500-4598-85f6-1b888712bbb3/content">pdf</a> 
-]
-</li>
 
 <li> <a name="bennet-oopsla2025"></a> 
    <a href="https://zain-k-aamer.com/papers/bennet.pdf">Bennet: Randomized Specification Testing for Heap-Manipulating Programs</a>.
@@ -85,6 +59,43 @@ Ethan Chou. Thesis for MSc at the University of Maryland, 2025.
 <a href="http://www.cl.cam.ac.uk/users/pes20/cn-draft.pdf">pdf</a>
 ]
 </li>
+
+</ul>
+
+## Theses
+
+<!-- TODO: Add Dhruv PhD thesis -->
+
+<ul>
+
+<li>
+<a name="silver-fulminate-thesis">
+<a href="https://www.saljuk.com/research/silver-fulminate">Evaluating a Lua runtime for CN separation-logic testing in Fulminate</a>.
+Muhammad Saljuk Gondal. Thesis for MPhil at the University of Cambridge, 2026.
+[
+<a href="https://www.saljuk.com/research/silver-fulminate">pdf</a> 
+]
+</li>
+
+<li>
+<a name="cn-lemmata-thesis">
+<a href="https://www.cl.cam.ac.uk/~nk480/amy-yin-cn-lemmata-mphil-thesis.pdf">Translating CN Separation Logic Lemmas to the Rocq Proof Assistant</a>.
+Amy Yin. Thesis for MPhil at the University of Cambridge, 2025.
+[
+<a href="https://www.cl.cam.ac.uk/~nk480/amy-yin-cn-lemmata-mphil-thesis.pdf">pdf</a> 
+]
+</li>
+
+<li>
+<a name="seq-test-thesis">
+<a href="https://api.drum.lib.umd.edu/server/api/core/bitstreams/8425d7be-a500-4598-85f6-1b888712bbb3/content">Model-free Stateful Random Testing</a>.
+Ethan Chou. Thesis for MSc at the University of Maryland, 2025.
+[
+<a href="https://doi.org/10.13016/0awe-79tb">doi</a>&nbsp;| 
+<a href="https://api.drum.lib.umd.edu/server/api/core/bitstreams/8425d7be-a500-4598-85f6-1b888712bbb3/content">pdf</a> 
+]
+</li>
+
 
 </ul>
 
