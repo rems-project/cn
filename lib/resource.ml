@@ -55,7 +55,7 @@ let derived_lc1 ((resource : Req.t), O output) =
       let lookup = H.lookup_ptr pointer here in
       let H.{ base; size } = H.split lookup here in
       [ MT.(eq_ (lookup, output) here); MT.(le_ (base, add_ (base, size) here) here) ]
-    | Q { name = Owned _; pointer; _ } -> [ MT.hasAllocId_ pointer here ]
+    | Q { name = Owned _; _ } -> []
     | P { name = PName _; pointer = _; iargs = _ } | Q { name = PName _; _ } -> [])
 
 
