@@ -2272,22 +2272,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : T.t -> unit m) : unit m =
       (* copying bits of code from elsewhere in check.ml *)
       match stmt with
       | Cnstatement.Pack_unpack (Unpack, Predicate pred) ->
-        let req = Req.P pred in
-        let@ pred, o =
-          let@ found = RI.General.predicate_request_scan loc pred in
-          match found with
-          | Some (pred, o) -> return (pred, o)
-          | None ->
-            let@ model = model () in
-            fail (fun ctxt ->
-              let requests =
-                [ RequestChain.{ resource = req; loc = Some loc; reason = None } ]
-              in
-              let msg =
-                Missing_resource { requests; situation = Unpacking; ctxt; model }
-              in
-              { loc; msg })
-        in
+        let@ pred, o = RI.Special.predicate_request loc Unpacking (pred, None) in
         do_unpack (pred, o)
       | Cnstatement.Pack_unpack (Unpack, PredicateName pn) ->
         let pn = match pn with Owned _ -> assert false | PName pn -> pn in
