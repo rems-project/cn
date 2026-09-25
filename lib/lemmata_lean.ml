@@ -34,7 +34,7 @@ let header filename =
   ^^ !^"open Iris CN_Lib ProofMode Inst_Params"
   ^^ hardline
   ^^ hardline
-  ^^ !^"variable {hlc GF} [MyHeap hlc GF]"
+  ^^ !^"variable {GF} [VIP_HeapGS GF]"
   ^^ hardline
   ^^ hardline
 
@@ -350,7 +350,7 @@ let convert_lemma_defs global (lemmas : CI.itp_lemma list) =
     Pp.progress_simple "converting lemma type" (Sym.pp_string nm);
     let rhs = resource_to_itp global tm in
     defn
-      (lemma_name ^ "_type {hlc : HasLC} {GF : BundledGFunctors} [MyHeap hlc GF] ")
+      (lemma_name ^ "_type {GF : BundledGFunctors} [VIP_HeapGS GF] ")
       []
       (Some (Pp.string "IProp GF"))
       (!^"iprop% " ^^ rhs)
@@ -576,9 +576,7 @@ let translate_pred (gl : Global.t) (preds : CI.itp_resource_pred_group list) =
            1
            colon
            (!^"instance" ^^^ !^instance_name)
-           (!^"BIMonoPred"
-            ^^^ parens !^(pre_fixpoint ^ " (hlc := hlc) (GF := GF) ")
-            ^^ !^":="))
+           (!^"BIMonoPred" ^^^ parens !^(pre_fixpoint ^ " (GF := GF) ") ^^ !^":="))
     in
     let prepare =
       brackets
@@ -732,8 +730,7 @@ let translate_pred (gl : Global.t) (preds : CI.itp_resource_pred_group list) =
       let body1 =
         parensM
         @@ build
-        @@ ((Sym.pp (get_pred_name pred) ^^ !^" (hlc := hlc) (GF := GF) ")
-            :: List.map fst args)
+        @@ ((Sym.pp (get_pred_name pred) ^^ !^" (GF := GF) ") :: List.map fst args)
       in
       let body2 =
         parensM
