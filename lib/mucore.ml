@@ -254,7 +254,11 @@ let dtree_of_arguments dtree_i =
 
 type 'TY label_def =
   | To_inline of
-      Locations.t * Sym.t * Cerb_frontend.Annot.label_annot * (Sym.t * BaseTypes.t) list * 'TY expr
+      Locations.t
+      * Sym.t
+      * Cerb_frontend.Annot.label_annot
+      * (Sym.t * BaseTypes.t) list
+      * 'TY expr
   | Return of Locations.t
   | Loop of
       Locations.t
@@ -326,7 +330,7 @@ let empty_file : 'TY file =
   }
 
 
-type 'body label_type = 
+type 'body label_type =
   | Typ of ArgumentTypes.lt
   | Inline of (Sym.t * BaseTypes.t) list * 'body
 

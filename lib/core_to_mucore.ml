@@ -959,25 +959,25 @@ let normalise_label
      | None -> assert_error loc !^"label without annotation"
      | Some label_annot ->
        let handle_other_label loc _error_msg =
-	 let rec aux env = function 
-	   | [] -> return ([], env)
-	   | ((o_s, (ct, pass_by_value_or_pointer)), (s, cbt)) :: rest ->
-	     assert (Option.equal Sym.equal o_s (Some s));
-	     let@ () = check_against_core_bt loc cbt (Loc ()) in
-	     assert (is_pass_by_pointer pass_by_value_or_pointer);
-	     let sct = convert_ct loc ct in
-	     let p_sbt = BT.Loc (Some sct) in
-	     let env = Translate.add_computational s p_sbt env in
-	     let@ rest, env = aux env rest in
-	     return ((s, BT.Loc ()) :: rest, env)
-	 in
-	 let@ label_args, env = aux env (List.combine lt label_args) in
+         let rec aux env = function
+           | [] -> return ([], env)
+           | ((o_s, (ct, pass_by_value_or_pointer)), (s, cbt)) :: rest ->
+             assert (Option.equal Sym.equal o_s (Some s));
+             let@ () = check_against_core_bt loc cbt (Loc ()) in
+             assert (is_pass_by_pointer pass_by_value_or_pointer);
+             let sct = convert_ct loc ct in
+             let p_sbt = BT.Loc (Some sct) in
+             let env = Translate.add_computational s p_sbt env in
+             let@ rest, env = aux env rest in
+             return ((s, BT.Loc ()) :: rest, env)
+         in
+         let@ label_args, env = aux env (List.combine lt label_args) in
          let@ label_body =
            n_expr
              ~inherit_loc
              loc
              ( (env, Translate.C_vars.get_old_scopes st),
-                        (markers_env, CF.Cn_desugaring.(initial_cn_desugaring_state empty_init)) ) 
+               (markers_env, CF.Cn_desugaring.(initial_cn_desugaring_state empty_init)) )
              (* more work needed to get the right cn_desugaring_state. I'm using an empty one, which should be safe, since it should just fail if something is missing. *)
              (global_types, visible_objects_env)
              label_body

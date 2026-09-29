@@ -251,8 +251,7 @@ module PP = struct
     | To_inline (loc, name, annot, _args, _body) ->
       Dnode
         ( pp_symbol name ^^^ Cerb_location.pp_location ~clever:false loc,
-          [ Dleaf !^(Pp_mucore.Basic.pp_str_label annot);
-          ] )
+          [ Dleaf !^(Pp_mucore.Basic.pp_str_label annot) ] )
     | Return loc -> Dleaf (!^"return" ^^^ Cerb_location.pp_location ~clever:false loc)
     | Loop (loc, args_and_body, _, _) ->
       Dnode

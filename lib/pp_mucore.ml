@@ -668,8 +668,7 @@ module Make (Config : CONFIG) = struct
                                    acc
                                    ^^ (match def with
                                        | To_inline (_, name, _annot, _args, _body) ->
-                                         Pp.break 1
-                                         ^^ pp_symbol name
+                                         Pp.break 1 ^^ pp_symbol name
                                          (* ^^^ pp_arguments (fun _ -> Pp.empty) args *)
                                        | Return _ ->
                                          Pp.break 1 ^^ !^"return label" ^^^ pp_symbol sym
