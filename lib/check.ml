@@ -1518,6 +1518,8 @@ let call_prefix = function
   | Subtyping -> "return"
 
 
+let check_pexpr_ = check_pexpr
+
 (* TODO: De-CPS'ify check_expr and remove the function below.  *)
 let check_pexpr (pe : BT.t Mu.pexpr) (k : T.t -> unit m) : unit m =
   let@ lvt = check_pexpr [] pe in
@@ -1678,7 +1680,7 @@ let bytes_constraints
             here))
 
 
-let rec check_expr labels (e : BT.t Mu.expr) (k : T.t -> unit m) : unit m =
+let rec check_expr (labels: Mu.(BT.t expr label_context)) inlined (e : BT.t Mu.expr) (k : T.t -> unit m) : unit m =
   let (Expr (loc, annots, expect, e_)) = e in
   let@ () = add_trace_information labels annots in
   let here = Locations.other __LOC__ in
@@ -2219,14 +2221,14 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : T.t -> unit m) : unit m =
         let here = Locations.other __LOC__ in
         match provable (LC.T (bool_ false here)) with
         | `True -> return ()
-        | `False -> check_expr labels e k
+        | `False -> check_expr labels inlined e k
       in
       let@ () = pure (aux carg "true" e1) in
       let@ () = pure (aux (not_ carg loc) "false" e2) in
       return ())
   | Ebound e ->
     let@ () = WellTyped.ensure_base_type (Mu.loc_of_expr e) ~expect (Mu.bt_of_expr e) in
-    check_expr labels e k
+    check_expr labels inlined e k
   | End _ -> Cerb_debug.error "todo: End"
   | Elet (p, e1, e2) ->
     let@ () = WellTyped.ensure_base_type (Mu.loc_of_expr e2) ~expect (Mu.bt_of_expr e2) in
@@ -2238,7 +2240,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : T.t -> unit m) : unit m =
     in
     check_pexpr e1 (fun v1 ->
       let@ bound_a, _path_cs = check_and_match_pattern p v1 in
-      check_expr labels e2 (fun rt ->
+      check_expr labels inlined e2 (fun rt ->
         let@ () = remove_as bound_a in
         k rt))
   | Eunseq es ->
@@ -2247,7 +2249,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : T.t -> unit m) : unit m =
     in
     let rec aux es vs =
       match es with
-      | e :: es' -> check_expr labels e (fun v -> aux es' (v :: vs))
+      | e :: es' -> check_expr labels inlined e (fun v -> aux es' (v :: vs))
       | [] -> k (tuple_ (List.rev vs) loc)
     in
     aux es []
@@ -2503,33 +2505,50 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : T.t -> unit m) : unit m =
         ~expect:(Mu.bt_of_expr e1)
         (Mu.bt_of_pattern p)
     in
-    check_expr labels e1 (fun it ->
+    check_expr labels inlined e1 (fun it ->
       let@ bound_a, _path_cs = check_and_match_pattern p it in
-      check_expr labels e2 (fun it2 ->
+      check_expr labels inlined e2 (fun it2 ->
         let@ () = remove_as bound_a in
         k it2))
   | Erun (label_sym, pes) ->
-    let@ () = WellTyped.ensure_base_type loc ~expect Unit in
-    let@ lt, lkind =
-      match Sym.Map.find_opt label_sym labels with
-      | None ->
-        fail (fun _ ->
-          { loc;
-            msg =
-              Generic (!^"undefined code label" ^/^ Sym.pp label_sym)
-              [@alert "-deprecated"]
-          })
-      | Some (lt, lkind, _) -> return (lt, lkind)
-    in
-    let@ original_resources = all_resources loc in
-    Spine.calltype_lt loc pes None (lt, lkind) (fun False ->
-      let@ () = all_empty loc original_resources in
-      return ())
+    (match Sym.Map.find_opt label_sym labels with
+    | None ->
+      let msg = (!^"undefined code label" ^/^ Sym.pp label_sym) in
+      fail (fun _ -> { loc; msg = Generic msg [@alert "-deprecated"]})
+    | Some (Typ lt, lkind, _) -> 
+      let@ () = WellTyped.ensure_base_type loc ~expect Unit in
+      let@ original_resources = all_resources loc in
+      Spine.calltype_lt loc pes None (lt, lkind) (fun False ->
+	let@ () = all_empty loc original_resources in
+	return ())
+    | Some (Inline (args, body), _lkind, _) -> 
+      let has = List.length pes in
+      let expect = List.length args in
+      let@ () = WellTyped.ensure_same_argument_number loc `Computational has ~expect in
+      let@ () = 
+	if Sym.Set.mem label_sym inlined then
+	  let msg = !^"Repeated inlining of label" ^^^ squotes (Sym.pp label_sym) in
+	  fail (fun _ -> { loc; msg = Generic msg [@alert "-deprecated"]})
+	else
+	  return ()
+      in
+      debug 2 (lazy (!^"Inlining label" ^^^ Sym.pp label_sym));
+      let@ () = 
+	ListM.iterM (fun ((s, bt), pe) ->
+	  let@ () = WellTyped.ensure_base_type loc ~expect:bt (Mu.bt_of_pexpr pe) in
+	  let@ v = check_pexpr_ [] pe in
+	  match pe with
+	  | Mu.Pexpr (_, _, _, PEsym s') when Sym.equal s s' -> return ()
+	  | _ -> add_a_value s v (loc, lazy (Sym.pp s))
+	) (List.combine args pes)
+      in
+      check_expr labels (Sym.Set.add label_sym inlined) body k
+    )
 
 
-let check_expr_top loc labels rt e =
+let check_expr_top loc (labels : Mu.('TY expr label_context)) rt e =
   let@ () = WellTyped.ensure_base_type loc ~expect:Unit (Mu.bt_of_expr e) in
-  check_expr labels e (fun lvt ->
+  check_expr labels Sym.Set.empty e (fun lvt ->
     let (RT.Computational ((return_s, return_bt), _info, lrt)) = rt in
     match return_bt with
     | Unit ->
@@ -2598,7 +2617,7 @@ let check_procedure
   pure
     (let@ () = modify_where (Where.set_function fsym) in
      let@ (body, label_defs, rt), initial_resources = bind_arguments loc args_and_body in
-     let label_context = WellTyped.label_context rt label_defs in
+     let@ label_context = WellTyped.label_context rt label_defs in
      let label_defs = Pmap.bindings_list label_defs in
      let@ (), _mete_pre_state =
        debug 2 (lazy (headline ("checking function body " ^ Sym.pp_string fsym)));
@@ -2615,7 +2634,7 @@ let check_procedure
          (fun (lsym, def) ->
             pure
               (match def with
-               | Mu.Non_inlined _ | Return _ -> return ()
+               | Mu.To_inline _ | Return _ -> return ()
                | Loop (loc, label_args_and_body, _annots, _loop_info) ->
                  debug
                    2

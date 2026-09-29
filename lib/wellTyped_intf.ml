@@ -45,12 +45,12 @@ module type S = sig
     Cerb_frontend.IntegerType.integerType option
 
   val infer_expr
-    :  (ArgumentTypes.lt * Where.label * Locations.t) Sym.Map.t ->
+    :  'body Mucore.label_context ->
     'TY Mucore.expr ->
     BaseTypes.t Mucore.expr t
 
   val check_expr
-    :  (ArgumentTypes.lt * Where.label * Locations.t) Sym.Map.t ->
+    :  'body Mucore.label_context ->
     BaseTypes.t ->
     'TY Mucore.expr ->
     BaseTypes.t Mucore.expr t
@@ -67,9 +67,10 @@ module type S = sig
     BaseTypes.t Mucore.args_and_body t
 
   val label_context
-    :  ReturnTypes.t ->
-    (Sym.Map.key, 'a Mucore.label_def) Pmap.map ->
-    (False.t ArgumentTypes.t * Cerb_frontend.Annot.label_annot * Locations.t) Sym.Map.t
+    :  'TY.
+    ReturnTypes.t ->
+    (Sym.Map.key, 'TY Mucore.label_def) Pmap.map ->
+    ('TY Mucore.expr) Mucore.label_context t
 
   val to_argument_type : ('a * 'b * 'c) Mucore.arguments -> 'c ArgumentTypes.t
 

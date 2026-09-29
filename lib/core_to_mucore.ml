@@ -958,30 +958,31 @@ let normalise_label
     (match CF.Annot.get_label_annot annots with
      | None -> assert_error loc !^"label without annotation"
      | Some label_annot ->
-       let handle_other_label loc error_msg =
-         if !Sym.executable_spec_enabled then
-           let@ label_args =
-             make_label_args
-               (fun env st ->
-                  let@ expr =
-                    n_expr
-                      ~inherit_loc
-                      loc
-                      ( (env, Translate.C_vars.get_old_scopes st),
-                        (markers_env, precondition_cn_desugaring_state) )
-                      (global_types, visible_objects_env)
-                      label_body
-                  in
-                  return expr)
-               loc
-               env
-               st
-               (List.combine lt label_args)
-               (accesses, [])
-           in
-           return (Mu.Non_inlined (loc, label_name, label_annot, label_args))
-         else
-           assert_error loc error_msg
+       let handle_other_label loc _error_msg =
+	 let rec aux env = function 
+	   | [] -> return ([], env)
+	   | ((o_s, (ct, pass_by_value_or_pointer)), (s, cbt)) :: rest ->
+	     assert (Option.equal Sym.equal o_s (Some s));
+	     let@ () = check_against_core_bt loc cbt (Loc ()) in
+	     assert (is_pass_by_pointer pass_by_value_or_pointer);
+	     let sct = convert_ct loc ct in
+	     let p_sbt = BT.Loc (Some sct) in
+	     let env = Translate.add_computational s p_sbt env in
+	     let@ rest, env = aux env rest in
+	     return ((s, BT.Loc ()) :: rest, env)
+	 in
+	 let@ label_args, env = aux env (List.combine lt label_args) in
+         let@ label_body =
+           n_expr
+             ~inherit_loc
+             loc
+             ( (env, Translate.C_vars.get_old_scopes st),
+                        (markers_env, CF.Cn_desugaring.(initial_cn_desugaring_state empty_init)) ) 
+             (* more work needed to get the right cn_desugaring_state. I'm using an empty one, which should be safe, since it should just fail if something is missing. *)
+             (global_types, visible_objects_env)
+             label_body
+         in
+         return (Mu.To_inline (loc, label_name, label_annot, label_args, label_body))
        in
        (match label_annot with
         | LAloop loop_id ->
@@ -1023,11 +1024,6 @@ let normalise_label
               (List.combine lt label_args)
               (accesses, desugared_inv)
           in
-          (* let lt =  *)
-          (*   at_of_arguments (fun _body -> *)
-          (*       False.False *)
-          (*     ) label_args_and_body  *)
-          (* in *)
           return (Mu.Loop (loc, label_args_and_body, annots, `Aux_info loop_info))
         (* | Some (LAloop_body _loop_id) -> *)
         (*    assert_error loc !^"body label has not been inlined" *)
@@ -1035,7 +1031,7 @@ let normalise_label
           handle_other_label loc !^"continue label has not been inlined"
         | LAloop_break _loop_id ->
           handle_other_label loc !^"break label has not been inlined"
-        | LAreturn -> handle_other_label loc !^"return label has not been inlined"
+        | LAreturn -> assert false
         | LAswitch -> handle_other_label loc !^"switch labels"
         | LAcase -> handle_other_label loc !^"case label has not been inlined"
         | LAdefault -> handle_other_label loc !^"default label has not been inlined"

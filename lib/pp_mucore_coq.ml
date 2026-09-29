@@ -1918,11 +1918,10 @@ and pp_expr pp_type = function
 
 
 let pp_label_def pp_type = function
-  | Non_inlined (loc, name, annot, args) ->
-    let pp_args = pp_arguments (pp_expr pp_type) args in
+  | To_inline (loc, name, annot, _args, _body) ->
     pp_constructor1
-      "Non_inlined"
-      [ pp_location loc; pp_symbol name; pp_label_annot annot; pp_args ]
+      "To_inline"
+      [ pp_location loc; pp_symbol name; pp_label_annot annot ]
   | Return loc -> pp_constructor1 "Return" [ pp_location loc ]
   | Loop (loc, args, annots, `Aux_info (cond_loc, loop_loc, _)) ->
     pp_constructor1

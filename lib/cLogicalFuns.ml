@@ -746,7 +746,7 @@ let c_fun_to_it id_loc glob_context (id : Sym.t) fsym def (fn : 'bty Mu.fun_map_
             }
     in
     let ctxt = { glob_context with label_defs = labels } in
-    let label_context = WellTyped.label_context rt labels in
+    let@ label_context = WellTyped.label_context rt labels in
     let@ body =
       pure (in_computational_ctxt args_and_body (WellTyped.infer_expr label_context body))
     in
