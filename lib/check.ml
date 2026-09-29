@@ -1680,7 +1680,13 @@ let bytes_constraints
             here))
 
 
-let rec check_expr (labels: (BT.t Mu.expr Mu.label_context)) inlined (e : BT.t Mu.expr) (k : T.t -> unit m) : unit m =
+let rec check_expr
+          (labels : BT.t Mu.expr Mu.label_context)
+          inlined
+          (e : BT.t Mu.expr)
+          (k : T.t -> unit m)
+  : unit m
+  =
   let (Expr (loc, annots, expect, e_)) = e in
   let@ () = add_trace_information labels annots in
   let here = Locations.other __LOC__ in
@@ -2512,41 +2518,41 @@ let rec check_expr (labels: (BT.t Mu.expr Mu.label_context)) inlined (e : BT.t M
         k it2))
   | Erun (label_sym, pes) ->
     (match Sym.Map.find_opt label_sym labels with
-    | None ->
-      let msg = (!^"undefined code label" ^/^ Sym.pp label_sym) in
-      fail (fun _ -> { loc; msg = Generic msg [@alert "-deprecated"]})
-    | Some (Typ lt, lkind, _) -> 
-      let@ () = WellTyped.ensure_base_type loc ~expect Unit in
-      let@ original_resources = all_resources loc in
-      Spine.calltype_lt loc pes None (lt, lkind) (fun False ->
-	let@ () = all_empty loc original_resources in
-	return ())
-    | Some (Inline (args, body), _lkind, _) -> 
-      let has = List.length pes in
-      let expect = List.length args in
-      let@ () = WellTyped.ensure_same_argument_number loc `Computational has ~expect in
-      let@ () = 
-	if Sym.Set.mem label_sym inlined then
-	  let msg = !^"Repeated inlining of label" ^^^ squotes (Sym.pp label_sym) in
-	  fail (fun _ -> { loc; msg = Generic msg [@alert "-deprecated"]})
-	else
-	  return ()
-      in
-      debug 2 (lazy (!^"Inlining label" ^^^ Sym.pp label_sym));
-      let@ () = 
-	ListM.iterM (fun ((s, bt), pe) ->
-	  let@ () = WellTyped.ensure_base_type loc ~expect:bt (Mu.bt_of_pexpr pe) in
-	  let@ v = check_pexpr_ [] pe in
-	  match pe with
-	  | Mu.Pexpr (_, _, _, PEsym s') when Sym.equal s s' -> return ()
-	  | _ -> add_a_value s v (loc, lazy (Sym.pp s))
-	) (List.combine args pes)
-      in
-      check_expr labels (Sym.Set.add label_sym inlined) body k
-    )
+     | None ->
+       let msg = !^"undefined code label" ^/^ Sym.pp label_sym in
+       fail (fun _ -> { loc; msg = Generic msg [@alert "-deprecated"] })
+     | Some (Typ lt, lkind, _) ->
+       let@ () = WellTyped.ensure_base_type loc ~expect Unit in
+       let@ original_resources = all_resources loc in
+       Spine.calltype_lt loc pes None (lt, lkind) (fun False ->
+         let@ () = all_empty loc original_resources in
+         return ())
+     | Some (Inline (args, body), _lkind, _) ->
+       let has = List.length pes in
+       let expect = List.length args in
+       let@ () = WellTyped.ensure_same_argument_number loc `Computational has ~expect in
+       let@ () =
+         if Sym.Set.mem label_sym inlined then (
+           let msg = !^"Repeated inlining of label" ^^^ squotes (Sym.pp label_sym) in
+           fail (fun _ -> { loc; msg = Generic msg [@alert "-deprecated"] }))
+         else
+           return ()
+       in
+       debug 2 (lazy (!^"Inlining label" ^^^ Sym.pp label_sym));
+       let@ () =
+         ListM.iterM
+           (fun ((s, bt), pe) ->
+              let@ () = WellTyped.ensure_base_type loc ~expect:bt (Mu.bt_of_pexpr pe) in
+              let@ v = check_pexpr_ [] pe in
+              match pe with
+              | Mu.Pexpr (_, _, _, PEsym s') when Sym.equal s s' -> return ()
+              | _ -> add_a_value s v (loc, lazy (Sym.pp s)))
+           (List.combine args pes)
+       in
+       check_expr labels (Sym.Set.add label_sym inlined) body k)
 
 
-let check_expr_top loc (labels : ('TY Mu.expr Mu.label_context)) rt e =
+let check_expr_top loc (labels : 'TY Mu.expr Mu.label_context) rt e =
   let@ () = WellTyped.ensure_base_type loc ~expect:Unit (Mu.bt_of_expr e) in
   check_expr labels Sym.Set.empty e (fun lvt ->
     let (RT.Computational ((return_s, return_bt), _info, lrt)) = rt in

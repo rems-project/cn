@@ -2686,19 +2686,19 @@ module BaseTyping = struct
                check_args [] lt pes
              in
              return (Unit, Erun (l, pes))
-	   | Some (Inline (args, _body), _lkind, _lloc) ->
+           | Some (Inline (args, _body), _lkind, _lloc) ->
              let has = List.length pes in
              let expect = List.length args in
-	     if has != expect then
-               fail { loc; msg = Number_arguments { type_ = `Computational; has; expect } }
-	     else
-	       let@ pes = 
-		 ListM.mapM (fun ((_s,bt), pe) ->
-		   check_pexpr bt pe
-		 ) (List.combine args pes)
-	       in
-	       return (Unit, Erun (l, pes))
-	  )
+             if has != expect then
+               fail
+                 { loc; msg = Number_arguments { type_ = `Computational; has; expect } }
+             else
+               let@ pes =
+                 ListM.mapM
+                   (fun ((_s, bt), pe) -> check_pexpr bt pe)
+                   (List.combine args pes)
+               in
+               return (Unit, Erun (l, pes)))
         | CN_progs (surfaceprog, cnprogs) ->
           let@ cnprogs = ListM.mapM (check_cnprog check_cn_statement) cnprogs in
           return (Unit, CN_progs (surfaceprog, cnprogs))
@@ -2741,39 +2741,35 @@ module WProc = struct
   module Mu = Mucore
   open Mucore
 
-  let label_context : ReturnTypes.t -> (Sym.t, 'TY label_def) Pmap.map -> 'TY Mucore.expr label_context m =
+  let label_context
+    : ReturnTypes.t -> (Sym.t, 'TY label_def) Pmap.map -> 'TY Mucore.expr label_context m
+    =
     fun rt label_defs ->
-    PmapM.foldM (fun sym def acc ->
-      let@ entry = 
-	match def with
-	| Return loc ->
-	  return (Typ (AT.of_rt rt (LAT.I False.False)), CF.Annot.LAreturn, loc)
-	| Loop (loc, label_args_and_body, annots, _loop_info) ->
-	  let lt = WLabel.typ label_args_and_body in
-          let@ lt = WAT.welltyped WFalse.welltyped WFalse.pp "loop" loc lt in
-	  let kind = Option.get (CF.Annot.get_label_annot annots) in
-	  return (Typ lt, kind, loc)
-	| To_inline (loc, _name, kind, args, body) ->
-	  let@ args =
-	    ListM.mapM (fun (s,bt) ->
-	      let@ bt = WBT.is_bt loc bt in
-	      return (s,bt)
-	    ) args
-	  in
-	  (* intentionally not checking body here *)
-	  return (Inline (args, body), kind, loc)
-      in
-      return (Sym.Map.add sym entry acc)
-    )
-    label_defs
-    Sym.Map.empty
-
-
-
-
-
-
-
+    PmapM.foldM
+      (fun sym def acc ->
+         let@ entry =
+           match def with
+           | Return loc ->
+             return (Typ (AT.of_rt rt (LAT.I False.False)), CF.Annot.LAreturn, loc)
+           | Loop (loc, label_args_and_body, annots, _loop_info) ->
+             let lt = WLabel.typ label_args_and_body in
+             let@ lt = WAT.welltyped WFalse.welltyped WFalse.pp "loop" loc lt in
+             let kind = Option.get (CF.Annot.get_label_annot annots) in
+             return (Typ lt, kind, loc)
+           | To_inline (loc, _name, kind, args, body) ->
+             let@ args =
+               ListM.mapM
+                 (fun (s, bt) ->
+                    let@ bt = WBT.is_bt loc bt in
+                    return (s, bt))
+                 args
+             in
+             (* intentionally not checking body here *)
+             return (Inline (args, body), kind, loc)
+         in
+         return (Sym.Map.add sym entry acc))
+      label_defs
+      Sym.Map.empty
 
 
   let typ p = WArgs.typ (fun (_body, _labels, rt) -> rt) p
@@ -2789,22 +2785,22 @@ module WProc = struct
              (fun _sym def ->
                 match def with
                 | To_inline (loc, name, annot, args, lbody) ->
-		  let@ args = 
-		    ListM.mapM (fun (s,bt) ->
-		      let@ bt = WBT.is_bt loc bt in
-		      return (s,bt)
-		      ) args
-		  in
-		  let@ lbody = 
-		    pure (
-		      let@ () = 
-			ListM.iterM (fun (s,bt) ->
-			  add_a s bt (loc, lazy (Sym.pp s))
-			  ) args
-		      in
-		      BaseTyping.check_expr label_context Unit lbody
-		    )
-		  in
+                  let@ args =
+                    ListM.mapM
+                      (fun (s, bt) ->
+                         let@ bt = WBT.is_bt loc bt in
+                         return (s, bt))
+                      args
+                  in
+                  let@ lbody =
+                    pure
+                      (let@ () =
+                         ListM.iterM
+                           (fun (s, bt) -> add_a s bt (loc, lazy (Sym.pp s)))
+                           args
+                       in
+                       BaseTyping.check_expr label_context Unit lbody)
+                  in
                   return (To_inline (loc, name, annot, args, lbody))
                 | Return loc -> return (Return loc)
                 | Loop (loc, label_args_and_body, annots, loop_info) ->

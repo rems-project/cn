@@ -86,7 +86,7 @@ let frontend
   let prog2 = CF.Milicore.core_to_micore__file Locations.update prog1 in
   let prog3 =
     (* if skip_label_inlining then *)
-      prog2
+    prog2
     (* else *)
     (*   CF.Milicore_label_inline.rewrite_file prog2 *)
   in
@@ -173,8 +173,7 @@ let with_well_formedness_check
          ~magic_comment_char_dollar
          ~allow_split_magic_comments
          ~save_cpp
-         ~disable_linemarkers
-      )
+         ~disable_linemarkers)
   in
   Cerb_debug.maybe_open_csv_timing_file ();
   Pp.maybe_open_times_channel

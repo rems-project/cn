@@ -67,10 +67,10 @@ module type S = sig
     BaseTypes.t Mucore.args_and_body t
 
   val label_context
-    :  'TY.
+    : 'TY.
     ReturnTypes.t ->
     (Sym.Map.key, 'TY Mucore.label_def) Pmap.map ->
-    ('TY Mucore.expr) Mucore.label_context t
+    'TY Mucore.expr Mucore.label_context t
 
   val to_argument_type : ('a * 'b * 'c) Mucore.arguments -> 'c ArgumentTypes.t
 
