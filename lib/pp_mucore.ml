@@ -667,10 +667,10 @@ module Make (Config : CONFIG) = struct
                                 (fun sym def acc ->
                                    acc
                                    ^^ (match def with
-                                       | Non_inlined (_, name, _annot, args) ->
+                                       | To_inline (_, name, _annot, _args, _body) ->
                                          Pp.break 1
                                          ^^ pp_symbol name
-                                         ^^^ pp_arguments (fun _ -> Pp.empty) args
+                                         (* ^^^ pp_arguments (fun _ -> Pp.empty) args *)
                                        | Return _ ->
                                          Pp.break 1 ^^ !^"return label" ^^^ pp_symbol sym
                                        | Loop

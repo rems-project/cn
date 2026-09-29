@@ -195,7 +195,7 @@ let procedure : Loc.t -> _ Mucore.args_and_body -> unit Typing.t =
        PmapM.iterM
          (fun _sym def ->
             match def with
-            | Mucore.Non_inlined _ | Return _ -> return ()
+            | Mucore.To_inline _ | Return _ -> return ()
             | Loop (loc, label_args_and_body, _annots, _loop_info) ->
               pure_and_no_initial_resources
                 loc

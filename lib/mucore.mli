@@ -225,10 +225,8 @@ val dtree_of_arguments
   Cerb_frontend.Pp_ast.doc_tree
 
 type 'TY label_def =
-  | Non_inlined of
-      Locations.t * Sym.t * Cerb_frontend.Annot.label_annot * unit expr arguments
-  (** This constructor is used when skipping label inlining, to
-                  make CN testing usable on programs with switches. *)
+  | To_inline of
+      Locations.t * Sym.t * Cerb_frontend.Annot.label_annot * (Sym.t * BaseTypes.t) list * 'TY expr
   | Return of Locations.t
   | Loop of
       Locations.t
@@ -285,3 +283,9 @@ type 'TY file =
   }
 
 val empty_file : 'TY file
+
+type 'body label_type = 
+  | Typ of ArgumentTypes.lt
+  | Inline of (Sym.t * BaseTypes.t) list * 'body
+
+type 'body label_context = ('body label_type * Where.label * Locations.t) Sym.Map.t

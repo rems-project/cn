@@ -86,7 +86,7 @@ let rec stmts_in_expr (Mucore.Expr (loc, _, _, e_)) =
 
 let from_loop ((_label_sym : Sym.t), (label_def : _ label_def)) : loop option =
   match label_def with
-  | Non_inlined _ | Return _ -> None
+  | To_inline _ | Return _ -> None
   | Loop
       ( _loc,
         label_args_and_body,
@@ -172,7 +172,7 @@ let ghost_args_and_their_call_locs prog5 =
   let exprs_of_mucore prog5 =
     let maybe_expr_of_label_def ld =
       match ld with
-      | Non_inlined (_, _, _, args) -> Some (param_of_arguments args)
+      | To_inline _ -> None
       | Return _ -> None
       | Loop (_, arguments, _, _) ->
         let expr = param_of_arguments arguments in

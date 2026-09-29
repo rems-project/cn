@@ -253,8 +253,8 @@ let dtree_of_arguments dtree_i =
 
 
 type 'TY label_def =
-  | Non_inlined of
-      Locations.t * Sym.t * Cerb_frontend.Annot.label_annot * unit expr arguments
+  | To_inline of
+      Locations.t * Sym.t * Cerb_frontend.Annot.label_annot * (Sym.t * BaseTypes.t) list * 'TY expr
   | Return of Locations.t
   | Loop of
       Locations.t
@@ -324,3 +324,10 @@ let empty_file : 'TY file =
     lemmata = [];
     call_funinfo = Pmap.empty Sym.compare
   }
+
+
+type 'body label_type = 
+  | Typ of ArgumentTypes.lt
+  | Inline of (Sym.t * BaseTypes.t) list * 'body
+
+type 'body label_context = ('body label_type * Where.label * Locations.t) Sym.Map.t

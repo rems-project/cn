@@ -1287,15 +1287,15 @@ module WRT = struct
          return (ReturnTypes.Computational ((name, bt), info, lrt)))
 end
 
-(* module WFalse = struct *)
-(*   type t = False.t *)
+module WFalse = struct
+  type _t = False.t
 
-(*   let subst = False.subst *)
+  let _subst = False.subst
 
-(*   let pp = False.pp *)
+  let pp = False.pp
 
-(*   let welltyped _ False.False = return False.False *)
-(* end *)
+  let welltyped False.False = return False.False
+end
 
 module WLAT = struct
   module LAT = LogicalArgumentTypes
@@ -1452,12 +1452,13 @@ module WArgs = struct
     pure (aux at)
 end
 
+(* type 'body label_type = 'body Mucore.label_type *)
+type 'body label_context = 'body Mucore.label_context
+
 module BaseTyping = struct
   module BT = BaseTypes
   module AT = ArgumentTypes
   open BT
-
-  type label_context = (AT.lt * Where.label * Locations.t) Sym.Map.t
 
   let check_against_core_bt loc msg2 cbt bt =
     CoreTypeChecks.check_against_core_bt cbt bt
@@ -2450,7 +2451,7 @@ module BaseTyping = struct
 
   let signed_int_ty = Memory.bt_of_sct Sctypes.(Integer (Signed Int_))
 
-  let rec infer_expr : 'TY. label_context -> 'TY Mu.expr -> BT.t Mu.expr m =
+  let rec infer_expr : 'body 'TY. 'body label_context -> 'TY Mu.expr -> BT.t Mu.expr m =
     fun label_context e ->
     let open Mu in
     Pp.debug 22 (lazy (Pp.item __FUNCTION__ (Pp_mucore_ast.pp_expr e)));
@@ -2646,7 +2647,7 @@ module BaseTyping = struct
         | Erun (l, pes) ->
           (match Sym.Map.find_opt l label_context with
            | None ->
-             if !Sym.experimental_unions then
+             if !Sym.executable_spec_enabled then
                let@ pes = ListM.mapM infer_pexpr pes in
                return (Unit, Erun (l, pes))
              else (* copying from check.ml *)
@@ -2656,7 +2657,7 @@ module BaseTyping = struct
                      Generic (!^"undefined code label" ^/^ Sym.pp l)
                      [@alert "-deprecated"]
                  }
-           | Some (lt, _lkind, _) ->
+           | Some (Typ lt, _lkind, _) ->
              let@ pes =
                let wrong_number_computational_args () =
                  let has = List.length pes in
@@ -2684,7 +2685,20 @@ module BaseTyping = struct
                      https://github.com/rems-project/cn/issues/210 *)
                check_args [] lt pes
              in
-             return (Unit, Erun (l, pes)))
+             return (Unit, Erun (l, pes))
+	   | Some (Inline (args, _body), _lkind, _lloc) ->
+             let has = List.length pes in
+             let expect = List.length args in
+	     if has != expect then
+               fail { loc; msg = Number_arguments { type_ = `Computational; has; expect } }
+	     else
+	       let@ pes = 
+		 ListM.mapM (fun ((_s,bt), pe) ->
+		   check_pexpr bt pe
+		 ) (List.combine args pes)
+	       in
+	       return (Unit, Erun (l, pes))
+	  )
         | CN_progs (surfaceprog, cnprogs) ->
           let@ cnprogs = ListM.mapM (check_cnprog check_cn_statement) cnprogs in
           return (Unit, CN_progs (surfaceprog, cnprogs))
@@ -2693,7 +2707,7 @@ module BaseTyping = struct
       return (Expr (loc, annots, bty, e_))
 
 
-  and check_expr label_context (expect : BT.t) expr =
+  and check_expr (label_context : 'body Mu.label_context) (expect : BT.t) expr =
     (* the special-case is needed for pure undef, whose type can't be inferred *)
     let (Expr (loc, annots, _, e_)) = expr in
     let@ () =
@@ -2727,25 +2741,39 @@ module WProc = struct
   module Mu = Mucore
   open Mucore
 
-  let label_context function_rt label_defs =
-    Pmap.fold
-      (fun sym def label_context ->
-         let lt, kind, loc =
-           match def with
-           | Non_inlined (loc, _name, label_annot, args) ->
-             (WLabel.typ args, label_annot, loc)
-           | Return loc ->
-             (AT.of_rt function_rt (LAT.I False.False), CF.Annot.LAreturn, loc)
-           | Loop (loc, label_args_and_body, annots, _loop_info) ->
-             let lt = WLabel.typ label_args_and_body in
-             let kind = Option.get (CF.Annot.get_label_annot annots) in
-             (lt, kind, loc)
-         in
-         (*debug 6 (lazy (!^"label type within function" ^^^ Sym.pp fsym)); debug 6 (lazy
-          (CF.Pp_ast.pp_doc_tree (AT.dtree False.dtree lt)));*)
-         Sym.Map.add sym (lt, kind, loc) label_context)
-      label_defs
-      Sym.Map.empty
+  let label_context : ReturnTypes.t -> (Sym.t, 'TY label_def) Pmap.map -> 'TY Mucore.expr label_context m =
+    fun rt label_defs ->
+    PmapM.foldM (fun sym def acc ->
+      let@ entry = 
+	match def with
+	| Return loc ->
+	  return (Typ (AT.of_rt rt (LAT.I False.False)), CF.Annot.LAreturn, loc)
+	| Loop (loc, label_args_and_body, annots, _loop_info) ->
+	  let lt = WLabel.typ label_args_and_body in
+          let@ lt = WAT.welltyped WFalse.welltyped WFalse.pp "loop" loc lt in
+	  let kind = Option.get (CF.Annot.get_label_annot annots) in
+	  return (Typ lt, kind, loc)
+	| To_inline (loc, _name, kind, args, body) ->
+	  let@ args =
+	    ListM.mapM (fun (s,bt) ->
+	      let@ bt = WBT.is_bt loc bt in
+	      return (s,bt)
+	    ) args
+	  in
+	  (* intentionally not checking body here *)
+	  return (Inline (args, body), kind, loc)
+      in
+      return (Sym.Map.add sym entry acc)
+    )
+    label_defs
+    Sym.Map.empty
+
+
+
+
+
+
+
 
 
   let typ p = WArgs.typ (fun (_body, _labels, rt) -> rt) p
@@ -2755,13 +2783,29 @@ module WProc = struct
     WArgs.welltyped
       (fun (body, labels, rt) ->
          let@ rt = pure (WRT.welltyped rt) in
-         let label_context = label_context rt labels in
+         let@ label_context = label_context rt labels in
          let@ labels =
            PmapM.mapM
              (fun _sym def ->
                 match def with
-                | Non_inlined (loc, name, annot, args) ->
-                  return (Non_inlined (loc, name, annot, args))
+                | To_inline (loc, name, annot, args, lbody) ->
+		  let@ args = 
+		    ListM.mapM (fun (s,bt) ->
+		      let@ bt = WBT.is_bt loc bt in
+		      return (s,bt)
+		      ) args
+		  in
+		  let@ lbody = 
+		    pure (
+		      let@ () = 
+			ListM.iterM (fun (s,bt) ->
+			  add_a s bt (loc, lazy (Sym.pp s))
+			  ) args
+		      in
+		      BaseTyping.check_expr label_context Unit lbody
+		    )
+		  in
+                  return (To_inline (loc, name, annot, args, lbody))
                 | Return loc -> return (Return loc)
                 | Loop (loc, label_args_and_body, annots, loop_info) ->
                   let@ label_args_and_body =
@@ -3138,7 +3182,7 @@ module Lift (M : ErrorReader) : WellTyped_intf.S with type 'a t := 'a M.t = stru
 
   let predicate = lift1 predicate
 
-  let label_context = label_context
+  let label_context rt m = lift2 label_context rt m
 
   let to_argument_type = to_argument_type
 
