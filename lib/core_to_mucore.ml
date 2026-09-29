@@ -977,8 +977,8 @@ let normalise_label
              ~inherit_loc
              loc
              ( (env, Translate.C_vars.get_old_scopes st),
-               (markers_env, CF.Cn_desugaring.(initial_cn_desugaring_state empty_init)) )
-             (* more work needed to get the right cn_desugaring_state. I'm using an empty one, which should be safe, since it should just fail if something is missing. *)
+               (markers_env, precondition_cn_desugaring_state) )
+             (* more work needed to get the right cn_desugaring_state, but this might need a rework of the frontend *)
              (global_types, visible_objects_env)
              label_body
          in
