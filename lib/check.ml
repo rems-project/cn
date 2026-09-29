@@ -1680,7 +1680,7 @@ let bytes_constraints
             here))
 
 
-let rec check_expr (labels: Mu.(BT.t expr label_context)) inlined (e : BT.t Mu.expr) (k : T.t -> unit m) : unit m =
+let rec check_expr (labels: (BT.t Mu.expr Mu.label_context)) inlined (e : BT.t Mu.expr) (k : T.t -> unit m) : unit m =
   let (Expr (loc, annots, expect, e_)) = e in
   let@ () = add_trace_information labels annots in
   let here = Locations.other __LOC__ in
@@ -2546,7 +2546,7 @@ let rec check_expr (labels: Mu.(BT.t expr label_context)) inlined (e : BT.t Mu.e
     )
 
 
-let check_expr_top loc (labels : Mu.('TY expr label_context)) rt e =
+let check_expr_top loc (labels : ('TY Mu.expr Mu.label_context)) rt e =
   let@ () = WellTyped.ensure_base_type loc ~expect:Unit (Mu.bt_of_expr e) in
   check_expr labels Sym.Set.empty e (fun lvt ->
     let (RT.Computational ((return_s, return_bt), _info, lrt)) = rt in
