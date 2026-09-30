@@ -3142,6 +3142,13 @@ let memcpy_proxy_ft =
                         I )))))))
 
 
+let unreachable_proxy_ft =
+  let loc = Locations.other __LOC__ in
+  let lc = LC.T (MT.bool_ false loc) in
+  let rt = RT.Computational ((Sym.fresh "return", Unit), (loc, None), LRT.I) in
+  AT.L (LAT.Constraint (lc, (loc, None), LAT.I rt))
+
+
 let add_stdlib_spec =
   let module StrMap = Map.Make (String) in
   let proxies =
@@ -3152,7 +3159,8 @@ let add_stdlib_spec =
         ("ffs_proxy", ffs_proxy_ft Sctypes.IntegerBaseTypes.Int_);
         ("ffsl_proxy", ffs_proxy_ft Sctypes.IntegerBaseTypes.Long);
         ("ffsll_proxy", ffs_proxy_ft Sctypes.IntegerBaseTypes.LongLong);
-        ("memcpy_proxy", memcpy_proxy_ft)
+        ("memcpy_proxy", memcpy_proxy_ft);
+        ("unreachable_proxy", unreachable_proxy_ft)
       ]
   in
   let add ct fsym ft =
