@@ -41,7 +41,7 @@ let open_iris_mode iris_defs section_name =
   ^^ !^section_name
   ^^ !^"."
   ^^ hardline
-  ^^ !^"  Context `{!heapGS_gen Σ}."
+  ^^ !^"  Context `{!vipGS Σ}."
   ^^ hardline
   ^^ hardline
   ^^ flow hardline iris_defs
