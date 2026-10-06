@@ -5160,7 +5160,6 @@ let cn_to_ail_lemmas filename dts preds globals lemmata
 
 let has_cn_spec (instrumentation : Extract.instrumentation) =
   let has_cn_spec_aux (instrumentation : Extract.instrumentation) =
-    let has_post = function LRT.I -> false | _ -> true in
     let has_stats = List.non_empty in
     let has_loop_inv (loops : Extract.loops) =
       List.fold_left
@@ -5168,22 +5167,29 @@ let has_cn_spec (instrumentation : Extract.instrumentation) =
         false
         (List.map (fun (contains_user_spec, _, _, _) -> contains_user_spec) loops)
     in
-    let has_spec_lat = function
-      | LAT.I (ReturnTypes.Computational (_, _, post), (stats, loops)) ->
-        has_post post || has_stats stats || has_loop_inv loops
-      | _ -> false
+    let rec has_intermediate_spec_lat = function
+      | LAT.Define (_, _, lat) | Resource (_, _, lat) | Constraint (_, _, lat) ->
+        has_intermediate_spec_lat lat
+      | I (ReturnTypes.Computational _, (stats, loops)) ->
+        has_stats stats || has_loop_inv loops
     in
-    let rec has_spec_at = function
-      | AT.Computational (_, _, at) -> has_spec_at at
+    let rec has_intermediate_spec_at = function
+      | AT.Computational (_, _, at) -> has_intermediate_spec_at at
       | AT.Ghost _ -> true
-      | AT.L lat -> has_spec_lat lat
+      | AT.L lat -> has_intermediate_spec_lat lat
     in
-    let has_internal_spec =
+    let has_intermediate_spec =
       match instrumentation.internal with
-      | Some internal -> has_spec_at internal
+      | Some internal -> has_intermediate_spec_at internal
       | None -> false
     in
-    instrumentation.contains_user_spec || has_internal_spec
+    (*
+       Check for function-level spec (pre/post) and intermediate spec separately.
+    In integer mode, every function now has some `Representable` spec inserted for it.
+    As for loop invariants, we don't inject any executable spec when there is no
+    user-provided spec, to support partial specifications.
+    *)
+    instrumentation.contains_function_level_spec || has_intermediate_spec
   in
   instrumentation.trusted || has_cn_spec_aux instrumentation
 

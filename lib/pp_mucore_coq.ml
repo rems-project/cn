@@ -1124,11 +1124,11 @@ let pp_trusted = function
   | Checked -> pp_constructor0 "Checked"
 
 
-let pp_contains_user_spec contains_user_spec =
-  if contains_user_spec then
-    pp_constructor0 "Contains user spec"
+let pp_contains_user_spec contains_function_level_spec =
+  if contains_function_level_spec then
+    pp_constructor0 "Contains function-level spec"
   else
-    pp_constructor0 "Does not contain user spec"
+    pp_constructor0 "Does not contain function-level spec"
 
 
 let pp_unop = function
@@ -2048,7 +2048,7 @@ let pp_file pp_type pp_type_name file =
                    pp_location loc;
                    pp_option (pp_argument_types pp_return_type) ft
                  ])
-          | Proc { loc; args_and_body; trusted; contains_user_spec } ->
+          | Proc { loc; args_and_body; trusted; contains_function_level_spec } ->
             coq_def
               (Sym.pp_string_no_nums sym)
               P.empty
@@ -2058,7 +2058,7 @@ let pp_file pp_type pp_type_name file =
                    pp_location loc;
                    pp_args_and_body pp_type args_and_body;
                    pp_trusted trusted;
-                   pp_contains_user_spec contains_user_spec
+                   pp_contains_user_spec contains_function_level_spec
                  ]))
        file.funs
        P.empty

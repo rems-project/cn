@@ -253,7 +253,7 @@ type 'TY fun_map_decl =
       { loc : Locations.t;
         args_and_body : 'TY args_and_body;
         trusted : trusted;
-        contains_user_spec : bool
+        contains_function_level_spec : bool
       }
   | ProcDecl of Locations.t * ArgumentTypes.ft option
 

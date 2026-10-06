@@ -56,7 +56,7 @@ type instrumentation =
     fn_loc : Locations.t;
     internal : fn_args_and_body option;
     trusted : bool;
-    contains_user_spec : bool;
+    contains_function_level_spec : bool;
     is_static : bool
   }
 
@@ -105,10 +105,11 @@ let from_fn cabs_tunit (fn, decl) =
       fn_loc;
       internal = None;
       trusted = false;
-      contains_user_spec = false;
+      contains_function_level_spec = false;
+      (* Set to false since we don't instrument CN-annotated declarations *)
       is_static = false
     }
-  | Proc { loc = fn_loc; args_and_body; trusted; contains_user_spec } ->
+  | Proc { loc = fn_loc; args_and_body; trusted; contains_function_level_spec } ->
     let args_and_body = Core_to_mucore.at_of_arguments Fun.id args_and_body in
     let internal =
       ArgumentTypes.map
@@ -147,7 +148,7 @@ let from_fn cabs_tunit (fn, decl) =
       fn_loc;
       internal = Some internal;
       trusted = trusted_flag;
-      contains_user_spec;
+      contains_function_level_spec;
       is_static
     }
 
