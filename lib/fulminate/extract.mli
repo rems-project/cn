@@ -36,6 +36,7 @@ type instrumentation =
     fn_loc : Locations.t;
     internal : fn_args_and_body option;
     trusted : bool;
+    contains_function_level_spec : bool;
     is_static : bool
   }
 

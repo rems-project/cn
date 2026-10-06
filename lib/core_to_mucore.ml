@@ -1117,6 +1117,10 @@ module Spec = struct
       fail { loc; msg = Double_spec { fname; orig_loc } }
 
 
+  let contains_function_level_spec parsed_decl_spec parsed_defn_specs =
+    return (List.non_empty parsed_decl_spec || Option.is_some parsed_defn_specs)
+
+
   let desugar_and_add_args decl_d_st spec_args =
     do_ail_desugar_op decl_d_st
     @@ CF.State_exception.stExpect_mapM (Desugar.cn_arg Cn.CN_vars) spec_args
@@ -1208,6 +1212,9 @@ let normalise_fun_map_decl
        let@ parsed =
          Spec.there_can_only_be_one loc fname parsed_decl_spec parsed_defn_specs
        in
+       let@ contains_function_level_spec =
+         Spec.contains_function_level_spec parsed_decl_spec parsed_defn_specs
+       in
        debug 6 (lazy (string "parsed spec attrs"));
        let _, defn_marker, _, ail_args, _ =
          List.assoc Sym.equal fname ail_prog.CF.AilSyntax.function_definitions
@@ -1273,7 +1280,10 @@ let normalise_fun_map_decl
            ghost_params
            requires
        in
-       return (Some (Mu.Proc { loc; args_and_body; trusted }, functions))
+       return
+         (Some
+            ( Mu.Proc { loc; args_and_body; trusted; contains_function_level_spec },
+              functions ))
      | Mi_ProcDecl (loc, ret_bt, _bts) ->
        (match Sym.Map.find_opt fname fun_specs with
         | Some parsed_decl_spec ->
