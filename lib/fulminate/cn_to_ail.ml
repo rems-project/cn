@@ -5159,7 +5159,7 @@ let cn_to_ail_lemmas filename dts preds globals lemmata
 
 
 let has_cn_spec (instrumentation : Extract.instrumentation) =
-  let has_cn_spec_aux =
+  let has_cn_spec_aux (instrumentation : Extract.instrumentation) =
     let has_post = function LRT.I -> false | _ -> true in
     let has_stats = List.non_empty in
     let has_loop_inv (loops : Extract.loops) =
@@ -5171,16 +5171,21 @@ let has_cn_spec (instrumentation : Extract.instrumentation) =
     let has_spec_lat = function
       | LAT.I (ReturnTypes.Computational (_, _, post), (stats, loops)) ->
         has_post post || has_stats stats || has_loop_inv loops
-      | _ -> true
+      | _ -> false
     in
     let rec has_spec_at = function
       | AT.Computational (_, _, at) -> has_spec_at at
       | AT.Ghost _ -> true
       | AT.L lat -> has_spec_lat lat
     in
-    function Some internal -> has_spec_at internal | None -> false
+    let has_internal_spec =
+      match instrumentation.internal with
+      | Some internal -> has_spec_at internal
+      | None -> false
+    in
+    instrumentation.contains_user_spec || has_internal_spec
   in
-  instrumentation.trusted || has_cn_spec_aux instrumentation.internal
+  instrumentation.trusted || has_cn_spec_aux instrumentation
 
 
 (* CN test generation *)

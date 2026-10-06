@@ -17,6 +17,7 @@ type t =
     test : string;
     is_static : bool;
     is_trusted : bool;
+    contains_user_spec : bool;
     fn : Sym.t;
     fn_loc : Locations.t;
     internal : Fulminate.Extract.fn_args_and_body
@@ -85,6 +86,7 @@ let of_instrumentation
     test;
     is_static;
     is_trusted = inst.trusted;
+    contains_user_spec = inst.contains_user_spec;
     fn = inst.fn;
     fn_loc = inst.fn_loc;
     internal
@@ -97,5 +99,6 @@ let to_instrumentation (test : t) : FExtract.instrumentation =
       fn_loc = test.fn_loc;
       internal = Some test.internal;
       trusted = test.is_trusted;
+      contains_user_spec = test.contains_user_spec;
       is_static = test.is_static
     }

@@ -56,6 +56,7 @@ type instrumentation =
     fn_loc : Locations.t;
     internal : fn_args_and_body option;
     trusted : bool;
+    contains_user_spec : bool;
     is_static : bool
   }
 
@@ -100,8 +101,14 @@ let from_loop ((_label_sym : Sym.t), (label_def : _ label_def)) : loop option =
 let from_fn cabs_tunit (fn, decl) =
   match decl with
   | ProcDecl (fn_loc, _fn) ->
-    { fn; fn_loc; internal = None; trusted = false; is_static = false }
-  | Proc { loc = fn_loc; args_and_body; trusted } ->
+    { fn;
+      fn_loc;
+      internal = None;
+      trusted = false;
+      contains_user_spec = false;
+      is_static = false
+    }
+  | Proc { loc = fn_loc; args_and_body; trusted; contains_user_spec } ->
     let args_and_body = Core_to_mucore.at_of_arguments Fun.id args_and_body in
     let internal =
       ArgumentTypes.map
@@ -136,7 +143,13 @@ let from_fn cabs_tunit (fn, decl) =
            | _ -> false)
         decls
     in
-    { fn; fn_loc; internal = Some internal; trusted = trusted_flag; is_static }
+    { fn;
+      fn_loc;
+      internal = Some internal;
+      trusted = trusted_flag;
+      contains_user_spec;
+      is_static
+    }
 
 
 let collect_instrumentation cabs_tunit (file : _ Mucore.file) =
