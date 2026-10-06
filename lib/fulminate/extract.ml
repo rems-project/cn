@@ -105,8 +105,8 @@ let from_fn cabs_tunit (fn, decl) =
       fn_loc;
       internal = None;
       trusted = false;
-      contains_function_level_spec = false;
       (* Set to false since we don't instrument CN-annotated declarations *)
+      contains_function_level_spec = false;
       is_static = false
     }
   | Proc { loc = fn_loc; args_and_body; trusted; contains_function_level_spec } ->
