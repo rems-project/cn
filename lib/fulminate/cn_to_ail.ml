@@ -5187,8 +5187,8 @@ let has_cn_spec (instrumentation : Extract.instrumentation) =
        RB, 2026-10-06
        Check for function-level spec (pre/post) and intermediate spec separately.
     In integer mode, every function now has some `Representable` spec inserted for it.
-    As for loop invariants, we don't inject any executable spec when there is no
-    user-provided spec, to support partial specifications.
+    As already done for loop invariants, we don't inject any executable spec when there 
+    is no user-provided spec, in order to support partial specifications.
     *)
     instrumentation.contains_function_level_spec || has_intermediate_spec
   in
