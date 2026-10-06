@@ -5175,7 +5175,7 @@ let has_cn_spec (instrumentation : Extract.instrumentation) =
     in
     let rec has_intermediate_spec_at = function
       | AT.Computational (_, _, at) -> has_intermediate_spec_at at
-      | AT.Ghost _ -> true
+      | AT.Ghost _ -> false (* Ghost argument always part of function-level spec *)
       | AT.L lat -> has_intermediate_spec_lat lat
     in
     let has_intermediate_spec =
