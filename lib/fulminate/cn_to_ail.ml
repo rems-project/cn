@@ -5184,6 +5184,7 @@ let has_cn_spec (instrumentation : Extract.instrumentation) =
       | None -> false
     in
     (*
+       RB, 2026-10-06
        Check for function-level spec (pre/post) and intermediate spec separately.
     In integer mode, every function now has some `Representable` spec inserted for it.
     As for loop invariants, we don't inject any executable spec when there is no
