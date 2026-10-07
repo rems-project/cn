@@ -645,6 +645,7 @@ static inline void cn_postfix(void* ptr, size_t size) {
     c_ownership_check(                                                                   \
         "Load", __tmp, sizeof(typeof(LV)), get_cn_stack_depth(), C_ACCESS);              \
     cn_load(__tmp, sizeof(typeof(LV)));                                                  \
+    cn_pop_msg_info();                                                                   \
     *__tmp;                                                                              \
   })
 
@@ -656,6 +657,7 @@ static inline void cn_postfix(void* ptr, size_t size) {
     c_ownership_check(                                                                   \
         "Store", __tmp, sizeof(typeof(LV)), get_cn_stack_depth(), C_ACCESS);             \
     cn_store(__tmp, sizeof(typeof(LV)));                                                 \
+    cn_pop_msg_info();                                                                   \
     *__tmp op## = (X);                                                                   \
   })
 
@@ -669,6 +671,7 @@ static inline void cn_postfix(void* ptr, size_t size) {
     c_ownership_check(                                                                   \
         "Postfix operation", __tmp, sizeof(typeof(LV)), get_cn_stack_depth(), C_ACCESS); \
     cn_postfix(__tmp, sizeof(typeof(LV)));                                               \
+    cn_pop_msg_info();                                                                   \
     (*__tmp) OP;                                                                         \
   })
 
