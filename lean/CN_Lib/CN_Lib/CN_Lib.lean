@@ -22,12 +22,11 @@ abbrev max_Int : Int := 2 ^ 31 - 1
 abbrev min_Long : Int := - (2 ^ 63)
 abbrev max_Long : Int := 2 ^ 63 - 1
 
--- We roll our own pseudo-bitvectors below to match CN's representation of C
--- integer types as mathematical integers with bounds, which is slightly
--- different from what Lean's bitvector library provides.
+/- We roll our own bytevectors to match CN's representation of C
+   integer types as mathematical integers with bounds. -/
 
--- This function converts an integer to a vector of n bytes (represented as
---    integers) in big-endian order.
+/- This function converts an integer to a vector of n bytes (represented as
+   integers) in big-endian order. -/
 @[simp, reducible]
 def to_CN_Bytes (n : Nat) : Int → (Fin n → Int) :=
   fun v i => (v % 2 ^(8 * (n - i.toNat))) / (2 ^ (8 * (n - 1 - i.toNat)))
