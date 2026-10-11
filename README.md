@@ -16,6 +16,16 @@ It builds on the [Cerberus C semantics](https://github.com/rems-project/cerberus
 
 <ul>
 
+<li>
+   <a name="lucas-oopsla2026">
+   <a href="https://zain-k-aamer.com/papers/lucas.pdf">Random Testing via Runtime Abstract Interpretation</a>.
+   Zain K Aamer and Benjamin C. Pierce.
+   In OOPSLA 2026.
+   [
+      <a href="https://doi.org/10.1145/3839513">doi</a>&nbsp;| 
+      <a href="https://zain-k-aamer.com/papers/lucas.pdf">pdf</a> 
+   ]
+</li>
 
 <li>
 <a name="code-spec-test-debug-prove-pldi26">
