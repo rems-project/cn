@@ -2,136 +2,153 @@ Require Import ZArith Bool Lia.
 From iris.proofmode Require Import proofmode.
 From iris.bi.lib Require Import fractional.
 From iris.base_logic.lib Require Export gen_heap.
+From iris.algebra Require Import auth gmap gset.
+From Coq.Vectors Require Import Vector.
+From CN_Lemmas Require Import CN_Lib.
+Open Scope Z.
 
 (* Instantiating Iris with a heap *)
 
-Notation Ptr := Z.
-Notation Val := (option Z).
-
-
-Class heapGS_gen Σ := HeapGS {
-  heapGS_gen_heapGS :: gen_heapGS Ptr Val Σ;
-}.
-
-Notation heapGS := (heapGS_gen).
-
-Notation "l ↦ v" := (pointsto l (DfracOwn 1) v) (at level 20) : bi_scope.
-
 Section CN_Lib_Iris.
 
-Context `{!heapGS Σ}.
+Notation Addr := Z. (* Addresses are integers *)
+Notation AllocId := Z. (* Allocation IDs are integers *)
 
-(* Own and its various flavours *)
+Record Loc := mkLoc { addr : Addr; id : AllocId }. (* Locations are address/provenance pairs *)
 
-Definition Owned (l: Ptr) (v : Z) : iProp Σ := (l ↦ Some v) ∧ ⌜l ≠ 0⌝.
-Definition Block (l :Ptr) : iProp Σ := (l ↦ None) ∧ ⌜l ≠ 0⌝. 
+Notation Ptr := (option Loc). (* Pointers are either null or a loc. *)
+Notation Val := (option Z). (* Values are either null or an integer. *)
 
-Definition Owned_char (l: Ptr) (v : Z) : iProp Σ := Owned l v.
+(* Every AllocID is associated with a base address and a size.*)
+Record AllocMetaData := mkAllocMetaData {
+  alloc_base : Addr;
+  alloc_size : Z;
+}.
 
-Definition int_to_bytes (val : Z) : (Z * Z * Z * Z).
-Admitted.
+(* TODO: The below does not exactly match the Lean version of CN_Lib, someone should clean it up *)
 
-Definition Owned_int (l: Ptr) (v : Z) : iProp Σ := 
-  let '(b1, b2, b3, b4) := (int_to_bytes v) in
-  Owned l b1 ∗
-  Owned (l + 1) b2 ∗
-  Owned (l + 2) b3 ∗
-  Owned (l + 3) b4.
+(* Provenance information consists of two things: 
+    1. The metadata associated with each alloc ID 
+    2. The liveness of each alloc ID             
+  We put this information into a resource algebra. *)
+Definition allocmap := gmap AllocId (agreeR (leibnizO AllocMetaData)).
+Definition liveset := gsetR AllocId.
 
-Definition shift (l: Ptr) (offset : Z) (size : Z) := 
-  Z.add offset l.
+Class allocHistPreS (Σ : gFunctors) := AllocHistPreGS {
+  #[local] allocmapGS_inG :: inG Σ (authR allocmap);
+  #[local] livesetGS_inG :: inG Σ (authR liveset);
+}.
 
-(* padding *)
+Class allocHistGS (Σ : gFunctors) := AllocHistGS {
+  #[local] allocHistGS_inG :: allocHistPreS Σ;
+  (* This resource algebra should be unital, which we enforce by having setting
+    default ghost names. This trick is used by gen_heapGS too. *)
+  allocMap_name : gname;
+  liveset_name : gname
+}.
 
-Definition arrayshift (l: Ptr) (pos : Z) (size : Z) := Z.add (Z.mul pos size) l.
+Global Hint Mode AllocHistGS - - - - : typeclass_instances.
 
-Fixpoint padding (l : Ptr) (n : nat) := 
-  match n with
-  | 0 => (l ↦ None)%I
-  | S n' => (Block l ∗ padding (l + 1) n')%I
-  end.
- 
+Definition AllocMapContains `{!allocHistGS Σ} (m : allocmap) : iProp Σ :=
+  own allocMap_name (◯ m).
+
+Definition LiveSetContains `{!allocHistGS Σ} (s : liveset) : iProp Σ :=
+  own liveset_name (◯ s).
+
+(* Now we define a VIP-inspired resource algebra, where gen_heapGS is shipped with 
+  Iris and gives us the resource of heaps mapping addresses to values *)
+Class vipGS_gen Σ := VipGS {
+  #[global] VIP_heap :: gen_heapGS Addr Val Σ;
+  #[global] VIP_alloc :: allocHistGS Σ;
+}.
+
+Notation vipGS := vipGS_gen.
+Context `{!vipGS Σ}.
+
+(* Now let's define some useful notation. *)
+Notation "l ↦ v" := (pointsto l (DfracOwn 1) v) (at level 20) : bi_scope.
+
+Notation "AllocHistory[@ id ] = ( metadata )" := 
+  (AllocMapContains {[ id := to_agree metadata ]})%I (at level 20) : bi_scope.
+Notation "AllocHistory[@ id ] = ( metadata , true )" := 
+  (AllocMapContains {[ id := to_agree metadata ]} ∗ LiveSetContains {[ id ]})%I
+    (at level 20) : bi_scope.
+Notation "AllocHistory[@ id ] = ( metadata , false )" := 
+  (AllocMapContains {[ id := to_agree metadata ]} ∗ ¬LiveSetContains {[ id ]})%I 
+    (at level 20) : bi_scope.
+
+Definition syntax_example1 : iProp Σ := AllocHistory[@1] = (mkAllocMetaData 0%Z 10%Z).
+Definition syntax_example2 : iProp Σ := AllocHistory[@1] = (mkAllocMetaData 0%Z 10%Z, true).
+
+Lemma allocmap_combine: ⊢ ∀ (m m' : allocmap), 
+  AllocMapContains m -∗ AllocMapContains m' -∗ AllocMapContains (m ⋅ m').
+Proof.
+  iIntros (m m') "H1 H2".
+  iCombine "H1 H2" as "H"; iFrame.
+Qed.
+
+(* Ownership predicates *)
+
+(* The Owned predicate is a generic ownership predicate for a pointer to a value.
+  It is parameterized by the pointer, the value, and the allocation metadata. *)
+
+Definition Owned (p: Ptr) (v : Z) (min max : Z) (n : nat) (bytes : vec Z n) : iProp Σ := 
+  (* Heap assertions *)
+    ∃ (l : Loc), ⌜p = Some l⌝           (* Pointer is not null *)
+  ∗ ([∗ list] i ↦ x ∈ (to_list bytes),  (* Points-to for each byte **)
+      ((addr l) + (Z.of_nat i)) ↦ (Some x)) 
+  ∗ ⌜ min ≤ v ∧ v ≤ max ⌝               (* Value is within bounds *)
+  (* Provenance assertions *)
+  ∗ ∃ (base : Addr) (size : Z),         (* Allocation history entry exists *)
+      AllocHistory[@(id l)] = (mkAllocMetaData base size)
+  ∗ ⌜ base ≤ (addr l) ∧ (addr l) ≤ base + size ⌝.   (* Address is within bounds *)
+
+(* We instantiate the generic Owned predicate for each integer type. *)
+Definition Owned_UChar (p: Ptr) (v : Z) : iProp Σ := 
+  Owned p v min_UChar max_UChar 1 (of_list [v]).
+Definition Owned_UShort (p: Ptr) (v : Z) : iProp Σ := 
+  Owned p v min_UChar max_UChar 2 (UShort_bytes v).
+Definition Owned_UInt (p: Ptr) (v : Z) : iProp Σ := 
+  Owned p v min_UChar max_UChar 4 (UInt_bytes v).
+Definition Owned_ULong (p: Ptr) (v : Z) : iProp Σ := 
+  Owned p v min_UChar max_UChar 8 (ULong_bytes v).
+
+(* TODO: ownership of signed integer types*)
+
+(* TODO: implement block ownership (it should look a lot like Owned) *)
+Definition Block (p : Ptr) : iProp Σ := ⌜true⌝.
+
+(* TODO: implement shift correctly *)
+Definition shift (p: Ptr) (offset : Z) (size : Z) : Ptr := 
+  p.
+
+(* TODO: implement arrayshift correctly *)
+Definition arrayshift (p: Ptr) (pos : Z) (size : Z) := p.
+
+(* TODO: implement padding correctly *)
+Definition padding (p : Ptr) (n : nat) : iProp Σ := ⌜true⌝.
+
 (* Iterated ownership *)
-
-Fixpoint each_int (j n : nat) (p : Ptr) (l : list Z) : iProp Σ :=
-  (match n with
-    | O => ⌜l = []⌝ ∗ emp%I
-    | S n' => (match l with
-      | cons x xs => (Owned_int (arrayshift p 4 j) x ∗ 
-        each_int (S j) n' p xs)%I
-      | nil => False%I
-      end) 
-  end).
+(* TODO: Implement based on upstream decisions about array representation *)
 
 (* Useful lemmas *)
 
-(* owned pointers can't be null *)
-Lemma ptr_not_null : ⊢ ∀ (l : Ptr) (v : Z), Owned l v -∗ ⌜l ≠ 0⌝.
-Proof.
-  iIntros (l v) "H".
-  iDestruct "H" as "[_ H]"; auto.
-Qed.
+(* Two owned pointers must not be equal *)
 
-(* the above, but with owned_int *)
-Lemma ptr_not_null_int : ⊢ ∀ (l : Ptr) (v : Z), Owned_int l v -∗ ⌜l ≠ 0⌝.
+Lemma Owned_UChar_neq : ⊢ ∀ (l l' : Ptr) (v1 v2 : Z), 
+  Owned_UChar l v1 -∗ Owned_UChar l' v2 -∗ ⌜l ≠ l'⌝.
 Proof.
-  iIntros (l v) "H".
-  unfold Owned_int.
-  destruct (int_to_bytes v).
-  destruct p; destruct p.
-  iDestruct "H" as "[[_ H] _]".
-  iFrame.
-Qed.
+Admitted.
 
-(* two owned pointers must be unequal*)
-Lemma owned_neq : ⊢ ∀ (l l' : Ptr) (v1 v2 : Z), 
-  Owned l v1 -∗ Owned l' v2 -∗ ⌜l ≠ l'⌝.
-Proof.
-  iIntros (l l' v1 v2) "[H1 _] [H2 _]".
-  iApply (pointsto_ne with "H1 H2").
-Qed.
-
-(* the above, but for owned_char *)
-Lemma owned_char_neq : ⊢ ∀ (l l' : Ptr) (v1 v2 : Z), 
-  Owned_char l v1 -∗ Owned_char l' v2 -∗ ⌜l ≠ l'⌝.
-Proof.
-  iIntros (l l' v1 v2) "H1 H2".
-  unfold Owned_char.
-  iApply (owned_neq with "H1 H2").
-Qed.
-
-(* the above, but for owned_int *)
-Lemma owned_int_neq : ⊢ ∀ (l l' : Ptr) (v1 v2 : Z), 
-  Owned_int l v1 -∗ Owned_int l' v2 -∗ ⌜l ≠ l'⌝.
-Proof.
-  iIntros (l l' v1 v2) "H1 H2". 
-  unfold Owned_int in *.
-  destruct (int_to_bytes v1); destruct p; destruct p.
-  destruct (int_to_bytes v2); destruct p; destruct p.
-  iDestruct "H1" as "[H1 _]".
-  iDestruct "H2" as "[H2 _]".
-  iApply (owned_neq with "H1 H2").
-Qed.
+(* TODO: Define and prove the lemma above for every signed/unsigned integer type 
+    The proof should mostly resemble the Lean ones *)
 
 (* two copies of ownership for the same pointer must agree on their values *)
-Lemma owned_eq : ⊢ ∀ (l : Ptr) (v1 v2 : Z), 
-  Owned l v1 -∗ Owned l v2 -∗ ⌜v1 = v2⌝.
+Lemma Owned_UChar_eq : ⊢ ∀ (l : Ptr) (v1 v2 : Z), 
+  Owned_UChar l v1 -∗ Owned_UChar l v2 -∗ ⌜v1 = v2⌝.
 Proof.
-  iIntros (l v1 v2) "[H1 _] [H2 _]".
-  iPoseProof (pointsto_agree with "H1 H2") as "%H".
-  iPureIntro; set_solver.
-Qed.
+Admitted.
 
-(* the above, but for owned_char *)
-Lemma owned_eq_char : ⊢ ∀ (l : Ptr) (v1 v2 : Z), 
-  Owned_char l v1 -∗ Owned_char l v2 -∗ ⌜v1 = v2⌝.
-Proof.
-  iIntros (l v1 v2) "H1 H2".
-  unfold Owned_char.
-  iApply (owned_eq with "H1 H2").
-Qed.
-
-(* the above but for owned_int is omitted here because 
-  ints_to_bytes is undefined *)
+(* TODO: Define and prove the lemma above for every signed/unsigned integer type *)
 
 End CN_Lib_Iris.
