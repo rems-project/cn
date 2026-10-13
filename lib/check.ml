@@ -2805,7 +2805,12 @@ let record_globals : 'bty. (Sym.t * 'bty Mu.globs) list -> LC.t list m =
              let module H = Alloc.History in
              let H.{ base; size } = H.(split (lookup_ptr ptr here) here) in
              let addr = addr_ ptr here in
-             let upper = MT.upper_bound addr ct here in
+             let upper =
+               match ct with
+               | Array (_, None) ->
+                 addr (* If we don't have a size, treat it as size 0. *)
+               | _ -> MT.upper_bound addr ct here
+             in
              let within_address_space =
                if !cnBV then
                  le_ (addr, upper) here
