@@ -9,7 +9,8 @@ module Utils = Utils
 val get_instrumented_filename : string -> string
 
 val main
-  :  without_ownership_checking:bool ->
+  :  cerb_conf:Cerb_frontend.Config.config ->
+  without_ownership_checking:bool ->
   without_loop_invariants:bool ->
   with_loop_leak_checks:bool ->
   without_lemma_checks:bool ->

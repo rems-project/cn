@@ -199,9 +199,8 @@ module Inner = struct
         let@ p, offset = pointer_and_offset ptr in
         return (p, offset)
       | IT (MemberShift (base, tag, member), _, _) ->
-        let tag_defs = CF.Tags.tagDefs () in
         let member_off =
-          Memory.int_of_ival (CF.Impl_mem.offsetof_ival tag_defs tag member)
+          Memory.int_of_ival (CF.Impl_mem.offsetof_ival !Sctypes.tagDefs_ref tag member)
         in
         let@ p, offset = pointer_and_offset base in
         return (p, offset + member_off)

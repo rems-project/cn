@@ -158,6 +158,8 @@ let rec to_ctype (ct_ : ctype) =
   Ctype ([], ct_)
 
 
+let tagDefs_ref : Ctype.tag_definitions ref = ref (Pmap.empty Sym.compare)
+
 let rec of_ctype (Ctype.Ctype (_, ct_) as ct) =
   let open Option in
   match ct_ with
@@ -190,8 +192,8 @@ let rec of_ctype (Ctype.Ctype (_, ct_) as ct) =
   | Ctype.Struct s -> return (Struct s)
   | Byte -> return Byte
   | Union _ ->
-    let int_of_ival iv = Z.to_int (Option.get (Mem.eval_integer_value iv)) in
-    let size = int_of_ival (Impl_mem.sizeof_ival ct) in
+    let tagDefs = !tagDefs_ref in
+    let size = Z.to_int (Ocaml_implementation.sizeof tagDefs ct) in
     if !Sym.experimental_unions then
       return (Array (Byte, Some size))
     else

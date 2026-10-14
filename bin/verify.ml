@@ -49,9 +49,9 @@ let verify
   =
   if json then (
     if debug_level > 0 then
-      CF.Pp_errors.fatal "debug level must be 0 for json output";
+      Cerb_diagnostic.fatal "debug level must be 0 for json output";
     if print_level > 0 then
-      CF.Pp_errors.fatal "print level must be 0 for json output");
+      Cerb_diagnostic.fatal "print level must be 0 for json output");
   (*flags *)
   Cerb_debug.debug_level := debug_level;
   Pp.loc_pp := loc_pp;
@@ -99,7 +99,7 @@ let verify
     ~save_cpp:None
     ~disable_linemarkers:false
     ~handle_error:(Common.handle_type_error ~json ?output_dir ~serialize_json:json_trace)
-    ~f:(fun ~cabs_tunit:_ ~prog5:_ ~ail_prog:_ ~statement_locs:_ ~paused ->
+    ~f:(fun ~cerb_conf:_ ~cabs_tunit:_ ~prog5:_ ~ail_prog:_ ~statement_locs:_ ~paused ->
       let check (functions, constraints_to_add, lemmas) =
         let open Typing in
         let@ errors =

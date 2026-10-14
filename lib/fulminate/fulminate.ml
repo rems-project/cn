@@ -537,6 +537,7 @@ let _gen_compile_commands_json cc output_dir out_filename =
 
 
 let main
+      ~cerb_conf
       ~without_ownership_checking
       ~without_loop_invariants
       ~with_loop_leak_checks
@@ -581,6 +582,7 @@ let main
   Records.populate_record_map filtered_instrumentation prog5;
   let executable_spec =
     generate_c_specs
+      cerb_conf
       disable_ghost_arg_failure
       without_ownership_checking
       without_loop_invariants

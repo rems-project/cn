@@ -115,7 +115,7 @@ let run
     ~save_cpp:(Some pp_file)
     ~disable_linemarkers:true
     ~handle_error
-    ~f:(fun ~cabs_tunit ~prog5 ~ail_prog ~statement_locs:_ ~paused ->
+    ~f:(fun ~cerb_conf ~cabs_tunit ~prog5 ~ail_prog ~statement_locs:_ ~paused ->
       let config : TestGeneration.config =
         { TestGeneration.default_cfg with
           skip_and_only = (skip, only);
@@ -203,6 +203,7 @@ let run
       Cerb_colour.do_colour := false;
       (try
          Fulminate.main
+           ~cerb_conf
            ~without_ownership_checking
            ~without_loop_invariants:true
            ~with_loop_leak_checks:false

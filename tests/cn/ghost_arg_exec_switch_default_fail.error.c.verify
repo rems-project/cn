@@ -3,6 +3,6 @@ tests/cn/ghost_arg_exec_switch_default_fail.error.c:1:23: warning: experimental 
 void f() /*@ requires cn_ghost i32 x; ensures x < 10i32; @*/ {}
                       ^~~~~~~~ 
 tests/cn/ghost_arg_exec_switch_default_fail.error.c:1:39: error: unexpected token after ';' and before 'ensures'
-parsing "requires_clauses": seen "CN_REQUIRES option(ghost)", expecting "nonempty_list(condition)"
+parsing "requires_clauses": seen "REQUIRES option(ghost_binders)", expecting "nonempty_list(condition)"
 void f() /*@ requires cn_ghost i32 x; ensures x < 10i32; @*/ {}
                                       ^~~~~~~ 

@@ -203,7 +203,7 @@ and check_struct
 
 and check_union (_loc : Locations.t) (_tag : Sym.t) (_id : Id.t) (_mv : mem_value) : T.t m
   =
-  Cerb_debug.error "todo: union types"
+  Cerb_diagnostic.fatal "todo: union types"
 
 
 let ensure_bitvector_type (loc : Locations.t) ~(expect : BT.t) : (BT.sign * int) m =
@@ -433,7 +433,7 @@ let check_conv_int loc ~expect ct arg =
   let ity =
     match ct with
     | Sctypes.Integer ity -> ity
-    | _ -> Cerb_debug.error "conv_int applied to non-integer type"
+    | _ -> Cerb_diagnostic.fatal "conv_int applied to non-integer type"
   in
   let@ provable = provable loc in
   let fail_unrepresentable () =
@@ -573,7 +573,7 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : T.t m =
   | PEval v ->
     let@ () = WellTyped.ensure_base_type loc ~expect (Mu.bt_of_value v) in
     check_value loc v
-  | PEconstrained _ -> Cerb_debug.error "todo: PEconstrained"
+  | PEconstrained _ -> Cerb_diagnostic.fatal "todo: PEconstrained"
   | PEctor (ctor, pes) ->
     let open Cerb_frontend.Core in
     (match (ctor, pes) with
@@ -1023,7 +1023,7 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : T.t m =
     let@ vs = ListM.mapM (check_pexpr path_cs) (List.map snd xs) in
     let members = List.map2 (fun (nm, _) v -> (nm, v)) xs vs in
     return (struct_ (tag, members) loc)
-  | PEunion _ -> Cerb_debug.error "todo: PEunion"
+  | PEunion _ -> Cerb_diagnostic.fatal "todo: PEunion"
   | PEcfunction pe2 ->
     let@ () =
       WellTyped.ensure_base_type loc ~expect (Tuple [ CType; List CType; Bool; Bool ])
@@ -1990,14 +1990,14 @@ let rec check_expr
        assert false
      | Memcmp, _ ->
        (* TODO (DCM, VIP) *)
-       Cerb_debug.error "todo: Memcmp"
+       Cerb_diagnostic.fatal "todo: Memcmp"
      | Realloc, _ (* (asym 'bty * asym 'bty * asym 'bty) *) ->
-       Cerb_debug.error "todo: Realloc"
-     | Va_start, _ (* (asym 'bty * asym 'bty) *) -> Cerb_debug.error "todo: Va_start"
-     | Va_copy, _ (* (asym 'bty) *) -> Cerb_debug.error "todo: Va_copy"
-     | Va_arg, _ (* (asym 'bty * actype 'bty) *) -> Cerb_debug.error "todo: Va_arg"
-     | Va_end, _ (* (asym 'bty) *) -> Cerb_debug.error "todo: Va_end"
-     | CHERI_intrinsic _, _ -> Cerb_debug.error "todo: CHERI_intrinsic"
+       Cerb_diagnostic.fatal "todo: Realloc"
+     | Va_start, _ (* (asym 'bty * asym 'bty) *) -> Cerb_diagnostic.fatal "todo: Va_start"
+     | Va_copy, _ (* (asym 'bty) *) -> Cerb_diagnostic.fatal "todo: Va_copy"
+     | Va_arg, _ (* (asym 'bty * actype 'bty) *) -> Cerb_diagnostic.fatal "todo: Va_arg"
+     | Va_end, _ (* (asym 'bty) *) -> Cerb_diagnostic.fatal "todo: Va_end"
+     | CHERI_intrinsic _, _ -> Cerb_diagnostic.fatal "todo: CHERI_intrinsic"
      | _ -> assert false)
   | Eaction (Paction (_pol, Action (_aloc, action_))) ->
     (match action_ with
@@ -2050,13 +2050,13 @@ let rec check_expr
          let@ () = record_action (Create ret, loc) in
          k ret)
      | CreateReadOnly (_sym1, _ct, _sym2, _prefix) ->
-       Cerb_debug.error "todo: CreateReadOnly"
+       Cerb_diagnostic.fatal "todo: CreateReadOnly"
      | Alloc (_ct, _sym, _prefix) ->
        (* TODO (DCM, VIP) *)
-       Cerb_debug.error "todo: Alloc"
+       Cerb_diagnostic.fatal "todo: Alloc"
      | Kill (Dynamic, _asym) ->
        (* TODO (DCM, VIP) *)
-       Cerb_debug.error "todo: Free"
+       Cerb_diagnostic.fatal "todo: Free"
      | Kill (Static ct, pe) ->
        let@ () = WellTyped.check_ct loc ct in
        let@ () = WellTyped.ensure_base_type loc ~expect Unit in
@@ -2125,16 +2125,16 @@ let rec check_expr
        check_pexpr p_pe (fun pointer ->
          let@ value = load loc pointer act.ct in
          k value)
-     | RMW (_ct, _sym1, _sym2, _sym3, _mo1, _mo2) -> Cerb_debug.error "todo: RMW"
-     | Fence _mo -> Cerb_debug.error "todo: Fence"
+     | RMW (_ct, _sym1, _sym2, _sym3, _mo1, _mo2) -> Cerb_diagnostic.fatal "todo: RMW"
+     | Fence _mo -> Cerb_diagnostic.fatal "todo: Fence"
      | CompareExchangeStrong (_ct, _sym1, _sym2, _sym3, _mo1, _mo2) ->
-       Cerb_debug.error "todo: CompareExchangeStrong"
+       Cerb_diagnostic.fatal "todo: CompareExchangeStrong"
      | CompareExchangeWeak (_ct, _sym1, _sym2, _sym3, _mo1, _mo2) ->
-       Cerb_debug.error "todo: CompareExchangeWeak"
-     | LinuxFence _mo -> Cerb_debug.error "todo: LinuxFemce"
-     | LinuxLoad (_ct, _sym1, _mo) -> Cerb_debug.error "todo: LinuxLoad"
-     | LinuxStore (_ct, _sym1, _sym2, _mo) -> Cerb_debug.error "todo: LinuxStore"
-     | LinuxRMW (_ct, _sym1, _sym2, _mo) -> Cerb_debug.error "todo: LinuxRMW")
+       Cerb_diagnostic.fatal "todo: CompareExchangeWeak"
+     | LinuxFence _mo -> Cerb_diagnostic.fatal "todo: LinuxFemce"
+     | LinuxLoad (_ct, _sym1, _mo) -> Cerb_diagnostic.fatal "todo: LinuxLoad"
+     | LinuxStore (_ct, _sym1, _sym2, _mo) -> Cerb_diagnostic.fatal "todo: LinuxStore"
+     | LinuxRMW (_ct, _sym1, _sym2, _mo) -> Cerb_diagnostic.fatal "todo: LinuxRMW")
   | Eskip ->
     let@ () = WellTyped.ensure_base_type loc ~expect Unit in
     k (unit_ loc)
@@ -2153,7 +2153,7 @@ let rec check_expr
            in
            k (arith_unop unop vt1 loc))
        else
-         Cerb_debug.error "todo: ctz|generic_ffs in non-bv mode"
+         Cerb_diagnostic.fatal "todo: ctz|generic_ffs in non-bv mode"
      | Impl (BuiltinFunction ("ctz" | "generic_ffs")), _ ->
        let type_ = `Other in
        let has = List.length pes in
@@ -2235,7 +2235,7 @@ let rec check_expr
   | Ebound e ->
     let@ () = WellTyped.ensure_base_type (Mu.loc_of_expr e) ~expect (Mu.bt_of_expr e) in
     check_expr labels inlined e k
-  | End _ -> Cerb_debug.error "todo: End"
+  | End _ -> Cerb_diagnostic.fatal "todo: End"
   | Elet (p, e1, e2) ->
     let@ () = WellTyped.ensure_base_type (Mu.loc_of_expr e2) ~expect (Mu.bt_of_expr e2) in
     let@ () =

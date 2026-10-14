@@ -1156,9 +1156,10 @@ module WrappedIntervalBasis = struct
       if b.is_bottom then
         Some (bottom bt)
       else (
-        let tag_defs = CF.Tags.tagDefs () in
         let offset =
-          Z.of_int (Memory.int_of_ival (CF.Impl_mem.offsetof_ival tag_defs tag member))
+          Z.of_int
+            (Memory.int_of_ival
+               (CF.Impl_mem.offsetof_ival !Sctypes.tagDefs_ref tag member))
         in
         let offset_wint = of_interval bt offset offset in
         forward_abs_binop Terms.Add b offset_wint)
@@ -1270,9 +1271,9 @@ module WrappedIntervalBasis = struct
         List.tl bs
     | MemberShift (_, tag, member) ->
       let b_res, b_base = match bs with [ r; b ] -> (r, b) | _ -> failwith __LOC__ in
-      let tag_defs = CF.Tags.tagDefs () in
       let offset =
-        Z.of_int (Memory.int_of_ival (CF.Impl_mem.offsetof_ival tag_defs tag member))
+        Z.of_int
+          (Memory.int_of_ival (CF.Impl_mem.offsetof_ival !Sctypes.tagDefs_ref tag member))
       in
       let offset_wint = of_interval b_res.bt offset offset in
       (match forward_abs_binop Terms.Sub b_res offset_wint with

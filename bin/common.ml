@@ -37,17 +37,6 @@ let frontend
       ~save_cpp
       ~disable_linemarkers
   =
-  Cerb_global.set_cerb_conf
-    ~backend_name:"Cn"
-    ~exec:false
-    (* execution mode *) Random
-    ~concurrency:false
-    (* error verbosity *) Basic
-    ~defacto:false
-    ~permissive
-    ~agnostic:false
-    ~ignore_bitfields:false;
-  CF.Ocaml_implementation.set CF.Ocaml_implementation.HafniumImpl.impl;
   CF.Switches.set
     ([ "inner_arg_temps"; "at_magic_comments" ]
      (* TODO (DCM, VIP) figure out how to support liveness checks for read-only
@@ -55,12 +44,29 @@ let frontend
         shift to the effectful version. "strict_pointer_relationals" is also
         assumed, but this does not affect elaboration. *)
      @ if magic_comment_char_dollar then [ "magic_comment_char_dollar" ] else []);
+  Cerb_diagnostic.(init ~verbosity:Basic) ();
+  let cerb_conf =
+    mk_config
+      ~backend_name:"Cn"
+      ~agnostic:false
+      ~permissive
+      ~ignore_bitfields:false
+      ~allow_distinct_ptr_types_comparison:true
+      ~allow_void_ptr_arithmetic:true
+      ~allow_void_return:true
+      ~execution_mode:None
+      ~concurrency:false
+      ~do_stepping:false
+      ~do_tracing:false
+      ~fs_dump:false
+  in
+  CF.Ocaml_implementation.set CF.Ocaml_implementation.HafniumImpl.impl;
   if allow_split_magic_comments then Parse.allow_split_magic_comments := true;
   let return = CF.Exception.except_return in
   let ( let@ ) = CF.Exception.except_bind in
   let@ stdlib = load_core_stdlib () in
   let@ impl = load_core_impl stdlib impl_name in
-  let conf =
+  let cli_conf =
     Setup.conf cc macros incl_dirs incl_files disable_linemarkers astprints save_cpp
   in
   let cn_init_scope : CF.Cn_desugaring.init_scope =
@@ -70,10 +76,15 @@ let frontend
     }
   in
   let@ cabs_tunit_opt, ail_prog_opt, prog0 =
-    c_frontend_and_elaboration ~cn_init_scope (conf, io) (stdlib, impl) ~filename
+    c_frontend_and_elaboration
+      ~cn_init_scope
+      cerb_conf
+      (cli_conf, io)
+      (stdlib, impl)
+      ~filename
   in
   let@ () =
-    if conf.typecheck_core then
+    if cli_conf.typecheck_core then
       let@ _ = CF.Core_typing.typecheck_program prog0 in
       return ()
     else
@@ -81,7 +92,7 @@ let frontend
   in
   let cabs_tunit = Option.get cabs_tunit_opt in
   let markers_env, ail_prog = Option.get ail_prog_opt in
-  CF.Tags.set_tagDefs prog0.CF.Core.tagDefs;
+  Sctypes.tagDefs_ref := prog0.CF.Core.tagDefs;
   let prog1 = CF.Remove_unspecs.rewrite_file prog0 in
   let prog2 = CF.Milicore.core_to_micore__file Locations.update prog1 in
   let prog3 =
@@ -93,27 +104,27 @@ let frontend
   let statement_locs = CStatements.search (snd ail_prog) in
   print_log_file ("original", `CORE prog0);
   print_log_file ("without_unspec", `CORE prog1);
-  return (cabs_tunit, prog3, (markers_env, ail_prog), statement_locs)
+  return (cerb_conf, cabs_tunit, prog3, (markers_env, ail_prog), statement_locs)
 
 
 let handle_frontend_error = function
-  | CF.Exception.Exception ((_, CF.Errors.CORE_TYPING _) as err) ->
+  | Error ((_, CF.Errors.CORE_TYPING _) as err) ->
     prerr_string (CF.Pp_errors.to_string err);
     prerr_endline
     @@ Cerb_colour.(ansi_format ~err:true [ Bold; Red ] "error: ")
     ^ "this is likely a bug in the Core elaboration.";
     exit 2
-  | CF.Exception.Exception err ->
+  | Error err ->
     prerr_endline (CF.Pp_errors.to_string err);
     exit 2
-  | CF.Exception.Result result -> result
+  | Ok result -> result
 
 
 let there_can_only_be_one =
   let err_if_not_c_h_file filename =
     let ext = String.equal (Filename.extension filename) in
     if not (ext ".c" || ext ".h") then
-      CF.Pp_errors.fatal
+      Cerb_diagnostic.fatal
         ("file \"" ^ filename ^ "\" has wrong file extension (must be .c or .h)")
   in
   function
@@ -153,6 +164,7 @@ let with_well_formedness_check
       ~(* Callbacks *)
        handle_error
       ~(f :
+         cerb_conf:CF.Config.config ->
          cabs_tunit:CF.Cabs.translation_unit ->
          prog5:unit Mucore.file ->
          ail_prog:CF.GenTypes.genTypeCategory CF.AilSyntax.ail_program ->
@@ -160,7 +172,7 @@ let with_well_formedness_check
          paused:_ Typing.pause ->
          unit Or_TypeError.t)
   =
-  let cabs_tunit, prog, (markers_env, ail_prog), statement_locs =
+  let cerb_conf, cabs_tunit, prog, (markers_env, ail_prog), statement_locs =
     handle_frontend_error
       (frontend
          ~cc
@@ -193,7 +205,7 @@ let with_well_formedness_check
         Typing.run_to_pause Context.empty (Check.check_decls_lemmata_fun_specs prog5)
       in
       Result.iter_error handle_error (Typing.pause_to_result paused);
-      let@ _ = f ~cabs_tunit ~prog5 ~ail_prog ~statement_locs ~paused in
+      let@ _ = f ~cerb_conf ~cabs_tunit ~prog5 ~ail_prog ~statement_locs ~paused in
       Option.iter
         (fun path ->
            let prologue = Pp_mucore_coq.pp_prologue () in

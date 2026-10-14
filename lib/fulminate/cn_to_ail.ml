@@ -1213,7 +1213,7 @@ let rec cn_to_ail_expr_aux
       | BT.Struct tag -> tag
       | _ -> failwith (__LOC__ ^ ": Cannot do StructUpdate on non-struct term")
     in
-    let tag_defs = Pmap.bindings_list (CF.Tags.tagDefs ()) in
+    let tag_defs = Pmap.bindings_list !Sctypes.tagDefs_ref in
     let matching_tag_defs =
       List.filter (fun (sym, (_, __def)) -> Sym.equal struct_tag sym) tag_defs
     in

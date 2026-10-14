@@ -647,9 +647,10 @@ module TristateBasis = struct
       if t.is_bottom then
         Some (bottom bt)
       else (
-        let tag_defs = CF.Tags.tagDefs () in
         let offset =
-          Z.of_int (Memory.int_of_ival (CF.Impl_mem.offsetof_ival tag_defs tag member))
+          Z.of_int
+            (Memory.int_of_ival
+               (CF.Impl_mem.offsetof_ival !Sctypes.tagDefs_ref tag member))
         in
         let offset_tnum = of_const bt offset in
         forward_abs_binop Terms.Add t offset_tnum)
@@ -937,9 +938,9 @@ module TristateBasis = struct
           [ meet t1 refined_t1; t2 ]))
     | MemberShift (_, tag, member) ->
       let t_res, t_base = match ts with [ r; b ] -> (r, b) | _ -> failwith __LOC__ in
-      let tag_defs = CF.Tags.tagDefs () in
       let offset =
-        Z.of_int (Memory.int_of_ival (CF.Impl_mem.offsetof_ival tag_defs tag member))
+        Z.of_int
+          (Memory.int_of_ival (CF.Impl_mem.offsetof_ival !Sctypes.tagDefs_ref tag member))
       in
       let offset_tnum = of_const t_res.bt offset in
       (match forward_abs_binop Terms.Sub t_res offset_tnum with

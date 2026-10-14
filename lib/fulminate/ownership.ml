@@ -351,7 +351,7 @@ let concat_block_local_injs injs =
 
 
 (* Ghost state tracking for stack-allocated variables in blocks *)
-let get_c_block_entry_exit_injs_aux bindings s =
+let get_c_block_entry_exit_injs_aux cerb_conf bindings s =
   let gen_standard_block_injs (bs, ss) f_stmt_injs loc =
     let exit_injs =
       List.map
@@ -395,6 +395,7 @@ let get_c_block_entry_exit_injs_aux bindings s =
                (* Based on CF.Translation_aux.qualified_ctype_of *)
                match
                  CF.ErrorMonad.runErrorMonad
+                   cerb_conf
                    (CF.GenTypesAux.interpret_genTypeCategory
                       Cerb_location.unknown
                       (CF.Implementation.integerImpl ())
@@ -529,10 +530,10 @@ let get_c_block_entry_exit_injs_aux bindings s =
   aux_stmt bindings s
 
 
-let get_c_block_entry_exit_injs stat
+let get_c_block_entry_exit_injs cerb_conf stat
   : ownership_injection list * (Cerb_location.t * string list) list
   =
-  let injs = get_c_block_entry_exit_injs_aux [] stat in
+  let injs = get_c_block_entry_exit_injs_aux cerb_conf [] stat in
   let standard_injs =
     List.map
       (fun (loc, bs, ss) -> { loc; bs_and_ss = (bs, ss); injection_kind = NonReturnInj })
@@ -555,8 +556,8 @@ let rec remove_duplicates ds = function
       l :: remove_duplicates (l :: ds) ls
 
 
-let get_c_block_local_ownership_checking_injs statement =
-  let injs, gcc_injs = get_c_block_entry_exit_injs statement in
+let get_c_block_local_ownership_checking_injs cerb_conf statement =
+  let injs, gcc_injs = get_c_block_entry_exit_injs cerb_conf statement in
   let injs' = get_c_control_flow_ownership_injs statement in
   let injs = injs @ injs' in
   let locs = List.map (fun o_inj -> o_inj.loc) injs in
@@ -597,6 +598,7 @@ let get_c_block_local_ownership_checking_injs statement =
 
 
 let get_c_fn_local_ownership_checking_injs
+      cerb_conf
       sym
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
   =
@@ -610,7 +612,7 @@ let get_c_fn_local_ownership_checking_injs
     let params = List.combine param_syms param_types in
     let ownership_stats_pair = get_c_local_ownership_checking params in
     let block_standard_injs, block_gcc_injs =
-      get_c_block_local_ownership_checking_injs fn_body
+      get_c_block_local_ownership_checking_injs cerb_conf fn_body
     in
     (Some ownership_stats_pair, (block_standard_injs, block_gcc_injs))
   | _, _ -> (None, ([], []))

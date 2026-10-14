@@ -53,14 +53,14 @@ let sint_bt = bt_of_sct Sctypes.(Integer (Signed Int_))
 let sint_sbt = sbt_of_sct Sctypes.(Integer (Signed Int_))
 
 let size_of_ctype = function
-  | Void -> Cerb_debug.error "size_of_ctype applied to void"
-  | ct -> int_of_ival (IM.sizeof_ival (to_ctype ct))
+  | Void -> Cerb_diagnostic.fatal "size_of_ctype applied to void"
+  | ct -> Z.to_int (OI.sizeof !Sctypes.tagDefs_ref (to_ctype ct))
 
 
 let align_of_ctype = function
   | Void -> 1
   | Function _ -> 1
-  | ct -> int_of_ival (IM.alignof_ival (Sctypes.to_ctype ct))
+  | ct -> Z.to_int (OI.alignof !Sctypes.tagDefs_ref (Sctypes.to_ctype ct))
 
 
 type struct_piece =

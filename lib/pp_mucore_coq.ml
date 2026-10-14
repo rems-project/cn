@@ -154,7 +154,10 @@ let pp_undefined_behaviour = function
          | UB_unspec_copy_alloc_id -> pp_constructor0 "UB_unspec_copy_alloc_id"
          | UB_unspec_rvalue_memberof -> pp_constructor0 "UB_unspec_rvalue_memberof"
          | UB_unspec_memberofptr -> pp_constructor0 "UB_unspec_memberofptr"
-         | UB_unspec_do -> pp_constructor0 "UB_unspec_do")
+         | UB_unspec_if -> pp_constructor0 "UB_unspec_if"
+         | UB_unspec_while -> pp_constructor0 "UB_unspec_while"
+         | UB_unspec_do -> pp_constructor0 "UB_unspec_do"
+         | UB_unspec_switch -> pp_constructor0 "UB_unspec_switch")
       ]
   | Undefined.UB_CERB005_free_nullptr -> pp_constructor0 "UB_CERB005_free_nullptr"
   | UB001 -> pp_constructor0 "UB001"

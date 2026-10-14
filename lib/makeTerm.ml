@@ -364,7 +364,7 @@ let map_get_ v arg loc =
     else
       failwith ("mag_get_: type mismatch: " ^ Pp.plain (Pp.list pp_with_typ [ v; arg ]));
     IT (MapGet (v, arg), rbt, loc)
-  | _ -> Cerb_debug.error "illtyped index term"
+  | _ -> Cerb_diagnostic.fatal "illtyped index term"
 
 
 let none_ bt loc = IT (CN_None bt, BT.Option bt, loc)
@@ -374,19 +374,19 @@ let some_ t loc = IT (CN_Some t, BT.Option (get_bt t), loc)
 let isNone_ t loc =
   match get_bt t with
   | BT.Option _ -> IT (Unop (Not, IT (IsSome t, Bool, loc)), Bool, loc)
-  | _ -> Cerb_debug.error "illtyped index term"
+  | _ -> Cerb_diagnostic.fatal "illtyped index term"
 
 
 let isSome_ t loc =
   match get_bt t with
   | BT.Option _ -> IT (IsSome t, Bool, loc)
-  | _ -> Cerb_debug.error "illtyped index term"
+  | _ -> Cerb_diagnostic.fatal "illtyped index term"
 
 
 let getOpt_ t loc =
   match get_bt t with
   | BT.Option bt -> IT (GetOpt t, bt, loc)
-  | _ -> Cerb_debug.error "illtyped index term"
+  | _ -> Cerb_diagnostic.fatal "illtyped index term"
 
 
 let make_array_ ~index_bt ~item_bt items (* assumed all of item_bt *) loc =
@@ -510,7 +510,7 @@ let value_check mode (struct_layouts : Memory.struct_decls) ct about loc =
     | Integer it ->
       in_z_range about (Memory.min_integer_type it, Memory.max_integer_type it) loc
     | Array (_, None) ->
-      Cerb_debug.error "todo: 'representable' for arrays with unknown length"
+      Cerb_diagnostic.fatal "todo: 'representable' for arrays with unknown length"
     | Array (item_ct, Some n) ->
       if n > !value_check_array_size_warning then (
         (* FIXME: handle this better rather than just warning *)
@@ -549,7 +549,7 @@ let value_check mode (struct_layouts : Memory.struct_decls) ct about loc =
               | None -> None)
            (Sym.Map.find tag struct_layouts))
         loc
-    | Function _ -> Cerb_debug.error "todo: function types"
+    | Function _ -> Cerb_diagnostic.fatal "todo: function types"
   in
   aux ct about
 

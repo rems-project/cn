@@ -25,8 +25,7 @@ type predicate_sig =
     pred_output : Locations.t * BaseTypes.t
   }
 
-type 'a cerb_frontend_result =
-  ('a, Locations.t * Cerb_frontend.Errors.cause) Cerb_frontend.Exception.exceptM
+type 'a cerb_frontend_result = ('a, Locations.t * Cerb_frontend.Errors.cause) Result.t
 
 type env =
   { computationals : (SBT.t * Sym.t option) Sym.Map.t;
@@ -195,8 +194,8 @@ let rec base_type env (bTy : _ Cn.cn_base_type) =
     (* FIXME handle errors here with CN mechanisms *)
     let here = Locations.other __LOC__ in
     (match env.fetch_typedef here sym with
-     | CF.Exception.Result r -> Memory.sbt_of_sct (Sctypes.of_ctype_unsafe here r)
-     | CF.Exception.Exception (_loc, msg) -> failwith (CF.Pp_errors.short_message msg))
+     | Ok r -> Memory.sbt_of_sct (Sctypes.of_ctype_unsafe here r)
+     | Error (_loc, msg) -> failwith (CF.Pp_errors.short_message msg))
 
 
 let add_predicates env defs =
@@ -283,8 +282,8 @@ let convert_enum_expr =
 let do_decode_enum env loc sym =
   (* FIXME handle errors with CN mechanisms *)
   match env.fetch_enum_expr loc sym with
-  | CF.Exception.Result expr -> convert_enum_expr expr
-  | CF.Exception.Exception (_loc, msg) -> failwith (CF.Pp_errors.short_message msg)
+  | Ok expr -> convert_enum_expr expr
+  | Error (_loc, msg) -> failwith (CF.Pp_errors.short_message msg)
 
 
 let add_function _loc sym func_sig env =
