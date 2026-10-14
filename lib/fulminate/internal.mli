@@ -21,7 +21,8 @@ val generate_c_assume_pres_internal
     list
 
 val generate_c_specs
-  :  bool ->
+  :  Config.config ->
+  bool ->
   bool ->
   bool ->
   bool ->

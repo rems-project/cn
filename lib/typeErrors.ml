@@ -373,7 +373,7 @@ let pp_builtins : Builtins.message -> _ = function
 
 let pp_parse : Parse.message -> _ = function
   | Parser err ->
-    let short = !^(Cerb_frontend.Pp_errors.string_of_cparser_cause err) in
+    let short = !^(Cerb_frontend.Pp_errors.string_of_cnparsing_cause err) in
     { short; descr = None; state = None }
   | Split_spec loc ->
     let short = !^"Cannot split specifications across multiple magic comments" in

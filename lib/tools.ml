@@ -29,7 +29,7 @@ let pair_equal equalityA equalityB (a, b) (a', b') = equalityA a a' && equalityB
 (* let at_most_one err_str = function
  *   | [] -> None
  *   | [x] -> (Some x)
- *   | _ -> Cerb_debug.error err_str *)
+ *   | _ -> Cerb_diagnostic.fatal err_str *)
 
 let unsupported (loc : Locations.t) (err : Pp.document) : 'a =
   let trace = Option.map Pp.string (do_stack_trace ()) in

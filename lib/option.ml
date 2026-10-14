@@ -33,7 +33,7 @@ let equal equality oa oa' =
 (*   | None -> default *)
 
 let value_err (err : string) (oa : 'a option) =
-  match oa with Some a -> a | None -> Cerb_debug.error err
+  match oa with Some a -> a | None -> Cerb_diagnostic.fatal err
 
 
 let ( let@ ) = bind

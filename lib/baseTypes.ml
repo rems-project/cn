@@ -116,13 +116,15 @@ let json pp_loc bt = `String (Pp.plain (pp pp_loc bt))
 let struct_bt pp_loc = function
   | Struct tag -> tag
   | bt ->
-    Cerb_debug.error ("illtyped index term: not a struct type: " ^ Pp.plain (pp pp_loc bt))
+    Cerb_diagnostic.fatal
+      ("illtyped index term: not a struct type: " ^ Pp.plain (pp pp_loc bt))
 
 
 let record_bt pp_loc = function
   | Record members -> members
   | bt ->
-    Cerb_debug.error ("illtyped index term: not a member type: " ^ Pp.plain (pp pp_loc bt))
+    Cerb_diagnostic.fatal
+      ("illtyped index term: not a member type: " ^ Pp.plain (pp pp_loc bt))
 
 
 let is_map_bt = function Map (abt, rbt) -> Some (abt, rbt) | _ -> None
@@ -130,7 +132,8 @@ let is_map_bt = function Map (abt, rbt) -> Some (abt, rbt) | _ -> None
 let map_bt pp_loc = function
   | Map (abt, rbt) -> (abt, rbt)
   | bt ->
-    Cerb_debug.error ("illtyped index term: not a map type: " ^ Pp.plain (pp pp_loc bt))
+    Cerb_diagnostic.fatal
+      ("illtyped index term: not a map type: " ^ Pp.plain (pp pp_loc bt))
 
 
 let is_datatype_bt = function Datatype sym -> Some sym | _ -> None
@@ -138,7 +141,8 @@ let is_datatype_bt = function Datatype sym -> Some sym | _ -> None
 let datatype_bt pp_loc = function
   | Datatype sym -> sym
   | bt ->
-    Cerb_debug.error ("illtyped index term: not a datatype: " ^ Pp.plain (pp pp_loc bt))
+    Cerb_diagnostic.fatal
+      ("illtyped index term: not a datatype: " ^ Pp.plain (pp pp_loc bt))
 
 
 let is_list_bt = function List bt -> Some bt | _ -> None
@@ -161,7 +165,7 @@ let rec of_sct loc is_signed size_of = function
   | Pointer sct -> Loc (loc sct)
   | Struct tag -> Struct tag
   | Byte -> Option MemByte
-  | Function _ -> Cerb_debug.error "todo: function types"
+  | Function _ -> Cerb_diagnostic.fatal "todo: function types"
 
 
 and uintptr_bt loc is_signed size_of =

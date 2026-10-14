@@ -93,8 +93,8 @@ let fail = Or_TypeError.fail
 
 let do_ail_desugar_op desugar_state f =
   match f desugar_state with
-  | CF.Exception.Result (x, st2) -> return (x, st2)
-  | CF.Exception.Exception (loc, msg) ->
+  | Ok (x, st2) -> return (x, st2)
+  | Error (loc, msg) ->
     fail { loc; msg = Generic !^(CF.Pp_errors.short_message msg) [@alert "-deprecated"] }
 
 
@@ -1123,7 +1123,7 @@ module Spec = struct
 
   let desugar_and_add_args decl_d_st spec_args =
     do_ail_desugar_op decl_d_st
-    @@ CF.State_exception.stExpect_mapM (Desugar.cn_arg Cn.CN_vars) spec_args
+    @@ CF.State_exception.stExcept_mapM (Desugar.cn_arg Cn.CN_vars) spec_args
 
 
   let add_spec_arg_renames loc args arg_cts cn_spec_args env =
@@ -1401,9 +1401,8 @@ let normalise_globs_list ~inherit_loc env gs =
 
 let make_struct_decl loc fields (tag : Sym.t) =
   let open Memory in
-  let tagDefs = CF.Tags.tagDefs () in
   let member_offset member =
-    Memory.int_of_ival (CF.Impl_mem.offsetof_ival tagDefs tag member)
+    Memory.int_of_ival (CF.Impl_mem.offsetof_ival !Sctypes.tagDefs_ref tag member)
   in
   let final_position = Memory.size_of_ctype (Struct tag) in
   let rec aux members position =

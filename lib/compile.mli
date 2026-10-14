@@ -1,7 +1,6 @@
 type env
 
-type 'a cerb_frontend_result =
-  ('a, Locations.t * Cerb_frontend.Errors.cause) Cerb_frontend.Exception.exceptM
+type 'a cerb_frontend_result = ('a, Locations.t * Cerb_frontend.Errors.cause) Result.t
 
 val init
   :  (Sym.t, Mucore.tag_definition) Pmap.map ->

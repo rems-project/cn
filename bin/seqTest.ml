@@ -67,12 +67,13 @@ let run_seq_tests
     ~save_cpp:(Some pp_file)
     ~disable_linemarkers:true
     ~handle_error
-    ~f:(fun ~cabs_tunit ~prog5 ~ail_prog ~statement_locs:_ ~paused:_ ->
+    ~f:(fun ~cerb_conf ~cabs_tunit ~prog5 ~ail_prog ~statement_locs:_ ~paused:_ ->
       Cerb_colour.without_colour
         (fun () ->
            let _, sigma = ail_prog in
            Fulminate.Cn_to_ail.augment_record_map (BaseTypes.Record []);
            Fulminate.main
+             ~cerb_conf
              ~without_ownership_checking
              ~without_loop_invariants:true
              ~with_loop_leak_checks:false

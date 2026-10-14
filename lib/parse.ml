@@ -5,7 +5,7 @@ module Cn = CF.Cn
 let allow_split_magic_comments = ref false
 
 type message =
-  | Parser of Cerb_frontend.Errors.cparser_cause
+  | Parser of Cerb_frontend.Errors.cnparsing_cause
   | Split_spec of Locations.t
 
 type err =
@@ -57,7 +57,7 @@ let fiddle_at_hack string =
 
 
 let debug_tokens loc string =
-  let toks, pos = C_parser_driver.diagnostic_get_tokens ~inside_cn:true loc string in
+  let toks, pos = Cn_parser_driver.diagnostic_get_tokens loc string in
   let pp_int_pair (x, y) = Pp.(parens (int x ^^ comma ^^^ int y)) in
   let open Pp.Infix in
   Pp.item "failed to parse tokens" (Pp.braces (Pp.list Pp.string toks))
@@ -66,17 +66,16 @@ let debug_tokens loc string =
 
 let parse parser_start (loc, string) =
   let string = fiddle_at_hack string in
-  let module Exn = Cerb_frontend.Exception in
-  match C_parser_driver.parse_loc_string parser_start (loc, string) with
-  | Exn.Result spec -> return spec
-  | Exn.Exception (loc, Cerb_frontend.Errors.CPARSER err) ->
+  match Cn_parser_driver.parse_loc_string parser_start (loc, string) with
+  | Ok spec -> return spec
+  | Error (loc, Cerb_frontend.Errors.CN_PARSING err) ->
     Pp.debug 6 (lazy (debug_tokens loc string));
     Monad.(fail { loc; msg = Parser err })
-  | Exn.Exception _ -> assert false
+  | Error _ -> assert false
 
 
 let cn_statements annots =
-  annots |> A.get_cerb_magic_attr |> ListM.concat_mapM (parse C_parser.cn_statements)
+  annots |> A.get_cerb_magic_attr |> ListM.concat_mapM (parse Cn_parser.cn_statements)
 
 
 (* Combine magic-comment content str1 and str2 into a single string,
@@ -129,7 +128,7 @@ let cn_ghost_args annots =
   match A.get_cerb_magic_attr annots with
   | [] -> return None
   | [ (loc, str) ] ->
-    let@ args = (parse C_parser.cn_ghost_args) (loc, str) in
+    let@ args = (parse Cn_parser.cn_ghost_args) (loc, str) in
     return (Some (loc, args))
   | _ :: _ :: _ -> failwith "frontend should guarantee unreachable"
 
@@ -140,7 +139,7 @@ let function_spec (A.Attrs attributes) =
   match join_snippets_list magic_attrs with
   | None -> return None
   | Some spec ->
-    let@ spec = parse C_parser.fundef_spec spec in
+    let@ spec = parse Cn_parser.fundef_spec spec in
     return (Some spec)
 
 
@@ -150,5 +149,5 @@ let loop_spec attrs =
   match join_snippets_list magic_attrs with
   | None -> return []
   | Some spec ->
-    let@ (Cn.CN_inv (_loc, conds)) = parse C_parser.loop_spec spec in
+    let@ (Cn.CN_inv (_loc, conds)) = parse Cn_parser.loop_spec spec in
     return conds
