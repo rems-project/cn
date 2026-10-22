@@ -1,3 +1,10 @@
+#ifndef CN_UTILS
+void *cn_malloc(unsigned long long);
+void cn_free_sized(void*, unsigned long long);
+#endif
+
+
+
 struct char_vector { 
   int len; 
   char chars[]; 
@@ -40,10 +47,15 @@ char access(struct char_vector *p, unsigned int n)
   return p->chars[n];
 }
 
-/* int main(void)  */
-/* /\*@ trusted @*\/ */
-/* {  */
-/*   struct char_vector v = { 0 };  */
-/*   return count(&v);  */
-/*   return access(&v);  */
-/* } */
+int main(void)
+/*@ trusted; @*/
+{
+  struct char_vector *p = cn_malloc(8);
+  p->len = 4;
+  p->chars[0] = 0;
+  p->chars[1] = 0;
+  p->chars[2] = 0;
+  p->chars[3] = 0;
+  return count(p);
+  return access(p,1);
+}
