@@ -55,6 +55,7 @@ int main(void)
   p->chars[1] = 0;
   p->chars[2] = 0;
   p->chars[3] = 0;
-  return count(p);
-  return access(p,1);
+  count(p);
+  access(p,1);
+  return 0;
 }
