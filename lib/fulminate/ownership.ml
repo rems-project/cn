@@ -77,10 +77,13 @@ let generate_c_local_ownership_entry sym_ctype_pair =
   A.(AilSexpr (generate_c_local_ownership_entry_fcall sym_ctype_pair))
 
 
-let generate_c_local_ownership_entry_bs_and_ss (sym, ctype) =
+let generate_c_local_ownership_entry_bs_and_ss ~contains_user_spec (sym, ctype) =
   let entry_fcall_stat = generate_c_local_ownership_entry (sym, ctype) in
-  let addr_cn_binding, addr_cn_decl = generate_c_local_cn_addr_var sym in
-  ([ addr_cn_binding ], [ entry_fcall_stat; addr_cn_decl ])
+  if contains_user_spec then (
+    let addr_cn_binding, addr_cn_decl = generate_c_local_cn_addr_var sym in
+    ([ addr_cn_binding ], [ entry_fcall_stat; addr_cn_decl ]))
+  else
+    ([], [ entry_fcall_stat ])
 
 
 (* int x = 0, y = 5;
@@ -132,7 +135,13 @@ let rec gen_loop_ownership_entry_decls bindings = function
        failwith error_msg)
 
 
-let generate_c_local_ownership_entry_inj ~is_forloop loc decls bindings =
+let generate_c_local_ownership_entry_inj
+      ~contains_user_spec
+      ~is_forloop
+      loc
+      decls
+      bindings
+  =
   if is_forloop then (
     let new_decls = gen_loop_ownership_entry_decls bindings decls in
     [ (loc, bindings, [ A.AilSdeclaration new_decls ]) ])
@@ -141,7 +150,7 @@ let generate_c_local_ownership_entry_inj ~is_forloop loc decls bindings =
       List.map
         (fun (sym, _) ->
            let ctype = find_ctype_from_bindings bindings sym in
-           generate_c_local_ownership_entry_bs_and_ss (sym, ctype))
+           generate_c_local_ownership_entry_bs_and_ss ~contains_user_spec (sym, ctype))
         decls
     in
     let bs, ss = List.split ownership_bs_and_ss in
@@ -163,9 +172,11 @@ let generate_c_local_ownership_exit (local_sym, local_ctype) =
                List.map mk_expr [ arg1; arg2 ] ))))
 
 
-let get_c_local_ownership_checking params =
+let get_c_local_ownership_checking ~contains_user_spec params =
   let entry_ownership_bs_and_ss =
-    List.map (fun param -> generate_c_local_ownership_entry_bs_and_ss param) params
+    List.map
+      (fun param -> generate_c_local_ownership_entry_bs_and_ss ~contains_user_spec param)
+      params
   in
   let entry_ownership_bs, entry_ownership_ss = List.split entry_ownership_bs_and_ss in
   let exit_ownership_stats = List.map generate_c_local_ownership_exit params in
@@ -351,7 +362,7 @@ let concat_block_local_injs injs =
 
 
 (* Ghost state tracking for stack-allocated variables in blocks *)
-let get_c_block_entry_exit_injs_aux cerb_conf bindings s =
+let get_c_block_entry_exit_injs_aux ~contains_user_spec cerb_conf bindings s =
   let gen_standard_block_injs (bs, ss) f_stmt_injs loc =
     let exit_injs =
       List.map
@@ -489,7 +500,14 @@ let get_c_block_entry_exit_injs_aux cerb_conf bindings s =
     in
     match s_ with
     | A.(AilSdeclaration decls) ->
-      let injs = generate_c_local_ownership_entry_inj ~is_forloop loc decls bindings in
+      let injs =
+        generate_c_local_ownership_entry_inj
+          ~contains_user_spec
+          ~is_forloop
+          loc
+          decls
+          bindings
+      in
       let injs' =
         List.map
           (fun (_, e_opt) ->
@@ -504,7 +522,14 @@ let get_c_block_entry_exit_injs_aux cerb_conf bindings s =
            ] as ss) ) ->
       if is_forloop then (
         (* WIP: special case for for-loops *)
-        let inj = generate_c_local_ownership_entry_inj ~is_forloop decl_loc decls bs in
+        let inj =
+          generate_c_local_ownership_entry_inj
+            ~contains_user_spec
+            ~is_forloop
+            decl_loc
+            decls
+            bs
+        in
         let injs' = aux_stmt [] s in
         concat_block_local_injs [ ret_standard_injs inj; injs' ])
       else
@@ -530,10 +555,10 @@ let get_c_block_entry_exit_injs_aux cerb_conf bindings s =
   aux_stmt bindings s
 
 
-let get_c_block_entry_exit_injs cerb_conf stat
+let get_c_block_entry_exit_injs ~contains_user_spec cerb_conf stat
   : ownership_injection list * (Cerb_location.t * string list) list
   =
-  let injs = get_c_block_entry_exit_injs_aux cerb_conf [] stat in
+  let injs = get_c_block_entry_exit_injs_aux ~contains_user_spec cerb_conf [] stat in
   let standard_injs =
     List.map
       (fun (loc, bs, ss) -> { loc; bs_and_ss = (bs, ss); injection_kind = NonReturnInj })
@@ -556,8 +581,10 @@ let rec remove_duplicates ds = function
       l :: remove_duplicates (l :: ds) ls
 
 
-let get_c_block_local_ownership_checking_injs cerb_conf statement =
-  let injs, gcc_injs = get_c_block_entry_exit_injs cerb_conf statement in
+let get_c_block_local_ownership_checking_injs ~contains_user_spec cerb_conf statement =
+  let injs, gcc_injs =
+    get_c_block_entry_exit_injs ~contains_user_spec cerb_conf statement
+  in
   let injs' = get_c_control_flow_ownership_injs statement in
   let injs = injs @ injs' in
   let locs = List.map (fun o_inj -> o_inj.loc) injs in
@@ -598,6 +625,7 @@ let get_c_block_local_ownership_checking_injs cerb_conf statement =
 
 
 let get_c_fn_local_ownership_checking_injs
+      ~contains_user_spec
       cerb_conf
       sym
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
@@ -610,9 +638,11 @@ let get_c_fn_local_ownership_checking_injs
       Some (_, _, Decl_function (_, _, param_types, _, _, _)) ) ->
     let param_types = List.map (fun (_, ctype, _) -> ctype) param_types in
     let params = List.combine param_syms param_types in
-    let ownership_stats_pair = get_c_local_ownership_checking params in
+    let ownership_stats_pair =
+      get_c_local_ownership_checking ~contains_user_spec params
+    in
     let block_standard_injs, block_gcc_injs =
-      get_c_block_local_ownership_checking_injs cerb_conf fn_body
+      get_c_block_local_ownership_checking_injs ~contains_user_spec cerb_conf fn_body
     in
     (Some ownership_stats_pair, (block_standard_injs, block_gcc_injs))
   | _, _ -> (None, ([], []))

@@ -36,7 +36,8 @@ val generate_c_local_ownership_exit
   GenTypes.genTypeCategory AilSyntax.statement_
 
 val get_c_fn_local_ownership_checking_injs
-  :  Config.config ->
+  :  contains_user_spec:bool ->
+  Config.config ->
   Ctype.union_tag ->
   GenTypes.genTypeCategory AilSyntax.sigma ->
   (((Ctype.union_tag

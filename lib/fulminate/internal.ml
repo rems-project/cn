@@ -44,9 +44,14 @@ type stack_local_var_inj_info =
         list
   }
 
-let generate_stack_local_var_inj_strs cerb_conf fn_sym (sigm : _ CF.AilSyntax.sigma) =
+let generate_stack_local_var_inj_strs
+      ~contains_user_spec
+      cerb_conf
+      fn_sym
+      (sigm : _ CF.AilSyntax.sigma)
+  =
   let fn_ownership_stats_opt, (block_ownership_injs, gcc_injs) =
-    OE.get_c_fn_local_ownership_checking_injs cerb_conf fn_sym sigm
+    OE.get_c_fn_local_ownership_checking_injs ~contains_user_spec cerb_conf fn_sym sigm
   in
   let (entry_ownership_str, exit_ownership_str), block_ownership_injs =
     match fn_ownership_stats_opt with
@@ -240,7 +245,11 @@ let generate_c_specs_internal
   let contains_user_spec = Cn_to_ail.has_cn_spec instrumentation in
   (* C stack-local variable ownership checking: needed regardless of whether user has provided CN spec *)
   let stack_local_var_inj_info : stack_local_var_inj_info =
-    generate_stack_local_var_inj_strs cerb_conf instrumentation.fn sigm
+    generate_stack_local_var_inj_strs
+      ~contains_user_spec
+      cerb_conf
+      instrumentation.fn
+      sigm
   in
   let cn_spec_inj_info =
     if contains_user_spec then
