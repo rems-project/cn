@@ -157,7 +157,7 @@ let add_records_to_map_from_datatype (dt : Mucore.datatype) =
 
 let add_records_to_map_from_struct (tag_def : Mucore.tag_definition) =
   match tag_def with
-  | Mucore.StructDef sl ->
+  | Mucore.StructDef (sl, _fam) ->
     List.iter
       (fun (sp : Memory.struct_piece) ->
          match sp.member_or_padding with

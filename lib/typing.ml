@@ -220,9 +220,9 @@ module Global = struct
 
   let is_fun_decl global id = Option.is_some @@ Global.get_fun_decl global id
 
-  let get_struct_member_type loc tag member =
+  let get_struct_member_type ~fam_permitted loc tag member =
     let@ decl = get_struct_decl loc tag in
-    let@ ty = get_member_type loc member decl in
+    let@ ty = get_member_type ~fam_permitted loc member decl in
     return ty
 
 

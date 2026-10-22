@@ -32,10 +32,8 @@ let struct_layout_field_bts xs =
 
 
 let get_struct_xs struct_decls tag =
-  match Sym.Map.find_opt tag struct_decls with
-  | Some def -> struct_layout_field_bts def
-  (* the none case should be impossible *)
-  | None -> ([], [])
+  let def, _fam = Sym.Map.find tag struct_decls in
+  struct_layout_field_bts def
 
 
 (* CN basetypes to ITP_IR *)

@@ -185,7 +185,7 @@ and check_struct
   : T.t m
   =
   let@ layout = Global.get_struct_decl loc tag in
-  let member_types = Memory.member_types layout in
+  let member_types, _fam = Memory.member_types layout in
   assert (
     List.for_all2
       (fun (id, ct) (id', ct', _mv') -> Id.equal id id' && Sctypes.equal ct ct')
@@ -763,7 +763,7 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : T.t m =
     let@ () = WellTyped.ensure_base_type loc ~expect (Loc ()) in
     let@ () = WellTyped.ensure_base_type loc ~expect:(Loc ()) (Mu.bt_of_pexpr pe) in
     let@ vt = check_pexpr path_cs pe in
-    let@ ct = Global.get_struct_member_type loc tag member in
+    let@ ct = Global.get_struct_member_type ~fam_permitted:true loc tag member in
     let result = memberShift_ (vt, tag, member) loc in
     (* This should only be called after a PtrValidForDeref, so if we
         were willing to optimise, we could skip to [k result]. *)
@@ -1008,7 +1008,7 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : T.t m =
     let@ () = WellTyped.check_ct loc (Struct tag) in
     let@ () = WellTyped.ensure_base_type loc ~expect (Struct tag) in
     let@ layout = Global.get_struct_decl loc tag in
-    let member_types = Memory.member_types layout in
+    let member_types, _fam = Memory.member_types layout in
     let@ _ =
       ListM.map2M
         (fun (id, ct) (id', pe') ->
@@ -1050,7 +1050,7 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : T.t m =
     let struct_bt = BT.Struct tag in
     let@ () = WellTyped.ensure_base_type loc ~expect:struct_bt (Mu.bt_of_pexpr pe) in
     let@ struct_val = check_pexpr path_cs pe in
-    let@ member_sct = Global.get_struct_member_type loc tag member in
+    let@ member_sct = Global.get_struct_member_type ~fam_permitted:false loc tag member in
     let member_bt = Memory.bt_of_sct member_sct in
     let@ () = WellTyped.ensure_base_type loc ~expect member_bt in
     return (member_ ~member_bt (struct_val, member) loc)
@@ -2693,8 +2693,8 @@ let check_tagdefs tagDefs =
            return ()
          else
            unsupported (Loc.other __LOC__) !^"todo: union types"
-       | StructDef layout ->
-         let@ _ =
+       | StructDef (members, fam) ->
+         let@ member_names =
            ListM.fold_rightM
              (fun piece have ->
                 match piece.member_or_padding with
@@ -2705,10 +2705,14 @@ let check_tagdefs tagDefs =
                   let@ () = WellTyped.check_ct (Loc.other __LOC__) ct in
                   return (IdSet.add name have)
                 | None -> return have)
-             layout
+             members
              IdSet.empty
          in
-         return ())
+         (match fam with
+          | None -> return ()
+          | Some { member = id, ct; offset = _ } ->
+            assert (not (IdSet.mem id member_names));
+            WellTyped.check_ct (Loc.other __LOC__) ct))
     tagDefs
 
 

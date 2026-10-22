@@ -536,8 +536,8 @@ and get_value gs ctys bt (sexp : SMT.sexp) =
     Tuple (List.map2 (get_ivalue gs ctys) bts vals)
   | Struct tag ->
     let _con, vals = SMT.to_con sexp in
-    let decl = Sym.Map.find tag gs.struct_decls in
-    let fields = List.filter_map (fun x -> x.Memory.member_or_padding) decl in
+    let pieces, _fam = Sym.Map.find tag gs.struct_decls in
+    let fields = List.filter_map (fun x -> x.Memory.member_or_padding) pieces in
     let mk_field (l, t) v = (l, get_ivalue gs ctys (Memory.bt_of_sct t) v) in
     Struct (tag, List.map2 mk_field fields vals)
   | Datatype tag ->
@@ -902,8 +902,8 @@ let rec translate_term s iterm =
     SMT.app_ (CN_Names.struct_field_name f) [ translate_term s e1 ]
   | StructUpdate ((t, member), v) ->
     let tag = BT.struct_bt (get_bt t) in
-    let layout = Sym.Map.find (BT.struct_bt (get_bt t)) struct_decls in
-    let members = Memory.member_types layout in
+    let layout = Sym.Map.find tag struct_decls in
+    let members, _fam = Memory.member_types layout in
     let str =
       List.map
         (fun (member', sct) ->
@@ -1129,7 +1129,7 @@ end
 (** Declare a struct type and all struct types that it depends on.
     The `done_struct` keeps track of which structs we've already declared. *)
 module CN_Structs = struct
-  let rec declare_struct s done_struct name decl =
+  let rec declare_struct s done_struct name ((pieces, _fam) : Memory.struct_layout) =
     let mp = !done_struct in
     if Sym.Set.mem name mp then
       ()
@@ -1154,7 +1154,7 @@ module CN_Structs = struct
         (SMT.declare_datatype
            (CN_Names.struct_name name)
            []
-           [ (CN_Names.struct_con_name name, List.filter_map mk_piece decl) ]))
+           [ (CN_Names.struct_con_name name, List.filter_map mk_piece pieces) ]))
 
 
   let declare s =

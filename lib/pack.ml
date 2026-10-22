@@ -52,7 +52,7 @@ let packing_ft ~full loc global provable ret =
        let at = LAT.Resource ((o_s, (qpred, T.get_bt o)), (loc, None), LAT.I o) in
        Some at
      | Owned (Struct tag, init) ->
-       let layout = Sym.Map.find tag global.Global.struct_decls in
+       let layout, _fam = Sym.Map.find tag global.Global.struct_decls in
        let lrt, value =
          List.fold_right
            (fun { offset; size; member_or_padding } (lrt, value) ->
@@ -109,7 +109,7 @@ let unpack_owned loc global (ct, init) pointer (O o) =
   | Void | Integer _ | Pointer _ | Function _ | Byte -> None
   | Array (ict, olength) -> Some [ (unfolded_array loc init (ict, olength) pointer, O o) ]
   | Struct tag ->
-    let layout = Sym.Map.find tag global.Global.struct_decls in
+    let layout, _fam = Sym.Map.find tag global.Global.struct_decls in
     let res =
       List.fold_right
         (fun { offset; size; member_or_padding } res ->

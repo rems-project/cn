@@ -1399,53 +1399,62 @@ let normalise_globs_list ~inherit_loc env gs =
     gs
 
 
-let make_struct_decl loc fields (tag : Sym.t) =
-  let open Memory in
-  let member_offset member =
+let normalise_tag_definition =
+  let member_offset tag member =
     Memory.int_of_ival (CF.Impl_mem.offsetof_ival !Sctypes.tagDefs_ref tag member)
   in
-  let final_position = Memory.size_of_ctype (Struct tag) in
-  let rec aux members position =
-    match members with
-    | [] ->
-      if position < final_position then
-        [ { offset = position;
-            size = final_position - position;
-            member_or_padding = None
-          }
-        ]
-      else
-        []
-    | (member, (_attrs, _ (*align_opt*), _qualifiers, ct)) :: members ->
-      (* TODO: support for any alignment specifier *)
-      let sct = convert_ct loc ct in
-      let offset = member_offset member in
-      let size = Memory.size_of_ctype sct in
-      let to_pad = offset - position in
-      let padding =
-        if to_pad > 0 then
-          [ { offset = position; size = to_pad; member_or_padding = None } ]
+  let make_struct_decl loc fields (tag : Sym.t) =
+    let final_position = Memory.size_of_ctype (Struct tag) in
+    let rec aux members position =
+      match members with
+      | [] ->
+        if position < final_position then
+          [ Memory.
+              { offset = position;
+                size = final_position - position;
+                member_or_padding = None
+              }
+          ]
         else
           []
-      in
-      let member = [ { offset; size; member_or_padding = Some (member, sct) } ] in
-      let rest = aux members (offset + size) in
-      padding @ member @ rest
+      | (member, (_attrs, _ (*align_opt*), _qualifiers, ct)) :: members ->
+        (* TODO: support for any alignment specifier *)
+        let sct = convert_ct loc ct in
+        let offset = member_offset tag member in
+        let size = Memory.size_of_ctype sct in
+        let to_pad = offset - position in
+        let padding =
+          if to_pad > 0 then
+            [ Memory.{ offset = position; size = to_pad; member_or_padding = None } ]
+          else
+            []
+        in
+        let member =
+          [ Memory.{ offset; size; member_or_padding = Some (member, sct) } ]
+        in
+        let rest = aux members (offset + size) in
+        padding @ member @ rest
+    in
+    aux fields 0
   in
-  aux fields 0
-
-
-let normalise_tag_definition tag (loc, def) =
-  match def with
-  | Ctype.StructDef (_fields, Some (FlexibleArrayMember (_, Identifier (loc, _), _, _)))
-    ->
-    unsupported loc !^"flexible array members"
-  | StructDef (fields, None) -> return (Mu.StructDef (make_struct_decl loc fields tag))
-  | UnionDef _l ->
-    if !Sym.experimental_unions then
-      return Mu.UnionDef
-    else
-      unsupported loc !^"union types"
+  fun tag (loc, def) ->
+    match def with
+    | Ctype.StructDef (fields, fam) ->
+      let fam =
+        match fam with
+        | None -> None
+        | Some (FlexibleArrayMember (_attr, id, _qs, ct)) ->
+          Some
+            { Memory.offset = member_offset tag id;
+              Memory.member = (id, convert_ct loc ct)
+            }
+      in
+      return (Mu.StructDef (make_struct_decl loc fields tag, fam))
+    | UnionDef _l ->
+      if !Sym.experimental_unions then
+        return Mu.UnionDef
+      else
+        unsupported loc !^"union types"
 
 
 let normalise_tag_definitions tagDefs =

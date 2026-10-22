@@ -278,7 +278,8 @@ let compile_sct_aux (prog5 : unit Mucore.file) (sct : Sctypes.t)
           ] )
     | Struct tag ->
       (match Pmap.find tag prog5.tagDefs with
-       | StructDef pieces ->
+       | StructDef (pieces, fam) ->
+         (match fam with None -> () | Some _ -> failwith "todo: flexible array member");
          let members =
            pieces
            |> List.filter_map (fun ({ member_or_padding; _ } : Memory.struct_piece) ->
@@ -901,7 +902,10 @@ let synthesize
             | Sctypes.Array (sct', Some _) -> [ sct; sct' ]
             | Sctypes.Struct tag ->
               (match Pmap.find tag prog5.tagDefs with
-               | StructDef pieces ->
+               | StructDef (pieces, fam) ->
+                 (match fam with
+                  | None -> ()
+                  | Some _ -> failwith "todo: flexible array members");
                  let member_scts =
                    pieces
                    |> List.filter_map

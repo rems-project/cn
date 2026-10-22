@@ -7,7 +7,8 @@ module Make (AD : Domain.T) = struct
 
   let generate_struct_handlers (prog5 : unit Mucore.file) (tag : Sym.t) : Pp.document =
     match Pmap.find tag prog5.tagDefs with
-    | StructDef pieces ->
+    | StructDef (pieces, fam) ->
+      (match fam with None -> () | Some _ -> failwith "todo: flexible array members");
       let members =
         pieces
         |> List.filter_map (fun ({ member_or_padding; _ } : Memory.struct_piece) ->

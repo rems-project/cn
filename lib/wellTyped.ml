@@ -97,9 +97,9 @@ module NoSolver = struct
 
   let ( let@ ) = bind
 
-  let get_struct_member_type loc tag member =
+  let get_struct_member_type ~fam_permitted loc tag member =
     let@ decl = get_struct_decl loc tag in
-    let@ ty = get_member_type loc member decl in
+    let@ ty = get_member_type ~fam_permitted loc member decl in
     return ty
 
 
@@ -742,7 +742,7 @@ module WT = struct
         return (IT (NthTuple (n, t'), item_bt, loc))
       | Struct (tag, members) ->
         let@ layout = get_struct_decl loc tag in
-        let decl_members = Memory.member_types layout in
+        let decl_members, _fam = Memory.member_types layout in
         let@ () = correct_members loc decl_members members in
         (* "sort" according to declaration *)
         let@ members_sorted =
@@ -766,7 +766,7 @@ module WT = struct
             let reason = Either.Left loc in
             fail (illtyped_index_term loc t has ~expected ~reason)
         in
-        let@ field_ct = get_struct_member_type loc tag member in
+        let@ field_ct = get_struct_member_type ~fam_permitted:false loc tag member in
         return (IT (StructMember (t, member), Memory.bt_of_sct field_ct, loc))
       | StructUpdate ((t, member), v) ->
         let@ t = infer t in
@@ -779,7 +779,7 @@ module WT = struct
             let reason = Either.Left (T.get_loc t) in
             fail (illtyped_index_term loc t has ~expected ~reason)
         in
-        let@ field_ct = get_struct_member_type loc tag member in
+        let@ field_ct = get_struct_member_type ~fam_permitted:false loc tag member in
         let@ v = check (T.get_loc t) (Memory.bt_of_sct field_ct) v in
         return (IT (StructUpdate ((t, member), v), BT.Struct tag, loc))
       | Record members ->
@@ -866,7 +866,7 @@ module WT = struct
         in
         return (IT (Cast (target_bt, t), target_bt, loc))
       | MemberShift (t, tag, member) ->
-        let@ _ty = get_struct_member_type loc tag member in
+        let@ _ty = get_struct_member_type ~fam_permitted:true loc tag member in
         let@ t = check loc (Loc ()) t in
         let@ decl = get_struct_decl loc tag in
         let@ () =
@@ -913,7 +913,7 @@ module WT = struct
         in
         return (IT (SizeOf ct, Memory.size_bt, loc))
       | OffsetOf (tag, member) ->
-        let@ _ty = get_struct_member_type loc tag member in
+        let@ _ty = get_struct_member_type ~fam_permitted:true loc tag member in
         let@ decl = get_struct_decl loc tag in
         let@ () =
           if !cnBV then (
@@ -1888,12 +1888,12 @@ module BaseTyping = struct
           return (Tuple [ CType; List CType; Bool; Bool ], PEcfunction pe)
         | PEstruct (nm, nm_pes) ->
           let@ layout = get_struct_decl loc nm in
-          let decl_members = Memory.member_types layout in
+          let decl_members, _fam = Memory.member_types layout in
           let@ () = correct_members loc decl_members nm_pes in
           let@ nm_pes =
             ListM.mapM
               (fun (member, pe) ->
-                 let@ mct = get_struct_member_type loc nm member in
+                 let@ mct = get_struct_member_type ~fam_permitted:false loc nm member in
                  let@ pe = check_pexpr (Memory.bt_of_sct mct) pe in
                  return (member, pe))
               nm_pes
@@ -1954,8 +1954,8 @@ module BaseTyping = struct
             fail
               { loc; msg = Generic !^"unsupported: union types" } [@alert "-deprecated"]
         | PEmemberof (tag, member, pe) ->
-          let@ pe = infer_pexpr pe in
-          let@ field_ct = get_struct_member_type loc tag member in
+          let@ pe = check_pexpr (Struct tag) pe in
+          let@ field_ct = get_struct_member_type ~fam_permitted:false loc tag member in
           return (Memory.bt_of_sct field_ct, PEmemberof (tag, member, pe))
         (* reaching these cases should be prevented by the `is_unreachable` used in
            inferring types of PEif *)

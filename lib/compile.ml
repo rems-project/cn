@@ -431,11 +431,12 @@ module C_vars = struct
     | None -> fail { loc; msg = Global (Unknown_struct tag) }
 
 
-  let lookup_member loc (_tag, def) member =
-    let member_types = Memory.member_types def in
-    match List.assoc_opt Id.equal member member_types with
-    | Some ty -> return ty
-    | None ->
+  let lookup_member ~fam_permitted loc (_tag, def) member =
+    let member_types, fam = Memory.member_types def in
+    match (List.assoc_opt Id.equal member member_types, fam) with
+    | Some ty, _ -> return ty
+    | None, Some (member', ct) when fam_permitted && Id.equal member member' -> return ct
+    | _ ->
       fail { loc; msg = Global (Unexpected_member (List.map fst member_types, member)) }
 
 
@@ -564,7 +565,7 @@ module C_vars = struct
       return (MT.recordMember_ ~member_bt (t, member) loc)
     | Struct tag ->
       let@ defs_ = lookup_struct loc tag env in
-      let@ ty = lookup_member loc (tag, defs_) member in
+      let@ ty = lookup_member ~fam_permitted:false loc (tag, defs_) member in
       let member_bt = Memory.sbt_of_sct ty in
       return (Terms.IT (StructMember (t, member), member_bt, loc))
     | has ->
@@ -852,7 +853,9 @@ module C_vars = struct
         let@ e = self e in
         let with_tag tag =
           let@ struct_def = lookup_struct loc tag env in
-          let@ member_ty = lookup_member loc (tag, struct_def) member in
+          let@ member_ty =
+            lookup_member ~fam_permitted:true loc (tag, struct_def) member
+          in
           let (IT (it_, _, _)) =
             Surface.inj (MT.memberShift_ (Surface.proj e, tag, member) loc)
           in

@@ -225,7 +225,10 @@ module Make (AD : Domain.T) = struct
         | BT.Struct tag ->
           (match Pmap.find tag prog5.tagDefs with
            | StructDef layout ->
-             let member_ids = Memory.members layout in
+             let member_ids, fam = Memory.members layout in
+             (match fam with
+              | None -> ()
+              | Some _ -> failwith "todo: flexible array members");
              get_struct_request sym member_ids term
            | _ -> Nothing)
         | BT.Record members ->
@@ -350,7 +353,10 @@ module Make (AD : Domain.T) = struct
             | BT.Struct tag ->
               (match Pmap.find tag prog5.tagDefs with
                | StructDef layout ->
-                 let member_types_list = Memory.member_types layout in
+                 let member_types_list, fam = Memory.member_types layout in
+                 (match fam with
+                  | None -> ()
+                  | Some _ -> failwith "todo: flexible array members");
                  (* Build struct with defaults for pruned members *)
                  (match T.get_term it with
                   | Struct (tag, members) ->
