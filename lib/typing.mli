@@ -98,7 +98,12 @@ module Global : sig
 
   val get_struct_decl : Locations.t -> Sym.t -> Memory.struct_decl m
 
-  val get_struct_member_type : Locations.t -> Sym.t -> Id.t -> Sctypes.t m
+  val get_struct_member_type
+    :  fam_permitted:bool ->
+    Locations.t ->
+    Sym.t ->
+    Id.t ->
+    Sctypes.t m
 
   val get_datatype : Locations.t -> Sym.t -> BaseTypes.dt_info m
 

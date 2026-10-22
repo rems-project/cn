@@ -110,7 +110,10 @@ module Make (AD : Domain.T) = struct
       match arg_bt with
       | BT.Struct tag ->
         (match Pmap.find tag prog5.tagDefs with
-         | StructDef pieces ->
+         | StructDef (pieces, fam) ->
+           (match fam with
+            | None -> ()
+            | Some _ -> failwith "todo: flexible array members");
            let members =
              pieces
              |> List.filter_map (fun ({ member_or_padding; _ } : Memory.struct_piece) ->
@@ -159,7 +162,8 @@ module Make (AD : Domain.T) = struct
     | Struct (tag, members) ->
       let member_scts =
         match Pmap.find tag prog5.tagDefs with
-        | StructDef pieces ->
+        | StructDef (pieces, fam) ->
+          (match fam with None -> () | Some _ -> failwith "todo: flexible array members");
           pieces
           |> List.filter_map (fun ({ member_or_padding; _ } : Memory.struct_piece) ->
             member_or_padding)
@@ -180,7 +184,10 @@ module Make (AD : Domain.T) = struct
       match bt with
       | BT.Struct tag ->
         (match Pmap.find tag prog5.tagDefs with
-         | StructDef pieces ->
+         | StructDef (pieces, fam) ->
+           (match fam with
+            | None -> ()
+            | Some _ -> failwith "todo: flexible array members");
            pieces
            |> List.filter_map (fun ({ member_or_padding; _ } : Memory.struct_piece) ->
              member_or_padding)

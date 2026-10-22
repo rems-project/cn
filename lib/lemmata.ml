@@ -506,13 +506,13 @@ let generate_structs (struct_decls : Memory.struct_decls) =
       !^("  " ^ Id.get_string id ^ " : " ^ print_ctype ctype ^ "; ") ^^ hardline
     | None -> rets ""
   in
-  let unpack_struct_type (decl : Sym.t * Memory.struct_layout) =
-    let nm = !^(Sym.pp_string (fst decl)) in
+  let unpack_struct_type ((tag : Sym.t), ((members, _fam) : Memory.struct_layout)) =
+    let nm = !^(Sym.pp_string tag) in
     !^"  Record "
     ^^ nm
     ^^ !^" : Type := { "
     ^^ hardline
-    ^^ build (List.map get_struct_field (snd decl))
+    ^^ build (List.map get_struct_field members)
     ^^ !^" }."
   in
   List.map unpack_struct_type (Sym.Map.bindings struct_decls)
@@ -1045,15 +1045,15 @@ let translate_own_structs (struct_decls : Memory.struct_decls) =
     | x :: [] -> piece_to_owned x ^^ !^"."
     | x :: xs -> piece_to_owned x ^^ !^" ∗ " ^^ decl_to_pieces xs
   in
-  let unpack_decls (decl : Sym.t * Memory.struct_layout) =
-    let nm = !^(Sym.pp_string (fst decl)) in
+  let unpack_decls ((tag : Sym.t), ((members, _fam) : Memory.struct_layout)) =
+    let nm = !^(Sym.pp_string tag) in
     !^"  Definition "
     ^^ !^"Owned_"
     ^^ nm
     ^^ !^" (l: Ptr) (v : "
     ^^ nm
     ^^ !^") : iProp Σ := "
-    ^^ decl_to_pieces (snd decl)
+    ^^ decl_to_pieces members
     ^^ hardline
   in
   List.map unpack_decls (Sym.Map.bindings struct_decls)

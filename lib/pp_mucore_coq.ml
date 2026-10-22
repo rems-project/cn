@@ -2149,7 +2149,10 @@ let pp_struct_piece (p : Memory.struct_piece) =
     ]
 
 
-let pp_struct_layout (l : Memory.struct_layout) = pp_list pp_struct_piece l
+let pp_struct_layout ((l, fam) : Memory.struct_layout) =
+  (match fam with None -> () | Some _ -> failwith "todo: flexible array members");
+  pp_list pp_struct_piece l
+
 
 let pp_struct_decls (s : Memory.struct_decls) = pp_sym_map pp_struct_layout s
 

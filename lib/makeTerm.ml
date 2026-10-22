@@ -547,7 +547,8 @@ let value_check mode (struct_layouts : Memory.struct_decls) ct about loc =
                 let member_it = member_ ~member_bt (about, member) loc in
                 Some (aux mct member_it)
               | None -> None)
-           (Sym.Map.find tag struct_layouts))
+           (fst (Sym.Map.find tag struct_layouts))
+           (* Ignore any flexible array member: it's not part of the struct *value*. *))
         loc
     | Function _ -> Cerb_diagnostic.fatal "todo: function types"
   in

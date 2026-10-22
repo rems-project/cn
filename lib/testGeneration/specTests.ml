@@ -78,7 +78,8 @@ let convert_from (prog5 : unit Mucore.file) ((x, ct) : Sym.t * C.ctype) =
            && TestGenConfig.is_experimental_product_arg_destruction () ->
       let members =
         match Pmap.find tag prog5.tagDefs with
-        | StructDef pieces ->
+        | StructDef (pieces, fam) ->
+          (match fam with None -> () | Some _ -> failwith "todo: flexible array members");
           pieces
           |> List.filter_map (fun ({ member_or_padding; _ } : Memory.struct_piece) ->
             member_or_padding)

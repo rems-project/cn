@@ -94,7 +94,12 @@ module type Lifted = sig
 
   val get_struct_decl : Locations.t -> Sym.t -> Memory.struct_layout t
 
-  val get_member_type : Locations.t -> Id.t -> Memory.struct_piece list -> Sctypes.ctype t
+  val get_member_type
+    :  fam_permitted:bool ->
+    Locations.t ->
+    Id.t ->
+    Memory.struct_layout ->
+    Sctypes.ctype t
 
   val get_datatype : Locations.t -> Sym.t -> BaseTypes.dt_info t
 
@@ -128,11 +133,14 @@ module Lift (M : ErrorReader) : Lifted with type 'a t := 'a M.t = struct
 
   let get_struct_decl loc tag = lift get_struct_decl loc tag (fun _ -> Unknown_struct tag)
 
-  let get_member_type loc member layout =
-    let member_types = Memory.member_types layout in
+  let get_member_type ~fam_permitted loc member layout =
+    let member_types, fam_type = Memory.member_types layout in
     match List.assoc_opt Id.equal member member_types with
     | Some membertyp -> M.return membertyp
-    | None -> M.fail loc (Unexpected_member (List.map fst member_types, member))
+    | None ->
+      (match fam_type with
+       | Some (member', ct) when fam_permitted && Id.equal member member' -> M.return ct
+       | _ -> M.fail loc (Unexpected_member (List.map fst member_types, member)))
 
 
   let get_datatype loc tag =
@@ -143,7 +151,7 @@ module Lift (M : ErrorReader) : Lifted with type 'a t := 'a M.t = struct
     lift get_datatype_constr loc tag (fun _ -> Unknown_datatype_constr tag)
 end
 
-let pp_struct_layout (tag, layout) =
+let pp_struct_layout (tag, (layout, fam)) =
   item
     ("struct " ^ plain (Sym.pp tag) ^ " (raw)")
     (separate_map
@@ -158,7 +166,17 @@ let pp_struct_layout (tag, layout) =
                 (match member_or_padding with
                  | Some (member, sct) -> typ (Id.pp member) (Sctypes.pp sct)
                  | None -> parens (!^"padding" ^^^ Pp.int size)))
-       layout)
+       layout
+     ^^
+     match fam with
+     | None -> Pp.empty
+     | Some Memory.{ member = member, sct; offset } ->
+       break 1
+       ^^ item
+            "flexibe array member"
+            (item "offset" (Pp.int offset)
+             ^^ comma
+             ^^^ item "content" (typ (Id.pp member) (Sctypes.pp sct))))
 
 
 let pp_struct_decls decls = Pp.list pp_struct_layout (Sym.Map.bindings decls)

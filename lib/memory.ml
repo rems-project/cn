@@ -75,38 +75,54 @@ type struct_member =
     member : Id.t * Sctypes.t
   }
 
-type struct_layout = struct_piece list
+type flexible_array_member =
+  { offset : int;
+    member : Id.t * Sctypes.t
+  }
+
+type struct_layout = struct_piece list * flexible_array_member option
 
 type struct_decl = struct_layout
 
 type struct_decls = struct_layout Sym.Map.t
 
-let members =
-  List.filter_map (fun { member_or_padding; _ } -> Option.map fst member_or_padding)
+let members ((pieces, fam) : struct_layout) =
+  ( List.filter_map
+      (fun { member_or_padding; _ } -> Option.map fst member_or_padding)
+      pieces,
+    Option.map (fun f -> fst f.member) fam )
 
 
-let member_types = List.filter_map (fun { member_or_padding; _ } -> member_or_padding)
+let member_types ((pieces, fam) : struct_layout) =
+  ( List.filter_map (fun { member_or_padding; _ } -> member_or_padding) pieces,
+    Option.map (fun f -> f.member) fam )
 
-let member_number layout member =
-  let rec aux i layout =
-    match layout with
-    | [] -> None
-    | sp :: layout ->
-      (match sp.member_or_padding with
-       | Some (member', _) when Id.equal member member' -> Some i
-       | Some (_, _) -> aux (i + 1) layout
-       | None -> aux i layout)
+
+(* let member_number layout member = *)
+(*   let rec aux i layout = *)
+(*     match layout with *)
+(*     | [] -> None *)
+(*     | sp :: layout -> *)
+(*       (match sp.member_or_padding with *)
+(*        | Some (member', _) when Id.equal member member' -> Some i *)
+(*        | Some (_, _) -> aux (i + 1) layout *)
+(*        | None -> aux i layout) *)
+(*   in *)
+(*   aux 0 layout *)
+
+let member_offset ((pieces, fam) : struct_layout) member : int option =
+  let found_in_pieces =
+    List.find_map
+      (fun sp ->
+         match sp.member_or_padding with
+         | Some (member', _) when Id.equal member member' -> Some sp.offset
+         | _ -> None)
+      pieces
   in
-  aux 0 layout
-
-
-let member_offset (layout : struct_layout) member : int option =
-  List.find_map
-    (fun sp ->
-       match sp.member_or_padding with
-       | Some (member', _) when Id.equal member member' -> Some sp.offset
-       | _ -> None)
-    layout
+  match (found_in_pieces, fam) with
+  | Some i, _ -> Some i
+  | None, Some { member = member', _; offset } when Id.equal member member' -> Some offset
+  | _ -> None
 
 
 (* tries to implement all_values_representable_in from runtime std.core *)

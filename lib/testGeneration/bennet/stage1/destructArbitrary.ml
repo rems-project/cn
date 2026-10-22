@@ -35,7 +35,10 @@ module Make (AD : Domain.T) = struct
         (* Generate fresh vars for each member *)
         let members =
           match Pmap.find tag prog5.tagDefs with
-          | StructDef pieces ->
+          | StructDef (pieces, fam) ->
+            (match fam with
+             | None -> ()
+             | Some _ -> failwith "todo: flexible array members");
             pieces
             |> List.filter_map (fun ({ member_or_padding; _ } : Memory.struct_piece) ->
               member_or_padding)
@@ -78,7 +81,10 @@ module Make (AD : Domain.T) = struct
         (* Generate fresh vars for each member *)
         let members =
           match Pmap.find tag prog5.tagDefs with
-          | StructDef pieces ->
+          | StructDef (pieces, fam) ->
+            (match fam with
+             | None -> ()
+             | Some _ -> failwith "todo: flexible array members");
             pieces
             |> List.filter_map (fun ({ member_or_padding; _ } : Memory.struct_piece) ->
               member_or_padding)

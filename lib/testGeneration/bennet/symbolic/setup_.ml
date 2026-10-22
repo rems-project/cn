@@ -17,7 +17,13 @@ module Make (AD : Domain.T) = struct
     let struct_tags_with_defs =
       List.filter_map
         (fun (tag, tag_def) ->
-           match tag_def with Mucore.StructDef pieces -> Some (tag, pieces) | _ -> None)
+           match tag_def with
+           | Mucore.StructDef (pieces, fam) ->
+             (match fam with
+              | None -> ()
+              | Some _ -> failwith "todo: flexible array members");
+             Some (tag, pieces)
+           | _ -> None)
         all_tag_defs
     in
     let struct_tags = List.map fst struct_tags_with_defs in

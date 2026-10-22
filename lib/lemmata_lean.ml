@@ -901,15 +901,15 @@ let translate_structs (struct_decls : Memory.struct_decls) =
       !^("  " ^ Id.get_string id ^ " : " ^ print_ctype ctype) ^^ hardline
     | None -> rets ""
   in
-  let unpack_decls (decl : Sym.t * Memory.struct_layout) =
-    let nm = !^(Sym.pp_string (fst decl)) in
+  let unpack_decls ((tag : Sym.t), ((members, _fam) : Memory.struct_layout)) =
+    let nm = !^(Sym.pp_string tag) in
     !^"@[ext]"
     ^^ hardline
     ^^ !^"structure "
     ^^ nm
     ^^ !^" where"
     ^^ hardline
-    ^^ build (List.map get_struct_field (snd decl))
+    ^^ build (List.map get_struct_field members)
     ^^ hardline
     ^^ hardline
     ^^ !^"def "
@@ -920,7 +920,7 @@ let translate_structs (struct_decls : Memory.struct_decls) =
     ^^ !^") : IProp GF := "
     ^^ hardline
     ^^ !^"iprop% "
-    ^^ decl_to_pieces (snd decl)
+    ^^ decl_to_pieces members
     ^^ hardline
   in
   List.map unpack_decls (Sym.Map.bindings struct_decls)
