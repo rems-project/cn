@@ -36,6 +36,7 @@ let verify
       solver_hybrid
       astprints
       dont_use_vip
+      unbounded_qresource
       fail_fast
       quiet
       no_inherit_loc
@@ -73,6 +74,7 @@ let verify
   Solver.inc_timeout := solver_inc_timeout;
   Solver.hybrid := solver_hybrid;
   MakeTerm.use_vip := not dont_use_vip;
+  WellTyped.unbounded_qresource := unbounded_qresource;
   Check.fail_fast := fail_fast;
   Resource.disable_derived_lc1 := disable_derived_lc1;
   (* Set the prooflog flag based on --coq-proof-log *)
@@ -349,6 +351,7 @@ let verify_t : unit Term.t =
   $ Flags.solver_hybrid
   $ Common.Flags.astprints
   $ Common.Flags.dont_use_vip
+  $ Common.Flags.unbounded_iterated_separating_conjunctions
   $ Common.Flags.fail_fast
   $ Flags.quiet
   $ Common.Flags.no_inherit_loc

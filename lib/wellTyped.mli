@@ -10,6 +10,8 @@ val warn_integer_bw_operation : Locations.t -> unit
 
 val warn_integer_nia : Locations.t -> unit
 
+val unbounded_qresource : bool ref
+
 type message =
   | Global of Global.message
   | Mismatch of
@@ -38,6 +40,10 @@ type message =
   | Redundant_pattern of Pp.document
   | Unknown_variable of Sym.t
   | Void_ctype of [ `Sizeof | `Array_shift | `RW | `W ]
+  | Unbounded_each of {
+     q: Sym.t;
+     permission: Terms.Normal.t
+  }
 
 type error =
   { loc : Locations.t;

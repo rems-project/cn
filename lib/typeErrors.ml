@@ -355,6 +355,22 @@ let pp_welltyped = function
     in
     let short = !^"C-type must not be void in a" ^^^ !^ctxt ^^ angles underscore in
     { short; descr = None; state = None }
+  | Unbounded_each { q; permission } ->
+    let short = !^"Unbounded iterated separating conjunction." in
+    let descr =
+      !^"The guard"
+      ^^^ squotes (Terms.pp permission)
+      ^^^ !^"does not bound"
+      ^^^ squotes (Sym.pp q)
+      ^^^ !^"to an interval."
+      ^/^ !^"Hint: write it as"
+      ^^^ squotes (!^"lb <=" ^^^ Sym.pp q ^^^ !^"&&" ^^^ Sym.pp q ^^^ !^"< ub && ...")
+      ^^ comma
+      ^^^ !^"or run CN with --allow-unbounded-iterated-resources."
+    in
+    { short; descr = Some descr; state = None }
+
+
 
 
 let pp_builtins : Builtins.message -> _ = function
