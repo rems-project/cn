@@ -39,7 +39,7 @@ let warn_integer_nia loc =
   else
     warn loc !^"Treating non-linear integer arithmetic as uninterpreted."
 
-let unbounded_qresource : bool ref = ref false
+let allow_implicit_each_bounds : bool ref = ref false
 
 type message =
   | Global of Global.message
@@ -1205,7 +1205,7 @@ module WReq = struct
            return (permission, iargs))
       in
       let@ () =
-        if not !unbounded_qresource && not (bounds_each p.q permission) then
+        if not !allow_implicit_each_bounds && not (bounds_each p.q permission) then
           fail { loc; msg = Unbounded_each { q = fst p.q; permission }}
         else
           return ()

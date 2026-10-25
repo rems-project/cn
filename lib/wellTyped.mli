@@ -10,7 +10,7 @@ val warn_integer_bw_operation : Locations.t -> unit
 
 val warn_integer_nia : Locations.t -> unit
 
-val unbounded_qresource : bool ref
+val allow_implicit_each_bounds : bool ref
 
 type message =
   | Global of Global.message

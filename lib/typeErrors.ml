@@ -362,11 +362,11 @@ let pp_welltyped = function
       ^^^ squotes (Terms.pp permission)
       ^^^ !^"does not bound"
       ^^^ squotes (Sym.pp q)
-      ^^^ !^"to an interval."
+      ^^^ !^"to an interval syntactically."
       ^/^ !^"Hint: write it as"
       ^^^ squotes (!^"lb <=" ^^^ Sym.pp q ^^^ !^"&&" ^^^ Sym.pp q ^^^ !^"< ub && ...")
       ^^ comma
-      ^^^ !^"or run CN with --allow-unbounded-iterated-resources."
+      ^^^ !^"or run CN with --allow-implicit-each-bounds."
     in
     { short; descr = Some descr; state = None }
 

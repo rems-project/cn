@@ -509,7 +509,7 @@ module Flags = struct
     let doc = "(temporary) disable VIP rules" in
     Arg.(value & flag & info ~docs:s_cn [ "no-vip" ] ~doc)
 
-  let unbounded_iterated_separating_conjunctions =
-    let doc = "Allow unbounded iterated separating conjunctions (cn test might not work)" in
-    Arg.(value & flag & info ~docs:s_cn [ "unbounded-iterated-separating-conjunctions" ] ~doc)
+  let allow_implicit_each_bounds =
+    let doc = "Disable syntactic restrictions on the guard of iterated separating conjunctions (cn test might not work)" in
+    Arg.(value & flag & info ~docs:s_cn [ "allow-implicit-each-bounds" ] ~doc)
 end
