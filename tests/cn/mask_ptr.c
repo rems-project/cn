@@ -28,12 +28,12 @@ requires alignment > 0;
 ensures  (size == 0) ? is_null(return) : !is_null(return);
          mod((integer) return, alignment) == 0;
          (integer) return <= (integer) return + size;
-         take O = each (integer i; i < size) {
+         take O = each (integer i; 0 <= i && i < size) {
              RW<char>(array_shift<char>(return, i))
          };
 
 spec cn_free_sized(pointer ptr, integer size);
-requires take O = each (integer i; i < size) {
+requires take O = each (integer i; 0 <= i && i < size) {
              RW<char>(array_shift<char>(ptr, i))
          };
 @*/
