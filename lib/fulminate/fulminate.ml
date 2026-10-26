@@ -547,7 +547,6 @@ let main
       ~source_locs_mode
       ~correct_missing_ownership_mode
       ~experimental_ownership_stack_mode
-      ~experimental_curly_braces
       ~with_testing
       ~skip_and_only
       ~disable_ghost_arg_failure
@@ -740,11 +739,8 @@ let main
   in
   let bot = Source_injection.Normal 0 in
   let in_stmt_injs =
-    (if experimental_curly_braces then
-       give_parenthesis_aware_precedence_map
-         (get_c_control_flow_extra_curly_braces filtered_sigm)
-     else
-       [])
+    give_parenthesis_aware_precedence_map
+      (get_c_control_flow_extra_curly_braces filtered_sigm)
     @ give_precedence_map bot executable_spec.in_stmt
     @ give_parenthesis_aware_precedence_map accesses_stmt_injs
     @ give_precedence_map bot toplevel_injections
