@@ -328,6 +328,8 @@ let gen_single_stat_control_flow_injs statement =
       | AilSreturn _ | AilSreturnVoid | AilSgoto _ (* covers continue as well *)
       | AilSbreak ->
         true
+      (* Check that label is an actual label from the source, and not one introduced in the Cerberus pipeline. *)
+      | AilSlabel (_, _, label_annot_opt) -> Option.is_none label_annot_opt
       | _ -> false
     in
     let b = is_single_stat_with_existing_inj s in
