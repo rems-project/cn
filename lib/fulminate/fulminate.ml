@@ -323,6 +323,7 @@ let gen_single_stat_control_flow_injs statement =
     [ (Utils.get_start_loc loc, [ "{" ]); (Utils.get_end_loc loc, [ "}" ]) ]
   in
   let is_relevant_single_stat s =
+    (* Only brace at points where a mapping or unmapping statement might have been injected, directly before or after *)
     let is_single_stat_with_existing_inj A.{ node = s_; _ } =
       match s_ with
       | AilSreturn _ | AilSreturnVoid | AilSgoto _ (* covers continue as well *)
