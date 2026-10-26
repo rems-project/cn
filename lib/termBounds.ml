@@ -3,6 +3,7 @@ open Terms.Normal
 open MakeTerm
 
 let not_occur x it = not (Sym.Set.mem x (free_vars it))
+
 let check x x' t = Sym.equal x x' && not_occur x t
 
 let get_lower_bound_opt ((x, bt) : Sym.t * BaseTypes.t) (it : t) : t option =

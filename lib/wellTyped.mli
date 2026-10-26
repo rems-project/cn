@@ -40,10 +40,10 @@ type message =
   | Redundant_pattern of Pp.document
   | Unknown_variable of Sym.t
   | Void_ctype of [ `Sizeof | `Array_shift | `RW | `W ]
-  | Unbounded_each of {
-     q: Sym.t;
-     permission: Terms.Normal.t
-  }
+  | Unbounded_each of
+      { q : Sym.t;
+        permission : Terms.Normal.t
+      }
 
 type error =
   { loc : Locations.t;

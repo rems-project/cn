@@ -39,6 +39,7 @@ let warn_integer_nia loc =
   else
     warn loc !^"Treating non-linear integer arithmetic as uninterpreted."
 
+
 let allow_implicit_each_bounds : bool ref = ref false
 
 type message =
@@ -70,10 +71,10 @@ type message =
   | Redundant_pattern of Pp.document
   | Unknown_variable of Sym.t
   | Void_ctype of [ `Array_shift | `Sizeof | `RW | `W ]
-  | Unbounded_each of {
-     q: Sym.t;
-     permission: Terms.Normal.t
-  }
+  | Unbounded_each of
+      { q : Sym.t;
+        permission : Terms.Normal.t
+      }
 
 type error =
   { loc : Locations.t;
@@ -1137,6 +1138,7 @@ module WReq = struct
     Option.is_some (TermBounds.get_lower_bound_opt q permission)
     && Option.is_some (TermBounds.get_upper_bound_opt q permission)
 
+
   let welltyped loc r =
     Pp.debug 22 (lazy (Pp.item "WReq: checking" (Req.pp r)));
     let@ spec_iargs =
@@ -1205,11 +1207,11 @@ module WReq = struct
            return (permission, iargs))
       in
       let@ () =
-        if not !allow_implicit_each_bounds && not (bounds_each p.q permission) then
-          fail { loc; msg = Unbounded_each { q = fst p.q; permission }}
+        if (not !allow_implicit_each_bounds) && not (bounds_each p.q permission) then
+          fail { loc; msg = Unbounded_each { q = fst p.q; permission } }
         else
           return ()
-        in
+      in
       return
         (Req.Q
            { name = p.name;

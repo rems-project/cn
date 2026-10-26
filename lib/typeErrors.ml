@@ -371,8 +371,6 @@ let pp_welltyped = function
     { short; descr = Some descr; state = None }
 
 
-
-
 let pp_builtins : Builtins.message -> _ = function
   | Number_arguments { has; expect } ->
     pp_welltyped (Number_arguments { type_ = `Other; has; expect })
