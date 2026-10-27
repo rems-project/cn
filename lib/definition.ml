@@ -28,6 +28,8 @@ module Function = struct
     match def.body with Rec_Def _ -> true | Def _ -> false | Uninterp -> false
 
 
+  let is_uninterp def = match def.body with Uninterp -> true | _ -> false
+
   let given_to_solver def =
     match def.body with Rec_Def _ -> false | Def _ -> true | Uninterp -> false
 
@@ -141,6 +143,8 @@ module Predicate = struct
       recursive : bool;
       attrs : Id.t list
     }
+
+  let is_uninterp def = Option.is_none def.clauses
 
   let is_nounfold def =
     let here = Locations.other __LOC__ in

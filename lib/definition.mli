@@ -14,6 +14,8 @@ module Function : sig
       body : body
     }
 
+  val is_uninterp : t -> bool
+
   val is_recursive : t -> bool
 
   val given_to_solver : t -> bool
@@ -64,6 +66,8 @@ module Predicate : sig
       recursive : bool;
       attrs : Id.t list
     }
+
+  val is_uninterp : t -> bool
 
   val is_nounfold : t -> bool
 
