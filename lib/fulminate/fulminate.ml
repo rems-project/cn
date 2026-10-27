@@ -547,6 +547,7 @@ let main
       ~without_inline_statements
       ~source_locs_mode
       ~correct_missing_ownership_mode
+      ~accept_uninterp
       ~experimental_ownership_stack_mode
       ~with_testing
       ~skip_and_only
@@ -598,7 +599,7 @@ let main
   in
   let c_datatype_defs = generate_c_datatypes sigm in
   let c_function_defs, c_function_decls, _c_function_locs =
-    generate_c_functions filename cabs_tunit prog5 sigm
+    generate_c_functions filename ~accept_uninterp cabs_tunit prog5 sigm
   in
   let c_predicate_defs, c_predicate_decls, _c_predicate_locs =
     generate_c_predicates filename without_ownership_checking cabs_tunit prog5 sigm

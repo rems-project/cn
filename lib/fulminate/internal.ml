@@ -510,6 +510,7 @@ let generate_fun_def_and_decl_docs funs =
 
 let generate_c_functions
       filename
+      ~(accept_uninterp : bool)
       (cabs_tunit : CF.Cabs.translation_unit)
       (prog5 : _ Mucore.file)
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
@@ -523,9 +524,11 @@ let generate_c_functions
            cabs_tunit
            prog5
            sigm.cn_datatypes
-           sigm.cn_functions)
+           sigm.cn_functions
+           accept_uninterp)
       prog5.logical_predicates
   in
+  let ail_funs_and_records = List.filter_map Fun.id ail_funs_and_records in
   let ail_funs, _ = List.split ail_funs_and_records in
   let locs_and_decls, defs = List.split ail_funs in
   let locs, decls = List.split locs_and_decls in

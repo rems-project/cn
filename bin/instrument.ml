@@ -100,6 +100,7 @@ let generate_executable_specs
       no_debug_info
       source_locs_mode
       correct_missing_ownership_mode
+      accept_uninterp
       experimental_ownership_stack_mode
       experimental_unions
       mktemp
@@ -171,6 +172,7 @@ let generate_executable_specs
                 ~without_inline_statements
                 ~source_locs_mode
                 ~correct_missing_ownership_mode
+                ~accept_uninterp
                 ~experimental_ownership_stack_mode
                 ~with_testing
                 ~skip_and_only:(skip, only)
@@ -386,6 +388,14 @@ module Flags = struct
        execution"
     in
     Arg.(value & flag & info ~docs:s_fulminate [ "correct-missing-ownership" ] ~doc)
+
+
+  let accept_uninterp =
+    let doc =
+      "Support uninterpreted functions+predicates at runtime, by removing any assertions \
+       containing uninterpreted values from the output"
+    in
+    Arg.(value & flag & info ~docs:s_fulminate [ "accept-uninterp" ] ~doc)
 end
 
 let cmd =
@@ -427,6 +437,7 @@ let cmd =
     $ Flags.no_debug_info
     $ Flags.source_locs_mode
     $ Flags.correct_missing_ownership_mode
+    $ Flags.accept_uninterp
     $ Flags.experimental_ownership_stack_mode ~docs:s_fulminate
     $ Flags.experimental_unions
     $ Flags.mktemp
