@@ -510,7 +510,7 @@ let generate_fun_def_and_decl_docs funs =
 
 let generate_c_functions
       filename
-      ~(accept_uninterp : bool)
+      (accept_uninterp : bool)
       (cabs_tunit : CF.Cabs.translation_unit)
       (prog5 : _ Mucore.file)
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
@@ -550,6 +550,7 @@ let[@warning "-32" (* unused-value-declaration *)] rec remove_duplicates eq_fun 
 let generate_c_predicates
       filename
       without_ownership_checking
+      accept_uninterp
       (cabs_tunit : CF.Cabs.translation_unit)
       (prog5 : _ Mucore.file)
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
@@ -562,6 +563,7 @@ let generate_c_predicates
       (Cn_to_ail.extract_global_variables cabs_tunit prog5)
       sigm.cn_predicates
       without_ownership_checking
+      accept_uninterp
   in
   let locs_and_decls, defs = List.split ail_funs in
   let locs, decls = List.split locs_and_decls in

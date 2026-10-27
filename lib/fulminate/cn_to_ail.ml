@@ -3811,55 +3811,76 @@ let cn_to_ail_predicate
       preds
       cn_preds
       without_ownership_checking
+      accept_uninterp
       (pred_sym, (rp_def : Definition.Predicate.t))
   =
   let ret_type = bt_to_ail_ctype ~pred_sym:(Some pred_sym) (snd rp_def.oarg) in
-  let rec clause_translate (clauses : Definition.Clause.t list) =
-    match clauses with
-    | [] -> ([], [])
-    | c :: cs ->
-      let bs, ss =
-        cn_to_ail_lat
-          filename
-          dts
-          (Some pred_sym)
-          globals
-          preds
-          None
-          without_ownership_checking
-          c.packing_ft
-      in
-      (match c.guard with
-       | IT (Const (Bool true), _, _) ->
-         let bs'', ss'' = clause_translate cs in
-         (bs @ bs'', ss @ ss'')
-       | _ ->
-         let bs', ss', e =
-           cn_to_ail_expr_with_pred_name
-             filename
-             (Some pred_sym)
-             dts
-             []
-             None
-             c.guard
-             PassBack
-         in
-         let bs'', ss'' = clause_translate cs in
-         let conversion_from_cn_bool =
-           A.(AilEcall (mk_expr (AilEident convert_from_cn_bool_sym), [ e ]))
-         in
-         let ail_if_stat =
-           A.(
-             AilSif
-               ( mk_expr conversion_from_cn_bool,
-                 mk_stmt (AilSblock (bs, List.map mk_stmt ss)),
-                 mk_stmt (AilSblock (bs'', List.map mk_stmt ss'')) ))
-         in
-         (bs', ss' @ [ ail_if_stat ]))
+  let clause_translate (pred_sym, (rp_def : Definition.Predicate.t)) =
+    let rec clause_translate_aux (clauses : Definition.Clause.t list) =
+      match clauses with
+      | [] -> ([], [])
+      | c :: cs ->
+        let bs, ss =
+          cn_to_ail_lat
+            filename
+            dts
+            (Some pred_sym)
+            globals
+            preds
+            None
+            without_ownership_checking
+            c.packing_ft
+        in
+        (match c.guard with
+         | IT (Const (Bool true), _, _) ->
+           let bs'', ss'' = clause_translate_aux cs in
+           (bs @ bs'', ss @ ss'')
+         | _ ->
+           let bs', ss', e =
+             cn_to_ail_expr_with_pred_name
+               filename
+               (Some pred_sym)
+               dts
+               []
+               None
+               c.guard
+               PassBack
+           in
+           let bs'', ss'' = clause_translate_aux cs in
+           let conversion_from_cn_bool =
+             A.(AilEcall (mk_expr (AilEident convert_from_cn_bool_sym), [ e ]))
+           in
+           let ail_if_stat =
+             A.(
+               AilSif
+                 ( mk_expr conversion_from_cn_bool,
+                   mk_stmt (AilSblock (bs, List.map mk_stmt ss)),
+                   mk_stmt (AilSblock (bs'', List.map mk_stmt ss'')) ))
+           in
+           (bs', ss' @ [ ail_if_stat ]))
+    in
+    function
+    | Some clauses -> clause_translate_aux clauses
+    | None ->
+      (* Uninterpreted predicate *)
+      if accept_uninterp then
+        ([], [])
+      else (
+        Cerb_colour.with_colour
+          (fun () ->
+             print_endline
+               Pp.(
+                 plain
+                   (Pp.item
+                      "Uninterpreted CN functions not supported at runtime. Please \
+                       provide a concrete function definition for"
+                      (squotes (Definition.Predicate.pp_sig (Sym.pp pred_sym) rp_def)
+                       ^^^ !^"at"
+                       ^^^ Locations.pp rp_def.loc))))
+          ();
+        exit 2)
   in
-  let bs, ss =
-    match rp_def.clauses with Some clauses -> clause_translate clauses | None -> ([], [])
-  in
+  let bs, ss = clause_translate (pred_sym, rp_def) rp_def.clauses in
   let pred_body = List.map mk_stmt ss in
   let ail_record_opt = generate_record_opt pred_sym (snd rp_def.oarg) in
   let params =
@@ -3912,7 +3933,14 @@ let cn_to_ail_predicate
   (((loc, decl), def), ail_record_opt)
 
 
-let cn_to_ail_predicates preds filename dts globals cn_preds without_ownership_checking
+let cn_to_ail_predicates
+      preds
+      filename
+      dts
+      globals
+      cn_preds
+      without_ownership_checking
+      accept_uninterp
   : ((Locations.t * A.sigma_declaration)
     * CF.GenTypes.genTypeCategory A.sigma_function_definition)
       list
@@ -3926,7 +3954,8 @@ let cn_to_ail_predicates preds filename dts globals cn_preds without_ownership_c
           globals
           preds
           cn_preds
-          without_ownership_checking)
+          without_ownership_checking
+          accept_uninterp)
        preds)
 
 

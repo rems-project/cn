@@ -235,6 +235,7 @@ let run
            ~output_dir
            ~filename
            ~without_ownership_checking
+           ~accept_uninterp
            build_tool
            cabs_tunit
            sigma
