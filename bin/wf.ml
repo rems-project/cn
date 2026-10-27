@@ -18,8 +18,10 @@ let well_formed
       no_inherit_loc
       magic_comment_char_dollar
       allow_split_magic_comments
+      allow_implicit_each_bounds
   =
   let filename = Common.there_can_only_be_one filename in
+  WellTyped.allow_implicit_each_bounds := allow_implicit_each_bounds;
   Common.with_well_formedness_check
     ~filename
     ~cc
@@ -65,6 +67,7 @@ let cmd =
     $ Common.Flags.no_inherit_loc
     $ Common.Flags.magic_comment_char_dollar
     $ Common.Flags.allow_split_magic_comments
+    $ Common.Flags.allow_implicit_each_bounds
   in
   let doc =
     "Runs CN's well-formedness check\n\

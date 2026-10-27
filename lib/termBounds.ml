@@ -2,14 +2,18 @@ open Terms
 open Terms.Normal
 open MakeTerm
 
+let not_occur x it = not (Sym.Set.mem x (free_vars it))
+
+let check x x' t = Sym.equal x x' && not_occur x t
+
 let get_lower_bound_opt ((x, bt) : Sym.t * BaseTypes.t) (it : t) : t option =
   let rec aux (it : t) : t option =
     match it with
     | IT (Binop (EQ, IT (Sym x', _, _), tm2), _, _)
     | IT (Binop (EQ, tm2, IT (Sym x', _, _)), _, _) ->
-      if Sym.equal x x' then Some tm2 else None
-    | IT (Binop (LE, it', IT (Sym x', _, _)), _, _) when Sym.equal x x' -> Some it'
-    | IT (Binop (LT, it', IT (Sym x', _, _)), _, _) when Sym.equal x x' ->
+      if check x x' tm2 then Some tm2 else None
+    | IT (Binop (LE, it', IT (Sym x', _, _)), _, _) when check x x' it' -> Some it'
+    | IT (Binop (LT, it', IT (Sym x', _, _)), _, _) when check x x' it' ->
       Some
         (IT
            ( Binop (Add, it', num_lit_ Z.one bt Cerb_location.unknown),
@@ -59,9 +63,9 @@ let get_upper_bound_opt ((x, bt) : Sym.t * BaseTypes.t) (it : t) : t option =
     match it with
     | IT (Binop (EQ, IT (Sym x', _, _), tm2), _, _)
     | IT (Binop (EQ, tm2, IT (Sym x', _, _)), _, _) ->
-      if Sym.equal x x' then Some tm2 else None
-    | IT (Binop (LE, IT (Sym x', _, _), it'), _, _) when Sym.equal x x' -> Some it'
-    | IT (Binop (LT, IT (Sym x', _, _), it'), _, _) when Sym.equal x x' ->
+      if check x x' tm2 then Some tm2 else None
+    | IT (Binop (LE, IT (Sym x', _, _), it'), _, _) when check x x' it' -> Some it'
+    | IT (Binop (LT, IT (Sym x', _, _), it'), _, _) when check x x' it' ->
       Some
         (IT
            ( Binop (Sub, it', num_lit_ Z.one bt Cerb_location.unknown),
@@ -109,25 +113,25 @@ let get_upper_bound ((x, bt) : Sym.t * BaseTypes.t) (it : t) : t =
 (* used for Fulminate optimisation *)
 let is_eq_bound ((x_sym, _) : Sym.t * BaseTypes.t) (it : t) : bool =
   match it with
-  | IT (Binop (EQ, IT (Sym x_sym', _, _), _), _, _)
-  | IT (Binop (EQ, _, IT (Sym x_sym', _, _)), _, _) ->
-    Sym.equal x_sym x_sym'
+  | IT (Binop (EQ, IT (Sym x_sym', _, _), it'), _, _)
+  | IT (Binop (EQ, it', IT (Sym x_sym', _, _)), _, _) ->
+    check x_sym x_sym' it'
   | _ -> false
 
 
 let is_lower_bound ((x, _) : Sym.t * BaseTypes.t) (it : t) : bool =
   match it with
-  | IT (Binop (LE, _, IT (Sym x', _, _)), _, _)
-  | IT (Binop (LT, _, IT (Sym x', _, _)), _, _) ->
-    Sym.equal x x'
+  | IT (Binop (LE, it', IT (Sym x', _, _)), _, _)
+  | IT (Binop (LT, it', IT (Sym x', _, _)), _, _) ->
+    check x x' it'
   | _ -> false
 
 
 let is_upper_bound ((x, _) : Sym.t * BaseTypes.t) (it : t) : bool =
   match it with
-  | IT (Binop (LE, IT (Sym x', _, _), _), _, _)
-  | IT (Binop (LT, IT (Sym x', _, _), _), _, _) ->
-    Sym.equal x x'
+  | IT (Binop (LE, IT (Sym x', _, _), it'), _, _)
+  | IT (Binop (LT, IT (Sym x', _, _), it'), _, _) ->
+    check x x' it'
   | _ -> false
 
 

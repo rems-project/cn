@@ -1,0 +1,6 @@
+return code: 1
+tests/cn/each_unbounded.error.c:3:17: error: Unbounded iterated separating conjunction.
+  requires take X = each (integer i; i < 10) { RW<int>(array_shift<int>(p, i)) };
+                ^
+The guard 'i < 10' does not bound 'i' to an interval syntactically.
+Hint: write it as 'lb <= i && i < ub && ...', or run CN with --allow-implicit-each-bounds.
