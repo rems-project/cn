@@ -4684,7 +4684,7 @@ let rec cn_to_ail_lat_2
     in
     prepend_to_precondition ail_executable_spec (binding :: b1, decl :: s1)
   | LAT.Resource ((name, (ret, bt)), (loc, _str_opt), lat) ->
-    let free_vars_in_rest =
+    let free_vars_in_rest lat =
       LAT.free_vars
         (fun (post, (stats, loops)) ->
            let post_free_vars = RT.free_vars post in
@@ -4700,7 +4700,7 @@ let rec cn_to_ail_lat_2
              [ post_free_vars; stats_free_vars; loop_free_vars ])
         lat
     in
-    let is_used = Sym.Set.mem name free_vars_in_rest in
+    let is_used = Sym.Set.mem name (free_vars_in_rest lat) in
     let new_name = generate_sym_with_suffix ~suffix:"_cn" name in
     let new_lat = ESE.fn_largs_and_body_subst (ESE.sym_subst (name, bt, new_name)) lat in
     let spec_mode_opt = Some Pre in
