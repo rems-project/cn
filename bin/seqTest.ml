@@ -82,7 +82,6 @@ let run_seq_tests
              ~source_locs_mode
              ~correct_missing_ownership_mode
              ~experimental_ownership_stack_mode
-             ~experimental_curly_braces:false
              ~with_testing:true
              ~skip_and_only:([], [])
              ~disable_ghost_arg_failure:true

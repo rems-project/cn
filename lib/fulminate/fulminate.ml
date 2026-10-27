@@ -322,16 +322,18 @@ let gen_single_stat_control_flow_injs statement =
   let gen_curly_braces_inj loc =
     [ (Utils.get_start_loc loc, [ "{" ]); (Utils.get_end_loc loc, [ "}" ]) ]
   in
-  let is_valid_single_stat s =
-    let is_single_stat A.{ node = s_; _ } =
+  let is_relevant_single_stat s =
+    (* Only brace at points where a mapping or unmapping statement might have been injected, directly before or after *)
+    let is_single_stat_with_existing_inj A.{ node = s_; _ } =
       match s_ with
-      | A.(AilSexpr _)
-      | AilSreturn _ | AilSgoto _ | AilScontinue | AilSbreak | AilSskip | AilSreturnVoid
-        ->
+      | AilSreturn _ | AilSreturnVoid | AilSgoto _ (* covers continue as well *)
+      | AilSbreak ->
         true
+      (* Check that label is an actual label from the source, and not one introduced in the Cerberus pipeline. *)
+      | AilSlabel (_, _, label_annot_opt) -> Option.is_none label_annot_opt
       | _ -> false
     in
-    let b = is_single_stat s in
+    let b = is_single_stat_with_existing_inj s in
     if b && contains_compound_literal s then
       failwith
         "Cannot enclose single statement with curly braces: compound literal found in \
@@ -396,13 +398,13 @@ let gen_single_stat_control_flow_injs statement =
        | AilSif (e, (A.{ loc = loc1; _ } as s1), (A.{ loc = loc2; _ } as s2)) ->
          let inj_e = aux_expr e in
          let inj_true =
-           if is_valid_single_stat s1 then
+           if is_relevant_single_stat s1 then
              gen_curly_braces_inj loc1 @ aux_stmt s1
            else
              aux_stmt s1
          in
          let inj_false =
-           if is_valid_single_stat s2 then
+           if is_relevant_single_stat s2 then
              gen_curly_braces_inj loc2 @ aux_stmt s2
            else
              aux_stmt s2
@@ -413,7 +415,7 @@ let gen_single_stat_control_flow_injs statement =
        | AilSswitch (e, (A.{ loc; _ } as s)) ->
          let inj_e = aux_expr e in
          let inj_s =
-           if is_valid_single_stat s then
+           if is_relevant_single_stat s then
              gen_curly_braces_inj loc @ aux_stmt s
            else
              aux_stmt s
@@ -421,7 +423,7 @@ let gen_single_stat_control_flow_injs statement =
          inj_e @ inj_s
        | AilScase (_, (A.{ loc; _ } as s)) | AilScase_rangeGNU (_, _, (A.{ loc; _ } as s))
          ->
-         if is_valid_single_stat s then
+         if is_relevant_single_stat s then
            gen_curly_braces_inj loc @ aux_stmt s
          else
            aux_stmt s
@@ -546,7 +548,6 @@ let main
       ~source_locs_mode
       ~correct_missing_ownership_mode
       ~experimental_ownership_stack_mode
-      ~experimental_curly_braces
       ~with_testing
       ~skip_and_only
       ~disable_ghost_arg_failure
@@ -739,11 +740,8 @@ let main
   in
   let bot = Source_injection.Normal 0 in
   let in_stmt_injs =
-    (if experimental_curly_braces then
-       give_parenthesis_aware_precedence_map
-         (get_c_control_flow_extra_curly_braces filtered_sigm)
-     else
-       [])
+    give_parenthesis_aware_precedence_map
+      (get_c_control_flow_extra_curly_braces filtered_sigm)
     @ give_precedence_map bot executable_spec.in_stmt
     @ give_parenthesis_aware_precedence_map accesses_stmt_injs
     @ give_precedence_map bot toplevel_injections

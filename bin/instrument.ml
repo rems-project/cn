@@ -102,7 +102,6 @@ let generate_executable_specs
       correct_missing_ownership_mode
       experimental_ownership_stack_mode
       experimental_unions
-      experimental_curly_braces
       mktemp
       print_steps
       max_bump_blocks
@@ -173,7 +172,6 @@ let generate_executable_specs
                 ~source_locs_mode
                 ~correct_missing_ownership_mode
                 ~experimental_ownership_stack_mode
-                ~experimental_curly_braces
                 ~with_testing
                 ~skip_and_only:(skip, only)
                 ~disable_ghost_arg_failure:false
@@ -382,11 +380,6 @@ module Flags = struct
       & info ~docs:s_fulminate [ "bump-block-size" ] ~doc)
 
 
-  let experimental_curly_braces =
-    let doc = "(experimental) Insert curly braces for single-statement control flow" in
-    Arg.(value & flag & info ~docs:s_fulminate [ "insert-curly-braces" ] ~doc)
-
-
   let correct_missing_ownership_mode =
     let doc =
       "Self-correct missing ownership, dumping addresses that needed ownership during \
@@ -436,7 +429,6 @@ let cmd =
     $ Flags.correct_missing_ownership_mode
     $ Flags.experimental_ownership_stack_mode ~docs:s_fulminate
     $ Flags.experimental_unions
-    $ Flags.experimental_curly_braces
     $ Flags.mktemp
     $ Flags.print_steps
     $ Flags.max_bump_blocks
