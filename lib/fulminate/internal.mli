@@ -68,6 +68,7 @@ val generate_cn_versions_of_structs : AilSyntax.sigma_tag_definition list -> str
 
 val generate_c_functions
   :  string ->
+  accept_uninterp:bool ->
   Cabs.translation_unit ->
   _ Mucore.file ->
   GenTypes.genTypeCategory AilSyntax.sigma ->

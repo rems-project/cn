@@ -30,6 +30,7 @@ let run
         without_ownership_checking
       source_locs_mode
       correct_missing_ownership_mode
+      accept_uninterp
       experimental_ownership_stack_mode
       (* without_loop_invariants *)
       (* Test Generation *)
@@ -211,6 +212,7 @@ let run
            ~without_inline_statements:false
            ~source_locs_mode
            ~correct_missing_ownership_mode
+           ~accept_uninterp
            ~experimental_ownership_stack_mode
            ~with_testing:true
            ~skip_and_only:(skip_fulminate, only_fulminate)
@@ -776,6 +778,7 @@ let mk_term
   $ Instrument.Flags.without_ownership_checking
   $ Instrument.Flags.source_locs_mode
   $ Instrument.Flags.correct_missing_ownership_mode
+  $ Instrument.Flags.accept_uninterp
   $ Instrument.Flags.experimental_ownership_stack_mode
       ~docs:(experimental_section s_compilation)
   $ Flags.print_steps
@@ -931,6 +934,7 @@ let mk_release_term ~(engine : TestGeneration.engine) ~(preset : TestGeneration.
   $ const false (* without_ownership_checking *)
   $ const false (* source_locs_mode *)
   $ const false (* correct_missing_ownership_mode *)
+  $ const true (* accept_uninterp *)
   $ const false (* experimental_ownership_stack_mode *)
   $ Flags.print_steps
   $ Flags.output_dir

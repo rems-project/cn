@@ -17,6 +17,7 @@ val main
   without_inline_statements:bool ->
   source_locs_mode:bool ->
   correct_missing_ownership_mode:bool ->
+  accept_uninterp:bool ->
   experimental_ownership_stack_mode:bool ->
   with_testing:bool ->
   skip_and_only:string list * string list ->

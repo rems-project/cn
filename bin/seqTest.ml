@@ -22,6 +22,7 @@ let run_seq_tests
         without_ownership_checking
       source_locs_mode
       correct_missing_ownership_mode
+      accept_uninterp
       experimental_ownership_stack_mode
       (* Test Generation *)
         output_dir
@@ -81,6 +82,7 @@ let run_seq_tests
              ~without_inline_statements:false
              ~source_locs_mode
              ~correct_missing_ownership_mode
+             ~accept_uninterp
              ~experimental_ownership_stack_mode
              ~with_testing:true
              ~skip_and_only:([], [])
@@ -186,6 +188,7 @@ let cmd =
     $ Instrument.Flags.without_ownership_checking
     $ Instrument.Flags.source_locs_mode
     $ Instrument.Flags.correct_missing_ownership_mode
+    $ Instrument.Flags.accept_uninterp
     $ Instrument.Flags.experimental_ownership_stack_mode ~docs:Instrument.s_fulminate
     $ Flags.output_dir
     $ Flags.print_steps

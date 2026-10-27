@@ -3618,26 +3618,72 @@ let cn_to_ail_function
       (prog5 : _ Mucore.file)
       (cn_datatypes : A.sigma_cn_datatype list)
       (cn_functions : A.sigma_cn_function list)
-  : ((Locations.t * A.sigma_declaration)
-    * CF.GenTypes.genTypeCategory A.sigma_function_definition option)
-    * A.sigma_tag_definition option
+      (accept_uninterp : bool)
+  : (((Locations.t * A.sigma_declaration)
+     * CF.GenTypes.genTypeCategory A.sigma_function_definition option)
+    * A.sigma_tag_definition option)
+      option
   =
   let ret_type = bt_to_ail_ctype ~pred_sym:(Some fn_sym) lf_def.return_bt in
-  let bs, ail_func_body_opt =
-    match lf_def.body with
-    | Def it | Rec_Def it ->
-      let bs, ss =
-        cn_to_ail_expr_with_pred_name
-          filename
-          (Some fn_sym)
-          cn_datatypes
-          (extract_global_variables cabs_tunit prog5)
-          None
-          it
-          Return
-      in
-      (bs, Some (List.map mk_stmt ss))
-    | Uninterp ->
+  match lf_def.body with
+  | Def it | Rec_Def it ->
+    let bs, ss =
+      cn_to_ail_expr_with_pred_name
+        filename
+        (Some fn_sym)
+        cn_datatypes
+        (extract_global_variables cabs_tunit prog5)
+        None
+        it
+        Return
+    in
+    let bs, ail_func_body_opt = (bs, Some (List.map mk_stmt ss)) in
+    let ail_record_opt = generate_record_opt fn_sym lf_def.return_bt in
+    let params = List.map (fun (sym, bt) -> (sym, bt_to_ail_ctype bt)) lf_def.args in
+    let param_syms, param_types = List.split params in
+    let param_types = List.map (fun t -> (C.no_qualifiers, t, false)) param_types in
+    let matched_cn_functions =
+      List.filter
+        (fun (cn_fun : (A.ail_identifier, C.ctype) CF.Cn.cn_function) ->
+           Sym.equal cn_fun.cn_func_name fn_sym)
+        cn_functions
+    in
+    (* If the function is user defined, grab its location from the cn_function associated with it.
+     Otherwise, the location is builtin *)
+    let loc =
+      (* RB: This was changed as part of the rebase for commit "Fix some error messages".
+       Is it fine as is, or do you want it to print and exit like with predicates? *)
+      match List.nth_opt matched_cn_functions 0 with
+      | Some fn -> fn.cn_func_magic_loc
+      | None -> Builtins.loc
+    in
+    (* Generating function declaration *)
+    let decl =
+      ( fn_sym,
+        ( lf_def.loc,
+          empty_attributes,
+          A.(
+            Decl_function
+              (false, (C.no_qualifiers, ret_type), param_types, false, false, false)) ) )
+    in
+    (* Generating function definition *)
+    let def =
+      match ail_func_body_opt with
+      | Some ail_func_body ->
+        Some
+          ( fn_sym,
+            ( lf_def.loc,
+              0,
+              empty_attributes,
+              param_syms,
+              mk_stmt A.(AilSblock (bs, ail_func_body)) ) )
+      | None -> None
+    in
+    Some (((loc, decl), def), ail_record_opt)
+  | Uninterp ->
+    if accept_uninterp then
+      None
+    else (
       Cerb_colour.with_colour
         (fun () ->
            print_endline
@@ -3650,66 +3696,7 @@ let cn_to_ail_function
                      ^^^ !^"at"
                      ^^^ Locations.pp lf_def.loc))))
         ();
-      exit 2
-  in
-  let ail_record_opt = generate_record_opt fn_sym lf_def.return_bt in
-  let params = List.map (fun (sym, bt) -> (sym, bt_to_ail_ctype bt)) lf_def.args in
-  let param_syms, param_types = List.split params in
-  let param_types = List.map (fun t -> (C.no_qualifiers, t, false)) param_types in
-  let matched_cn_functions =
-    List.filter
-      (fun (cn_fun : (A.ail_identifier, C.ctype) CF.Cn.cn_function) ->
-         Sym.equal cn_fun.cn_func_name fn_sym)
-      cn_functions
-  in
-  (* If the function is user defined, grab its location from the cn_function associated with it.
-     Otherwise, the location is builtin *)
-  let loc =
-    (* RB: This was changed as part of the rebase for commit "Fix some error messages".
-       Is it fine as is, or do you want it to print and exit like with predicates? *)
-    match List.nth_opt matched_cn_functions 0 with
-    | Some fn -> fn.cn_func_magic_loc
-    | None -> Builtins.loc
-    (*
-       let matched_cn_function =
-    match matched_cn_functions with
-    | [] ->
-      Cerb_colour.with_colour
-        (fun () ->
-           print_endline
-             Pp.(
-               plain
-                 (Pp.item
-                    "Function not found"
-                    (Sym.pp fn_sym ^^^ !^"at" ^^^ Locations.pp lf_def.loc))))
-        ();
-      exit 2
-    | p :: _ -> p
-    *)
-  in
-  (* Generating function declaration *)
-  let decl =
-    ( fn_sym,
-      ( lf_def.loc,
-        empty_attributes,
-        A.(
-          Decl_function
-            (false, (C.no_qualifiers, ret_type), param_types, false, false, false)) ) )
-  in
-  (* Generating function definition *)
-  let def =
-    match ail_func_body_opt with
-    | Some ail_func_body ->
-      Some
-        ( fn_sym,
-          ( lf_def.loc,
-            0,
-            empty_attributes,
-            param_syms,
-            mk_stmt A.(AilSblock (bs, ail_func_body)) ) )
-    | None -> None
-  in
-  (((loc, decl), def), ail_record_opt)
+      exit 2)
 
 
 (* only used in cn_to_ail_predicate *)
