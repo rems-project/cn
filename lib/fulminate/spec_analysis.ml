@@ -15,25 +15,23 @@ module AT = ArgumentTypes
 module OE = Ownership
 open Terms
 
-
-let rec accept_uninterp_lat uninterp_syms = function 
-  | LAT.Define ((name, it), info, lat) -> 
-
-    failwith "TODO"
+let rec accept_uninterp_lat uninterp_syms = function
+  | LAT.Define ((name, it), info, lat) -> failwith "TODO"
   | Resource ((name, (ret, bt)), (loc, _str_opt), lat) -> failwith "TODO"
   | Constraint (lc, (loc, _str_opt), lat) -> failwith "TODO"
   | I (post, (stats, loops)) -> failwith "TODO"
 
 
-
-let rec accept_uninterp_toplevel_at uninterp_syms = function 
-  | AT.Computational (sym_and_bt, info, at) -> AT.Computational (sym_and_bt, info, accept_uninterp_toplevel_at uninterp_syms at)
-  | Ghost (sym_and_bt, info, at) -> Ghost (sym_and_bt, info, accept_uninterp_toplevel_at uninterp_syms at)
+let rec accept_uninterp_toplevel_at uninterp_syms = function
+  | AT.Computational (sym_and_bt, info, at) ->
+    AT.Computational (sym_and_bt, info, accept_uninterp_toplevel_at uninterp_syms at)
+  | Ghost (sym_and_bt, info, at) ->
+    Ghost (sym_and_bt, info, accept_uninterp_toplevel_at uninterp_syms at)
   | L lat -> L (accept_uninterp_lat uninterp_syms lat)
 
 
 let accept_uninterp_toplevel cn_fns =
-  let uninterp_syms = Sym.Set.empty in 
+  let uninterp_syms = Sym.Set.empty in
   function
   | Some internal -> Some (accept_uninterp_toplevel_at uninterp_syms internal)
   | None -> None

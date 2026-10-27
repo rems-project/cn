@@ -214,6 +214,7 @@ val cn_to_ail_predicates
   (Sym.t * Ctype.ctype) list ->
   AilSyntax.sigma_cn_predicate list ->
   bool ->
+  bool ->
   ((Locations.t * AilSyntax.sigma_declaration)
   * GenTypes.genTypeCategory AilSyntax.sigma_function_definition)
     list

@@ -69,6 +69,8 @@ module Predicate : sig
 
   val is_multiclause : t -> bool
 
+  val pp_sig : Pp.document -> t -> Pp.document
+
   val pp : t -> Pp.document
 
   val instantiate : t -> Terms.Normal.t -> Terms.Normal.t list -> Clause.t list option

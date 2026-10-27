@@ -151,6 +151,27 @@ module Predicate = struct
     match def.clauses with Some (_ :: _ :: _) -> true | _ -> false
 
 
+  let pp_args xs =
+    let doc =
+      Pp.flow_map
+        (Pp.break 1)
+        (fun (sym, typ) -> Pp.parens (Pp.typ (Sym.pp sym) (BaseTypes.pp typ)))
+        xs
+    in
+    if PPrint.requirement doc = 0 then
+      Pp.parens Pp.empty
+    else
+      doc
+
+
+  let pp_sig nm def =
+    let open Pp in
+    nm
+    ^^ pp_args ((def.pointer, BaseTypes.(Loc ())) :: def.iargs)
+    ^^^ colon
+    ^^^ BaseTypes.pp (snd def.oarg)
+
+
   let pp def =
     let open Pp in
     item "pointer" (Sym.pp def.pointer)

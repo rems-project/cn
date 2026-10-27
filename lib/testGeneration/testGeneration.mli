@@ -41,6 +41,7 @@ val run
   :  output_dir:string ->
   filename:string ->
   without_ownership_checking:bool ->
+  accept_uninterp:bool ->
   TestGenConfig.build_tool ->
   Cerb_frontend.Cabs.translation_unit ->
   Cerb_frontend.GenTypes.genTypeCategory Cerb_frontend.AilSyntax.sigma ->
