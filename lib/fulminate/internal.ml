@@ -810,26 +810,3 @@ let generate_tag_definition_injs (tag_defs : CF.AilSyntax.sigma_tag_definition l
       !tag_defs'
   in
   all_tag_def_injs
-
-
-let accept_uninterp_instr
-      (instrumentation_list : Extract.instrumentation list)
-      (prog5 : unit Mucore.file)
-  =
-  let u_fn_syms =
-    Sym.Set.of_list
-      (List.filter_map
-         (fun (fn_sym, (def : Definition.Function.t)) ->
-            if Definition.Function.is_uninterp def then Some fn_sym else None)
-         prog5.logical_predicates)
-  in
-  let u_pred_syms =
-    Sym.Set.of_list
-      (List.filter_map
-         (fun (pred_sym, (def : Definition.Predicate.t)) ->
-            if Definition.Predicate.is_uninterp def then Some pred_sym else None)
-         prog5.resource_predicates)
-  in
-  List.map
-    (Spec_analysis.accept_uninterp_toplevel (u_fn_syms, u_pred_syms))
-    instrumentation_list

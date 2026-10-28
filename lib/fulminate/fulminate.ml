@@ -584,7 +584,7 @@ let main
   Records.populate_record_map filtered_instrumentation prog5;
   let filtered_instrumentation =
     if accept_uninterp then
-      accept_uninterp_instr filtered_instrumentation prog5
+      Spec_analysis.accept_uninterp_instr filtered_instrumentation prog5
     else
       filtered_instrumentation
   in

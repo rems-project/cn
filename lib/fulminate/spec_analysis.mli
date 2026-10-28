@@ -1,4 +1,4 @@
-val accept_uninterp_toplevel
-  :  Sym.Set.t * Sym.Set.t ->
-  Extract.instrumentation ->
-  Extract.instrumentation
+val accept_uninterp_instr
+  :  Extract.instrumentation list ->
+  unit Mucore.file ->
+  Extract.instrumentation list
