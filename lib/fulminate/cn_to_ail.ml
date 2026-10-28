@@ -3625,8 +3625,15 @@ let cn_to_ail_function
       option
   =
   let ret_type = bt_to_ail_ctype ~pred_sym:(Some fn_sym) lf_def.return_bt in
-  match lf_def.body with
-  | Def it | Rec_Def it ->
+  let cn_to_ail_function_aux
+        (it : TN.t)
+        (filename : string)
+        (fn_sym, (lf_def : Definition.Function.t))
+        (cabs_tunit : CF.Cabs.translation_unit)
+        (prog5 : _ Mucore.file)
+        (cn_datatypes : A.sigma_cn_datatype list)
+        (cn_functions : A.sigma_cn_function list)
+    =
     let bs, ss =
       cn_to_ail_expr_with_pred_name
         filename
@@ -3680,6 +3687,41 @@ let cn_to_ail_function
       | None -> None
     in
     Some (((loc, decl), def), ail_record_opt)
+  in
+  match lf_def.body with
+  | Def it | Rec_Def it ->
+    if accept_uninterp then (
+      let fn_calls_of_it = Terms.preds_of it in
+      let fns_in_it =
+        List.filter
+          (fun (f_sym, _) -> Sym.Set.mem f_sym fn_calls_of_it)
+          prog5.logical_predicates
+      in
+      let uninterp_fns_in_it =
+        List.filter_map
+          (fun (f, def) -> if Definition.Function.is_uninterp def then Some f else None)
+          fns_in_it
+      in
+      if List.non_empty uninterp_fns_in_it then
+        None
+      else
+        cn_to_ail_function_aux
+          it
+          filename
+          (fn_sym, lf_def)
+          cabs_tunit
+          prog5
+          cn_datatypes
+          cn_functions)
+    else
+      cn_to_ail_function_aux
+        it
+        filename
+        (fn_sym, lf_def)
+        cabs_tunit
+        prog5
+        cn_datatypes
+        cn_functions
   | Uninterp ->
     if accept_uninterp then
       None
