@@ -3,8 +3,107 @@ module LRT = LogicalReturnTypes
 module RT = ReturnTypes
 module AT = ArgumentTypes
 open Terms
+module G = Graph.Persistent.Digraph.Concrete (Sym)
+module Dfs = Graph.Traverse.Dfs (G)
 
-(* Scan for uninterpreted functions and predicates, and the variables that get defined thereof *)
+(* b -> a : a's definition mentions b *)
+(* Construct graph in reverse *)
+let add_uses graph ~user ~used = Sym.Set.fold (fun b g -> G.add_edge g b user) used graph
+
+let fn_calls_of_term it = Terms.preds_of it
+
+let fn_calls_of_terms its =
+  List.fold_left (fun acc it -> Sym.Set.union acc (fn_calls_of_term it)) Sym.Set.empty its
+
+
+let fn_calls_of_constraint = function
+  | LogicalConstraints.T it | Forall (_, it) -> fn_calls_of_term it
+
+
+let fn_and_pred_calls_of_request = function
+  | Request.P { name; pointer; iargs } ->
+    let fns = fn_calls_of_terms (pointer :: iargs) in
+    (match name with PName p -> Sym.Set.add p fns | Owned _ -> fns)
+  | Q { name; pointer; permission; iargs; _ } ->
+    let fns = fn_calls_of_terms (pointer :: permission :: iargs) in
+    (match name with PName p -> Sym.Set.add p fns | Owned _ -> fns)
+
+
+let uses_of_clause (clause : Definition.Clause.t) =
+  let rec aux acc = function
+    | LogicalArgumentTypes.Define ((_, it), _, lat) ->
+      aux (Sym.Set.union acc (fn_calls_of_term it)) lat
+    | Resource ((_, (req, _)), _, lat) ->
+      aux (Sym.Set.union acc (fn_and_pred_calls_of_request req)) lat
+    | Constraint (lc, _, lat) -> aux (Sym.Set.union acc (fn_calls_of_constraint lc)) lat
+    | I it -> Sym.Set.union acc (fn_calls_of_term it)
+  in
+  aux (fn_calls_of_term clause.guard) clause.packing_ft
+
+
+let fn_calls_of_function (def : Definition.Function.t) =
+  match def.body with
+  | Def body | Rec_Def body -> fn_calls_of_term body
+  | Uninterp -> Sym.Set.empty
+
+
+let fn_and_pred_calls_of_predicate (def : Definition.Predicate.t) =
+  match def.clauses with
+  | Some clauses ->
+    List.fold_left
+      (fun acc clause -> Sym.Set.union acc (uses_of_clause clause))
+      Sym.Set.empty
+      clauses
+  | None -> Sym.Set.empty
+
+
+(* The uninterpreted functions and predicates, closed under use: every function or predicate
+   whose definition reaches one of them. Returned as the two sets separately. *)
+let uninterp_closure
+      (functions : (Sym.t * Definition.Function.t) list)
+      (predicates : (Sym.t * Definition.Predicate.t) list)
+  =
+  let graph = G.empty in
+  let graph = List.fold_left (fun graph (f, _) -> G.add_vertex graph f) graph functions in
+  let graph =
+    List.fold_left (fun graph (p, _) -> G.add_vertex graph p) graph predicates
+  in
+  let graph =
+    List.fold_left
+      (fun graph (f, def) -> add_uses graph ~user:f ~used:(fn_calls_of_function def))
+      graph
+      functions
+  in
+  let graph =
+    List.fold_left
+      (fun graph (p, def) ->
+         add_uses graph ~user:p ~used:(fn_and_pred_calls_of_predicate def))
+      graph
+      predicates
+  in
+  let roots =
+    Sym.Set.union
+      (Sym.Set.of_list
+         (List.filter_map
+            (fun (f, def) -> if Definition.Function.is_uninterp def then Some f else None)
+            functions))
+      (Sym.Set.of_list
+         (List.filter_map
+            (fun (p, def) ->
+               if Definition.Predicate.is_uninterp def then Some p else None)
+            predicates))
+  in
+  let reached =
+    Sym.Set.fold
+      (fun root acc -> Dfs.fold_component Sym.Set.add acc graph root)
+      roots
+      Sym.Set.empty
+  in
+  let is_function = Sym.Set.of_list (List.map fst functions) in
+  (Sym.Set.inter reached is_function, Sym.Set.diff reached is_function)
+
+
+(* ------- *)
 
 let is_uninterp_var (u_vars : Sym.Set.t) (IT (it_, _bt, _loc)) =
   match it_ with Sym s when Sym.Set.mem s u_vars -> true | _ -> false
@@ -131,18 +230,7 @@ let accept_uninterp_instr
       (instrumentation_list : Extract.instrumentation list)
       (prog5 : unit Mucore.file)
   =
-  let u_fn_syms =
-    Sym.Set.of_list
-      (List.filter_map
-         (fun (fn_sym, (def : Definition.Function.t)) ->
-            if Definition.Function.is_uninterp def then Some fn_sym else None)
-         prog5.logical_predicates)
-  in
-  let u_pred_syms =
-    Sym.Set.of_list
-      (List.filter_map
-         (fun (pred_sym, (def : Definition.Predicate.t)) ->
-            if Definition.Predicate.is_uninterp def then Some pred_sym else None)
-         prog5.resource_predicates)
+  let u_fn_syms, u_pred_syms =
+    uninterp_closure prog5.logical_predicates prog5.resource_predicates
   in
   List.map (accept_uninterp_toplevel (u_fn_syms, u_pred_syms)) instrumentation_list
