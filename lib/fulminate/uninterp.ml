@@ -8,7 +8,9 @@ module Dfs = Graph.Traverse.Dfs (G)
 
 (* b -> a : a's definition mentions b *)
 (* Construct graph in reverse *)
-let add_uses graph ~user ~used = Sym.Set.fold (fun b g -> G.add_edge g b user) used graph
+let add_edges graph ~caller ~callee =
+  Sym.Set.fold (fun b g -> G.add_edge g b caller) callee graph
+
 
 let fn_calls_of_term it = Terms.preds_of it
 
@@ -29,7 +31,7 @@ let fn_and_pred_calls_of_request = function
     (match name with PName p -> Sym.Set.add p fns | Owned _ -> fns)
 
 
-let uses_of_clause (clause : Definition.Clause.t) =
+let fn_and_pred_calls_of_clause (clause : Definition.Clause.t) =
   let rec aux acc = function
     | LogicalArgumentTypes.Define ((_, it), _, lat) ->
       aux (Sym.Set.union acc (fn_calls_of_term it)) lat
@@ -51,14 +53,17 @@ let fn_and_pred_calls_of_predicate (def : Definition.Predicate.t) =
   match def.clauses with
   | Some clauses ->
     List.fold_left
-      (fun acc clause -> Sym.Set.union acc (uses_of_clause clause))
+      (fun acc clause -> Sym.Set.union acc (fn_and_pred_calls_of_clause clause))
       Sym.Set.empty
       clauses
   | None -> Sym.Set.empty
 
 
-(* The uninterpreted functions and predicates, closed under use: every function or predicate
-   whose definition reaches one of them. Returned as the two sets separately. *)
+(* Construct graph to determine which functions are transitively dependent on uninterpreted functions,
+and the same for predicates that are transitively dependent on uninterpreted functions and/or predicates.
+Construct reverse graph by adding edges from the uninterpreted fn/pred calls to their callers, to make 
+constructing reachable set via DFS easy.
+*)
 let uninterp_closure
       (functions : (Sym.t * Definition.Function.t) list)
       (predicates : (Sym.t * Definition.Predicate.t) list)
@@ -70,14 +75,14 @@ let uninterp_closure
   in
   let graph =
     List.fold_left
-      (fun graph (f, def) -> add_uses graph ~user:f ~used:(fn_calls_of_function def))
+      (fun graph (f, def) -> add_edges graph ~caller:f ~callee:(fn_calls_of_function def))
       graph
       functions
   in
   let graph =
     List.fold_left
       (fun graph (p, def) ->
-         add_uses graph ~user:p ~used:(fn_and_pred_calls_of_predicate def))
+         add_edges graph ~caller:p ~callee:(fn_and_pred_calls_of_predicate def))
       graph
       predicates
   in
