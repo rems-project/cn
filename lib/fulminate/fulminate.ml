@@ -582,6 +582,12 @@ let main
   in
   let filtered_ail_prog = (startup_sym_opt, filtered_sigm) in
   Records.populate_record_map filtered_instrumentation prog5;
+  let filtered_instrumentation =
+    if accept_uninterp then
+      accept_uninterp_instr filtered_instrumentation prog5
+    else
+      filtered_instrumentation
+  in
   let executable_spec =
     generate_c_specs
       cerb_conf
