@@ -515,6 +515,14 @@ let generate_c_functions
       (prog5 : _ Mucore.file)
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
   =
+  let cn_funs =
+    if accept_uninterp then
+      List.filter
+        (fun (f_sym, _) -> not (Sym.Set.mem f_sym !Uninterp.u_fn_syms))
+        prog5.logical_predicates
+    else
+      prog5.logical_predicates
+  in
   let ail_funs_and_records =
     List.map
       (fun cn_f ->
@@ -524,9 +532,8 @@ let generate_c_functions
            cabs_tunit
            prog5
            sigm.cn_datatypes
-           sigm.cn_functions
-           accept_uninterp)
-      prog5.logical_predicates
+           sigm.cn_functions)
+      cn_funs
   in
   let ail_funs_and_records = List.filter_map Fun.id ail_funs_and_records in
   let ail_funs, _ = List.split ail_funs_and_records in
@@ -555,15 +562,22 @@ let generate_c_predicates
       (prog5 : _ Mucore.file)
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
   =
+  let cn_preds =
+    if accept_uninterp then
+      List.filter
+        (fun (pred_sym, _) -> not (Sym.Set.mem pred_sym !Uninterp.u_pred_syms))
+        prog5.resource_predicates
+    else
+      prog5.resource_predicates
+  in
   let ail_funs, _ =
     Cn_to_ail.cn_to_ail_predicates
-      prog5.resource_predicates
+      cn_preds
       filename
       sigm.cn_datatypes
       (Cn_to_ail.extract_global_variables cabs_tunit prog5)
       sigm.cn_predicates
       without_ownership_checking
-      accept_uninterp
   in
   let locs_and_decls, defs = List.split ail_funs in
   let locs, decls = List.split locs_and_decls in

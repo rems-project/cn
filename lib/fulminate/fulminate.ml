@@ -583,8 +583,9 @@ let main
   let filtered_ail_prog = (startup_sym_opt, filtered_sigm) in
   Records.populate_record_map filtered_instrumentation prog5;
   let filtered_instrumentation =
-    if accept_uninterp then
-      Uninterp.accept_uninterp_instr filtered_instrumentation prog5
+    if accept_uninterp then (
+      Uninterp.set_uninterp_closure prog5.logical_predicates prog5.resource_predicates;
+      Uninterp.accept_uninterp_instr filtered_instrumentation)
     else
       filtered_instrumentation
   in
