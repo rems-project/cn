@@ -201,7 +201,6 @@ val cn_to_ail_function
   _ Mucore.file ->
   AilSyntax.sigma_cn_datatype list ->
   AilSyntax.sigma_cn_function list ->
-  bool ->
   (((Locations.t * AilSyntax.sigma_declaration)
    * GenTypes.genTypeCategory AilSyntax.sigma_function_definition option)
   * AilSyntax.sigma_tag_definition option)
@@ -213,7 +212,6 @@ val cn_to_ail_predicates
   AilSyntax.sigma_cn_datatype list ->
   (Sym.t * Ctype.ctype) list ->
   AilSyntax.sigma_cn_predicate list ->
-  bool ->
   bool ->
   ((Locations.t * AilSyntax.sigma_declaration)
   * GenTypes.genTypeCategory AilSyntax.sigma_function_definition)

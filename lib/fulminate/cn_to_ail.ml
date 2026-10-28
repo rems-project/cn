@@ -3618,7 +3618,6 @@ let cn_to_ail_function
       (prog5 : _ Mucore.file)
       (cn_datatypes : A.sigma_cn_datatype list)
       (cn_functions : A.sigma_cn_function list)
-      (accept_uninterp : bool)
   : (((Locations.t * A.sigma_declaration)
      * CF.GenTypes.genTypeCategory A.sigma_function_definition option)
     * A.sigma_tag_definition option)
@@ -3690,55 +3689,28 @@ let cn_to_ail_function
   in
   match lf_def.body with
   | Def it | Rec_Def it ->
-    if accept_uninterp then (
-      let fn_calls_of_it = Terms.preds_of it in
-      let fns_in_it =
-        List.filter
-          (fun (f_sym, _) -> Sym.Set.mem f_sym fn_calls_of_it)
-          prog5.logical_predicates
-      in
-      let uninterp_fns_in_it =
-        List.filter_map
-          (fun (f, def) -> if Definition.Function.is_uninterp def then Some f else None)
-          fns_in_it
-      in
-      if List.non_empty uninterp_fns_in_it then
-        None
-      else
-        cn_to_ail_function_aux
-          it
-          filename
-          (fn_sym, lf_def)
-          cabs_tunit
-          prog5
-          cn_datatypes
-          cn_functions)
-    else
-      cn_to_ail_function_aux
-        it
-        filename
-        (fn_sym, lf_def)
-        cabs_tunit
-        prog5
-        cn_datatypes
-        cn_functions
+    cn_to_ail_function_aux
+      it
+      filename
+      (fn_sym, lf_def)
+      cabs_tunit
+      prog5
+      cn_datatypes
+      cn_functions
   | Uninterp ->
-    if accept_uninterp then
-      None
-    else (
-      Cerb_colour.with_colour
-        (fun () ->
-           print_endline
-             Pp.(
-               plain
-                 (Pp.item
-                    "Uninterpreted CN functions not supported at runtime. Please provide \
-                     a concrete function definition for"
-                    (squotes (Definition.Function.pp_sig (Sym.pp fn_sym) lf_def)
-                     ^^^ !^"at"
-                     ^^^ Locations.pp lf_def.loc))))
-        ();
-      exit 2)
+    Cerb_colour.with_colour
+      (fun () ->
+         print_endline
+           Pp.(
+             plain
+               (Pp.item
+                  "Uninterpreted CN functions not supported at runtime. Please provide a \
+                   concrete function definition for"
+                  (squotes (Definition.Function.pp_sig (Sym.pp fn_sym) lf_def)
+                   ^^^ !^"at"
+                   ^^^ Locations.pp lf_def.loc))))
+      ();
+    exit 2
 
 
 (* only used in cn_to_ail_predicate *)
@@ -3853,7 +3825,6 @@ let cn_to_ail_predicate
       preds
       cn_preds
       without_ownership_checking
-      accept_uninterp
       (pred_sym, (rp_def : Definition.Predicate.t))
   =
   let ret_type = bt_to_ail_ctype ~pred_sym:(Some pred_sym) (snd rp_def.oarg) in
@@ -3905,22 +3876,19 @@ let cn_to_ail_predicate
     | Some clauses -> clause_translate_aux clauses
     | None ->
       (* Uninterpreted predicate *)
-      if accept_uninterp then
-        ([], [])
-      else (
-        Cerb_colour.with_colour
-          (fun () ->
-             print_endline
-               Pp.(
-                 plain
-                   (Pp.item
-                      "Uninterpreted CN functions not supported at runtime. Please \
-                       provide a concrete function definition for"
-                      (squotes (Definition.Predicate.pp_sig (Sym.pp pred_sym) rp_def)
-                       ^^^ !^"at"
-                       ^^^ Locations.pp rp_def.loc))))
-          ();
-        exit 2)
+      Cerb_colour.with_colour
+        (fun () ->
+           print_endline
+             Pp.(
+               plain
+                 (Pp.item
+                    "Uninterpreted CN functions not supported at runtime. Please provide \
+                     a concrete function definition for"
+                    (squotes (Definition.Predicate.pp_sig (Sym.pp pred_sym) rp_def)
+                     ^^^ !^"at"
+                     ^^^ Locations.pp rp_def.loc))))
+        ();
+      exit 2
   in
   let bs, ss = clause_translate (pred_sym, rp_def) rp_def.clauses in
   let pred_body = List.map mk_stmt ss in
@@ -3975,14 +3943,7 @@ let cn_to_ail_predicate
   (((loc, decl), def), ail_record_opt)
 
 
-let cn_to_ail_predicates
-      preds
-      filename
-      dts
-      globals
-      cn_preds
-      without_ownership_checking
-      accept_uninterp
+let cn_to_ail_predicates preds filename dts globals cn_preds without_ownership_checking
   : ((Locations.t * A.sigma_declaration)
     * CF.GenTypes.genTypeCategory A.sigma_function_definition)
       list
@@ -3996,8 +3957,7 @@ let cn_to_ail_predicates
           globals
           preds
           cn_preds
-          without_ownership_checking
-          accept_uninterp)
+          without_ownership_checking)
        preds)
 
 

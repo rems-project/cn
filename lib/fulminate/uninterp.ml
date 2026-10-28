@@ -6,6 +6,10 @@ open Terms
 module G = Graph.Persistent.Digraph.Concrete (Sym)
 module Dfs = Graph.Traverse.Dfs (G)
 
+let u_fn_syms = ref Sym.Set.empty
+
+let u_pred_syms = ref Sym.Set.empty
+
 (* b -> a : a's definition mentions b *)
 (* Construct graph in reverse *)
 let add_edges graph ~caller ~callee =
@@ -64,7 +68,7 @@ and the same for predicates that are transitively dependent on uninterpreted fun
 Construct reverse graph by adding edges from the uninterpreted fn/pred calls to their callers, to make 
 constructing reachable set via DFS easy.
 *)
-let uninterp_closure
+let set_uninterp_closure
       (functions : (Sym.t * Definition.Function.t) list)
       (predicates : (Sym.t * Definition.Predicate.t) list)
   =
@@ -105,7 +109,10 @@ let uninterp_closure
       Sym.Set.empty
   in
   let is_function = Sym.Set.of_list (List.map fst functions) in
-  (Sym.Set.inter reached is_function, Sym.Set.diff reached is_function)
+  let uninterp_fns = Sym.Set.inter reached is_function in
+  let uninterp_preds = Sym.Set.diff reached is_function in
+  u_fn_syms := uninterp_fns;
+  u_pred_syms := uninterp_preds
 
 
 (* ------- *)
@@ -115,99 +122,97 @@ let is_uninterp_var (u_vars : Sym.Set.t) (IT (it_, _bt, _loc)) =
 
 
 (* Based on `Terms.is_call` *)
-let is_uninterp_fn_call (u_fns : Sym.Set.t) (IT (it_, _bt, _loc)) =
-  match it_ with Apply (f', _) when Sym.Set.mem f' u_fns -> true | _ -> false
+let is_uninterp_fn_call (IT (it_, _bt, _loc)) =
+  match it_ with Apply (f', _) when Sym.Set.mem f' !u_fn_syms -> true | _ -> false
 
 
 (* Based on `Terms.mentions_call` *)
-let contains_uninterp_var_or_fn_call u_vars u_fns =
+(* Check if index term has uninterpreted variable or function call *)
+let it_has_uninterp u_vars =
   Terms.fold_subterms
-    (fun _binders acc it ->
-       acc || is_uninterp_var u_vars it || is_uninterp_fn_call u_fns it)
+    (fun _binders acc it -> acc || is_uninterp_var u_vars it || is_uninterp_fn_call it)
     false
 
 
-let is_uninterp_pred_call (u_preds : Sym.Set.t) = function
+let is_uninterp_pred_call = function
   | Request.P { name; _ } | Q { name; _ } ->
-    (match name with PName p_sym -> Sym.Set.mem p_sym u_preds | Owned _ -> false)
+    (match name with PName p_sym -> Sym.Set.mem p_sym !u_pred_syms | Owned _ -> false)
 
 
-let pred_contains_uninterp_it u_vars u_fns =
-  let uninterp_f = contains_uninterp_var_or_fn_call u_vars u_fns in
-  let uninterp_f_list its = its |> List.map uninterp_f |> List.fold_left ( || ) false in
-  function
-  | Request.P { pointer; iargs; _ } -> uninterp_f pointer || uninterp_f_list iargs
-  | Q { pointer; permission; iargs; _ } ->
-    uninterp_f pointer || uninterp_f permission || uninterp_f_list iargs
-
-
-let pred_is_or_contains_uninterp u_vars (u_fns, u_preds) req =
-  is_uninterp_pred_call u_preds req || pred_contains_uninterp_it u_vars u_fns req
+(* Check if predicate is uninterpreted, or has uninterpreted variables or function calls *)
+let pred_is_or_has_uninterp u_vars req =
+  let pred_has_uninterp u_vars =
+    let uninterp_f = it_has_uninterp u_vars in
+    let uninterp_f_list its = its |> List.map uninterp_f |> List.fold_left ( || ) false in
+    function
+    | Request.P { pointer; iargs; _ } -> uninterp_f pointer || uninterp_f_list iargs
+    | Q { pointer; permission; iargs; _ } ->
+      uninterp_f pointer || uninterp_f permission || uninterp_f_list iargs
+  in
+  is_uninterp_pred_call req || pred_has_uninterp u_vars req
 
 
 (* for now, duplicate *)
-let rec accept_uninterp_lrt u_vars (u_fns, u_preds) = function
+let rec accept_uninterp_lrt u_vars = function
   | LRT.Define ((name, it), info, lrt) ->
-    if contains_uninterp_var_or_fn_call u_vars u_fns it then
-      accept_uninterp_lrt (Sym.Set.add name u_vars) (u_fns, u_preds) lrt
+    if it_has_uninterp !u_vars it then (
+      u_vars := Sym.Set.add name !u_vars;
+      accept_uninterp_lrt u_vars lrt)
     else
-      LRT.Define ((name, it), info, accept_uninterp_lrt u_vars (u_fns, u_preds) lrt)
+      LRT.Define ((name, it), info, accept_uninterp_lrt u_vars lrt)
   | Resource ((name, (ret, bt)), (loc, _str_opt), lrt) ->
-    if pred_is_or_contains_uninterp u_vars (u_fns, u_preds) ret then
-      accept_uninterp_lrt (Sym.Set.add name u_vars) (u_fns, u_preds) lrt
+    if pred_is_or_has_uninterp !u_vars ret then (
+      u_vars := Sym.Set.add name !u_vars;
+      accept_uninterp_lrt u_vars lrt)
     else
-      Resource
-        ( (name, (ret, bt)),
-          (loc, _str_opt),
-          accept_uninterp_lrt u_vars (u_fns, u_preds) lrt )
+      Resource ((name, (ret, bt)), (loc, _str_opt), accept_uninterp_lrt u_vars lrt)
   | Constraint (lc, (loc, _str_opt), lrt) ->
     (match lc with
      | T it | Forall (_, it) ->
-       if contains_uninterp_var_or_fn_call u_vars u_fns it then
-         accept_uninterp_lrt u_vars (u_fns, u_preds) lrt
+       let r = accept_uninterp_lrt u_vars lrt in
+       if it_has_uninterp !u_vars it then
+         r
        else
-         Constraint (lc, (loc, _str_opt), accept_uninterp_lrt u_vars (u_fns, u_preds) lrt))
+         Constraint (lc, (loc, _str_opt), r))
   | I -> I
 
 
-let accept_uninterp_rt u_vars (u_fns, u_preds) = function
+let accept_uninterp_rt u_vars = function
   | RT.Computational ((sym, bt), info, lrt) ->
-    RT.Computational ((sym, bt), info, accept_uninterp_lrt u_vars (u_fns, u_preds) lrt)
+    RT.Computational ((sym, bt), info, accept_uninterp_lrt u_vars lrt)
 
 
-let rec accept_uninterp_lat u_vars (u_fns, u_preds) fn_a = function
+let rec accept_uninterp_lat u_vars fn_a = function
   | LAT.Define ((name, it), info, lat) ->
-    if contains_uninterp_var_or_fn_call u_vars u_fns it then
-      accept_uninterp_lat (Sym.Set.add name u_vars) (u_fns, u_preds) fn_a lat
+    if it_has_uninterp !u_vars it then (
+      u_vars := Sym.Set.add name !u_vars;
+      accept_uninterp_lat u_vars fn_a lat)
     else
-      LAT.Define ((name, it), info, accept_uninterp_lat u_vars (u_fns, u_preds) fn_a lat)
+      LAT.Define ((name, it), info, accept_uninterp_lat u_vars fn_a lat)
   | Resource ((name, (ret, bt)), (loc, _str_opt), lat) ->
-    if pred_is_or_contains_uninterp u_vars (u_fns, u_preds) ret then
-      accept_uninterp_lat (Sym.Set.add name u_vars) (u_fns, u_preds) fn_a lat
+    if pred_is_or_has_uninterp !u_vars ret then (
+      u_vars := Sym.Set.add name !u_vars;
+      accept_uninterp_lat u_vars fn_a lat)
     else
-      Resource
-        ( (name, (ret, bt)),
-          (loc, _str_opt),
-          accept_uninterp_lat u_vars (u_fns, u_preds) fn_a lat )
+      Resource ((name, (ret, bt)), (loc, _str_opt), accept_uninterp_lat u_vars fn_a lat)
   | Constraint (lc, (loc, _str_opt), lat) ->
     (match lc with
      | T it | Forall (_, it) ->
-       if contains_uninterp_var_or_fn_call u_vars u_fns it then
-         accept_uninterp_lat u_vars (u_fns, u_preds) fn_a lat
+       let r = accept_uninterp_lat u_vars fn_a lat in
+       if it_has_uninterp !u_vars it then
+         r
        else
-         Constraint
-           (lc, (loc, _str_opt), accept_uninterp_lat u_vars (u_fns, u_preds) fn_a lat))
-  | I a -> I (fn_a u_vars (u_fns, u_preds) a)
+         Constraint (lc, (loc, _str_opt), r))
+  | I a -> I (fn_a u_vars a)
 
 
-let rec accept_uninterp_at u_vars (u_fns, u_preds) = function
+let rec accept_uninterp_at u_vars = function
   | AT.Computational (sym_and_bt, info, at) ->
-    AT.Computational (sym_and_bt, info, accept_uninterp_at u_vars (u_fns, u_preds) at)
-  | Ghost (sym_and_bt, info, at) ->
-    Ghost (sym_and_bt, info, accept_uninterp_at u_vars (u_fns, u_preds) at)
+    AT.Computational (sym_and_bt, info, accept_uninterp_at u_vars at)
+  | Ghost (sym_and_bt, info, at) -> Ghost (sym_and_bt, info, accept_uninterp_at u_vars at)
   | L lat ->
-    let fn_a u_vars' (u_fns', u_preds') (post, (stats, loops)) =
-      let new_post = accept_uninterp_rt u_vars' (u_fns', u_preds') post in
+    let fn_a u_vars' (post, (stats, loops)) =
+      let new_post = accept_uninterp_rt u_vars' post in
       let _fn_b =
         Fun.id
         (* TODO *)
@@ -218,24 +223,19 @@ let rec accept_uninterp_at u_vars (u_fns, u_preds) = function
       in
       (new_post, (stats, new_loops))
     in
-    L (accept_uninterp_lat u_vars (u_fns, u_preds) fn_a lat)
+    L (accept_uninterp_lat u_vars fn_a lat)
 
 
-let accept_uninterp_toplevel (u_fns, u_preds) (instrumentation : Extract.instrumentation) =
-  let u_vars = Sym.Set.empty in
+let accept_uninterp_toplevel (instrumentation : Extract.instrumentation) =
+  (* New set of uninterpreted variables per function spec *)
+  let u_vars = ref Sym.Set.empty in
   let new_internal =
     match instrumentation.internal with
-    | Some internal -> Some (accept_uninterp_at u_vars (u_fns, u_preds) internal)
+    | Some internal -> Some (accept_uninterp_at u_vars internal)
     | None -> None
   in
   { instrumentation with internal = new_internal }
 
 
-let accept_uninterp_instr
-      (instrumentation_list : Extract.instrumentation list)
-      (prog5 : unit Mucore.file)
-  =
-  let u_fn_syms, u_pred_syms =
-    uninterp_closure prog5.logical_predicates prog5.resource_predicates
-  in
-  List.map (accept_uninterp_toplevel (u_fn_syms, u_pred_syms)) instrumentation_list
+let accept_uninterp_instr (instrumentation_list : Extract.instrumentation list) =
+  List.map accept_uninterp_toplevel instrumentation_list
