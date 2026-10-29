@@ -211,7 +211,7 @@ let compile_test (test : Test.t) =
 
 let compile_test_file
       ~(without_ownership_checking : bool)
-      ~(accept_uninterp : bool)
+      ~(remove_uninterp : bool)
       ~(filename : string)
       (cabs_tunit : CF.Cabs.translation_unit)
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
@@ -236,13 +236,13 @@ let compile_test_file
   let open ESpecInternal in
   let c_datatype_defs = generate_c_datatypes sigma in
   let c_function_defs, c_function_decls, _c_function_locs =
-    generate_c_functions filename accept_uninterp cabs_tunit prog5 sigma
+    generate_c_functions filename remove_uninterp cabs_tunit prog5 sigma
   in
   let c_predicate_defs, c_predicate_decls, _c_predicate_locs =
     generate_c_predicates
       filename
       without_ownership_checking
-      accept_uninterp
+      remove_uninterp
       cabs_tunit
       prog5
       sigma
@@ -401,7 +401,7 @@ let save_tests
       ~output_dir
       ~filename
       ~without_ownership_checking
-      ~accept_uninterp
+      ~remove_uninterp
       (cabs_tunit : CF.Cabs.translation_unit)
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
@@ -414,7 +414,7 @@ let save_tests
     ^/^ hardline
     ^^ compile_test_file
          ~without_ownership_checking
-         ~accept_uninterp
+         ~remove_uninterp
          ~filename
          cabs_tunit
          sigma
@@ -532,7 +532,7 @@ let run
       ~output_dir
       ~filename
       ~without_ownership_checking
-      ~accept_uninterp
+      ~remove_uninterp
       (build_tool : TestGenConfig.build_tool)
       (cabs_tunit : CF.Cabs.translation_unit)
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
@@ -553,7 +553,7 @@ let run
     ~output_dir
     ~filename
     ~without_ownership_checking
-    ~accept_uninterp
+    ~remove_uninterp
     cabs_tunit
     sigma
     prog5
