@@ -182,60 +182,96 @@ let accept_uninterp_rt u_vars = function
     RT.Computational ((sym, bt), info, accept_uninterp_lrt u_vars lrt)
 
 
-let rec accept_uninterp_lat u_vars fn_a = function
+let rec accept_uninterp_lat u_vars f = function
   | LAT.Define ((name, it), info, lat) ->
     if it_has_uninterp !u_vars it then (
       u_vars := Sym.Set.add name !u_vars;
-      accept_uninterp_lat u_vars fn_a lat)
+      accept_uninterp_lat u_vars f lat)
     else
-      LAT.Define ((name, it), info, accept_uninterp_lat u_vars fn_a lat)
+      LAT.Define ((name, it), info, accept_uninterp_lat u_vars f lat)
   | Resource ((name, (ret, bt)), (loc, _str_opt), lat) ->
     if pred_is_or_has_uninterp !u_vars ret then (
       u_vars := Sym.Set.add name !u_vars;
-      accept_uninterp_lat u_vars fn_a lat)
+      accept_uninterp_lat u_vars f lat)
     else
-      Resource ((name, (ret, bt)), (loc, _str_opt), accept_uninterp_lat u_vars fn_a lat)
+      Resource ((name, (ret, bt)), (loc, _str_opt), accept_uninterp_lat u_vars f lat)
   | Constraint (lc, (loc, _str_opt), lat) ->
     (match lc with
      | T it | Forall (_, it) ->
-       let r = accept_uninterp_lat u_vars fn_a lat in
+       let r = accept_uninterp_lat u_vars f lat in
        if it_has_uninterp !u_vars it then
          r
        else
          Constraint (lc, (loc, _str_opt), r))
-  | I a -> I (fn_a u_vars a)
+  | I a -> I (f u_vars a)
 
 
-let rec accept_uninterp_at u_vars = function
+let rec accept_uninterp_at u_vars f = function
   | AT.Computational (sym_and_bt, info, at) ->
-    AT.Computational (sym_and_bt, info, accept_uninterp_at u_vars at)
-  | Ghost (sym_and_bt, info, at) -> Ghost (sym_and_bt, info, accept_uninterp_at u_vars at)
-  | L lat ->
-    let fn_a u_vars' (post, (stats, loops)) =
-      let new_post = accept_uninterp_rt u_vars' post in
-      let _fn_b =
-        Fun.id
-        (* TODO *)
-      in
-      let new_loops =
-        loops
-        (* TODO *)
-      in
-      (new_post, (stats, new_loops))
-    in
-    L (accept_uninterp_lat u_vars fn_a lat)
+    AT.Computational (sym_and_bt, info, accept_uninterp_at u_vars f at)
+  | Ghost (sym_and_bt, info, at) ->
+    Ghost (sym_and_bt, info, accept_uninterp_at u_vars f at)
+  | L lat -> L (accept_uninterp_lat u_vars f lat)
 
 
-let accept_uninterp_toplevel (instrumentation : Extract.instrumentation) =
+let cn_statement_has_uninterp u_vars = function
+  | Cnstatement.Apply (_fsym, args) ->
+    (* fsym is a lemma symbol: TODO look up if problematic *)
+    List.fold_left ( || ) false (List.map (it_has_uninterp u_vars) args)
+  | Assert lc ->
+    (match lc with LogicalConstraints.T it | Forall (_, it) -> it_has_uninterp u_vars it)
+  | Pack_unpack _ | Derive_constraints _ | To_from_bytes _ | Have _ | Instantiate _
+  | Split_case _ | Extract _ | Unfold _ | Inline _ | Print _ ->
+    false (* all no-ops in Fulminate *)
+
+
+let accept_uninterp_cnprog u_vars (loc, cnprogs) =
+  let rec accept_uninterp_cnprog_aux u_vars = function
+    | Cnprog.Let (loc, (name, { ct; pointer }), prog) ->
+      if it_has_uninterp !u_vars pointer then (
+        u_vars := Sym.Set.add name !u_vars;
+        accept_uninterp_cnprog_aux u_vars prog)
+      else (
+        match accept_uninterp_cnprog_aux u_vars prog with
+        | Some cnprog -> Some (Cnprog.Let (loc, (name, { ct; pointer }), cnprog))
+        | None -> None)
+    | Pure (loc, cn_stat) ->
+      if cn_statement_has_uninterp !u_vars cn_stat then
+        None
+      else
+        Some (Pure (loc, cn_stat))
+  in
+  (loc, List.filter_map (accept_uninterp_cnprog_aux u_vars) cnprogs)
+
+
+let accept_uninterp_statements u_vars = List.map (accept_uninterp_cnprog u_vars)
+
+let accept_uninterp_rest_of_spec u_vars (post, (stats, loops)) =
+  let new_post = accept_uninterp_rt u_vars post in
+  let new_stats = accept_uninterp_statements u_vars stats in
+  let new_loops =
+    List.map
+      (fun (contains_user_spec, cond_loc, loop_loc, at) ->
+         ( contains_user_spec,
+           cond_loc,
+           loop_loc,
+           accept_uninterp_at u_vars accept_uninterp_statements at ))
+      loops
+  in
+  (new_post, (new_stats, new_loops))
+
+
+let accept_uninterp (instrumentation : Extract.instrumentation) =
   (* New set of uninterpreted variables per function spec *)
   let u_vars = ref Sym.Set.empty in
   let new_internal =
     match instrumentation.internal with
-    | Some internal -> Some (accept_uninterp_at u_vars internal)
+    | Some internal ->
+      Some (accept_uninterp_at u_vars accept_uninterp_rest_of_spec internal)
     | None -> None
   in
   { instrumentation with internal = new_internal }
 
 
 let accept_uninterp_instr (instrumentation_list : Extract.instrumentation list) =
-  List.map accept_uninterp_toplevel instrumentation_list
+  List.map accept_uninterp instrumentation_list
