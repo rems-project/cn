@@ -547,7 +547,7 @@ let main
       ~without_inline_statements
       ~source_locs_mode
       ~correct_missing_ownership_mode
-      ~accept_uninterp
+      ~remove_uninterp
       ~experimental_ownership_stack_mode
       ~with_testing
       ~skip_and_only
@@ -583,9 +583,9 @@ let main
   let filtered_ail_prog = (startup_sym_opt, filtered_sigm) in
   Records.populate_record_map filtered_instrumentation prog5;
   let filtered_instrumentation =
-    if accept_uninterp then (
-      Uninterp.set_uninterp_closure prog5.logical_predicates prog5.resource_predicates;
-      Uninterp.accept_uninterp_instr filtered_instrumentation)
+    if remove_uninterp then (
+      Uninterp.get_uninterp_closure prog5.logical_predicates prog5.resource_predicates;
+      Uninterp.remove_uninterp_instr filtered_instrumentation)
     else
       filtered_instrumentation
   in
@@ -606,13 +606,13 @@ let main
   in
   let c_datatype_defs = generate_c_datatypes sigm in
   let c_function_defs, c_function_decls, _c_function_locs =
-    generate_c_functions filename accept_uninterp cabs_tunit prog5 sigm
+    generate_c_functions filename remove_uninterp cabs_tunit prog5 sigm
   in
   let c_predicate_defs, c_predicate_decls, _c_predicate_locs =
     generate_c_predicates
       filename
       without_ownership_checking
-      accept_uninterp
+      remove_uninterp
       cabs_tunit
       prog5
       sigm
@@ -621,7 +621,7 @@ let main
     if without_lemma_checks then
       ("", "")
     else
-      generate_c_lemmas filename accept_uninterp cabs_tunit sigm prog5
+      generate_c_lemmas filename remove_uninterp cabs_tunit sigm prog5
   in
   let conversion_function_defs, conversion_function_decls =
     generate_conversion_and_equality_functions filename sigm

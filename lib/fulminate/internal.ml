@@ -510,13 +510,13 @@ let generate_fun_def_and_decl_docs funs =
 
 let generate_c_functions
       filename
-      (accept_uninterp : bool)
+      (remove_uninterp : bool)
       (cabs_tunit : CF.Cabs.translation_unit)
       (prog5 : _ Mucore.file)
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
   =
   let cn_funs =
-    if accept_uninterp then
+    if remove_uninterp then
       List.filter
         (fun (f_sym, _) -> not (Sym.Set.mem f_sym !Uninterp.u_fn_syms))
         prog5.logical_predicates
@@ -557,13 +557,13 @@ let[@warning "-32" (* unused-value-declaration *)] rec remove_duplicates eq_fun 
 let generate_c_predicates
       filename
       without_ownership_checking
-      accept_uninterp
+      remove_uninterp
       (cabs_tunit : CF.Cabs.translation_unit)
       (prog5 : _ Mucore.file)
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
   =
   let cn_preds =
-    if accept_uninterp then
+    if remove_uninterp then
       List.filter
         (fun (pred_sym, _) -> not (Sym.Set.mem pred_sym !Uninterp.u_pred_syms))
         prog5.resource_predicates
@@ -589,15 +589,15 @@ let generate_c_predicates
 
 let generate_c_lemmas
       filename
-      (accept_uninterp : bool)
+      (remove_uninterp : bool)
       (cabs_tunit : CF.Cabs.translation_unit)
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
       (prog5 : unit Mucore.file)
   =
   let globals = Cn_to_ail.extract_global_variables cabs_tunit prog5 in
   let cn_lemmas =
-    if accept_uninterp then
-      Uninterp.accept_uninterp_lemmas prog5.lemmata
+    if remove_uninterp then
+      Uninterp.remove_uninterp_lemmas prog5.lemmata
     else
       prog5.lemmata
   in
