@@ -589,18 +589,25 @@ let generate_c_predicates
 
 let generate_c_lemmas
       filename
+      (accept_uninterp : bool)
       (cabs_tunit : CF.Cabs.translation_unit)
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
       (prog5 : unit Mucore.file)
   =
   let globals = Cn_to_ail.extract_global_variables cabs_tunit prog5 in
+  let cn_lemmas =
+    if accept_uninterp then
+      Uninterp.accept_uninterp_lemmas prog5.lemmata
+    else
+      prog5.lemmata
+  in
   let ail_funs =
     Cn_to_ail.cn_to_ail_lemmas
       filename
       sigm.cn_datatypes
       prog5.resource_predicates
       globals
-      prog5.lemmata
+      cn_lemmas
   in
   let decls, defs = List.split ail_funs in
   let defs_doc, decls_doc = generate_fun_def_and_decl_docs (List.combine decls defs) in

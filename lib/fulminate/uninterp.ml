@@ -216,7 +216,7 @@ let rec accept_uninterp_at u_vars f = function
 
 let cn_statement_has_uninterp u_vars = function
   | Cnstatement.Apply (_fsym, args) ->
-    (* fsym is a lemma symbol: TODO look up if problematic *)
+    (* lemma application (handled separately) *)
     List.fold_left ( || ) false (List.map (it_has_uninterp u_vars) args)
   | Assert lc ->
     (match lc with LogicalConstraints.T it | Forall (_, it) -> it_has_uninterp u_vars it)
@@ -261,7 +261,7 @@ let accept_uninterp_rest_of_spec u_vars (post, (stats, loops)) =
   (new_post, (new_stats, new_loops))
 
 
-let accept_uninterp (instrumentation : Extract.instrumentation) =
+let accept_uninterp_instr_aux (instrumentation : Extract.instrumentation) =
   (* New set of uninterpreted variables per function spec *)
   let u_vars = ref Sym.Set.empty in
   let new_internal =
@@ -274,4 +274,12 @@ let accept_uninterp (instrumentation : Extract.instrumentation) =
 
 
 let accept_uninterp_instr (instrumentation_list : Extract.instrumentation list) =
-  List.map accept_uninterp instrumentation_list
+  List.map accept_uninterp_instr_aux instrumentation_list
+
+
+let accept_uninterp_lemmas (lemmas : (Sym.t * (Locations.t * ArgumentTypes.lemmat)) list) =
+  List.map
+    (fun (sym, (loc, at)) ->
+       let u_vars = ref Sym.Set.empty in
+       (sym, (loc, accept_uninterp_at u_vars accept_uninterp_lrt at)))
+    lemmas

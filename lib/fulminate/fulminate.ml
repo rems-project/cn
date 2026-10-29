@@ -621,7 +621,7 @@ let main
     if without_lemma_checks then
       ("", "")
     else
-      generate_c_lemmas filename cabs_tunit sigm prog5
+      generate_c_lemmas filename accept_uninterp cabs_tunit sigm prog5
   in
   let conversion_function_defs, conversion_function_decls =
     generate_conversion_and_equality_functions filename sigm
