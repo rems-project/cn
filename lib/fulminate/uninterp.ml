@@ -1,5 +1,7 @@
 module LAT = LogicalArgumentTypes
 module LRT = LogicalReturnTypes
+module LC = LogicalConstraints
+module Req = Request
 module RT = ReturnTypes
 module AT = ArgumentTypes
 open Terms
@@ -22,12 +24,10 @@ let fn_calls_of_terms its =
   List.fold_left (fun acc it -> Sym.Set.union acc (fn_calls_of_term it)) Sym.Set.empty its
 
 
-let fn_calls_of_constraint = function
-  | LogicalConstraints.T it | Forall (_, it) -> fn_calls_of_term it
-
+let fn_calls_of_constraint = function LC.T it | Forall (_, it) -> fn_calls_of_term it
 
 let fn_and_pred_calls_of_request = function
-  | Request.P { name; pointer; iargs } ->
+  | Req.P { name; pointer; iargs } ->
     let fns = fn_calls_of_terms (pointer :: iargs) in
     (match name with PName p -> Sym.Set.add p fns | Owned _ -> fns)
   | Q { name; pointer; permission; iargs; _ } ->
@@ -37,8 +37,7 @@ let fn_and_pred_calls_of_request = function
 
 let fn_and_pred_calls_of_clause (clause : Definition.Clause.t) =
   let rec aux acc = function
-    | LogicalArgumentTypes.Define ((_, it), _, lat) ->
-      aux (Sym.Set.union acc (fn_calls_of_term it)) lat
+    | LAT.Define ((_, it), _, lat) -> aux (Sym.Set.union acc (fn_calls_of_term it)) lat
     | Resource ((_, (req, _)), _, lat) ->
       aux (Sym.Set.union acc (fn_and_pred_calls_of_request req)) lat
     | Constraint (lc, _, lat) -> aux (Sym.Set.union acc (fn_calls_of_constraint lc)) lat
@@ -135,7 +134,7 @@ let it_has_uninterp u_vars =
 
 
 let is_uninterp_pred_call = function
-  | Request.P { name; _ } | Q { name; _ } ->
+  | Req.P { name; _ } | Q { name; _ } ->
     (match name with PName p_sym -> Sym.Set.mem p_sym !u_pred_syms | Owned _ -> false)
 
 
@@ -145,7 +144,7 @@ let pred_is_or_has_uninterp u_vars req =
     let uninterp_f = it_has_uninterp u_vars in
     let uninterp_f_list its = its |> List.map uninterp_f |> List.fold_left ( || ) false in
     function
-    | Request.P { pointer; iargs; _ } -> uninterp_f pointer || uninterp_f_list iargs
+    | Req.P { pointer; iargs; _ } -> uninterp_f pointer || uninterp_f_list iargs
     | Q { pointer; permission; iargs; _ } ->
       uninterp_f pointer || uninterp_f permission || uninterp_f_list iargs
   in
@@ -218,8 +217,7 @@ let cn_statement_has_uninterp u_vars = function
   | Cnstatement.Apply (_fsym, args) ->
     (* lemma application (handled separately) *)
     List.fold_left ( || ) false (List.map (it_has_uninterp u_vars) args)
-  | Assert lc ->
-    (match lc with LogicalConstraints.T it | Forall (_, it) -> it_has_uninterp u_vars it)
+  | Assert lc -> (match lc with LC.T it | Forall (_, it) -> it_has_uninterp u_vars it)
   | Pack_unpack _ | Derive_constraints _ | To_from_bytes _ | Have _ | Instantiate _
   | Split_case _ | Extract _ | Unfold _ | Inline _ | Print _ ->
     false (* all no-ops in Fulminate *)
@@ -277,7 +275,7 @@ let remove_uninterp_instr (instrumentation_list : Extract.instrumentation list) 
   List.map remove_uninterp_instr_aux instrumentation_list
 
 
-let remove_uninterp_lemmas (lemmas : (Sym.t * (Locations.t * ArgumentTypes.lemmat)) list) =
+let remove_uninterp_lemmas (lemmas : (Sym.t * (Locations.t * AT.lemmat)) list) =
   List.map
     (fun (sym, (loc, at)) ->
        let u_vars = ref Sym.Set.empty in
