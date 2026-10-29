@@ -8,3 +8,7 @@ val set_uninterp_closure
   unit
 
 val accept_uninterp_instr : Extract.instrumentation list -> Extract.instrumentation list
+
+val accept_uninterp_lemmas
+  :  (Sym.t * (Locations.t * ArgumentTypes.lemmat)) list ->
+  (Sym.t * (Locations.t * ArgumentTypes.lemmat)) list

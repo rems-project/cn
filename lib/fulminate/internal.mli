@@ -85,6 +85,7 @@ val generate_c_predicates
 
 val generate_c_lemmas
   :  string ->
+  bool ->
   Cabs.translation_unit ->
   GenTypes.genTypeCategory AilSyntax.sigma ->
   unit Mucore.file ->
