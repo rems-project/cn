@@ -78,6 +78,13 @@ jobs:
           eval $(opam env --switch=${{ matrix.version }})
           cd tests; ./run-cn-exec.sh
 
+      - name: Run Fulminate regression tests (tests/fulminate)
+        run: |
+          sudo ln -sf "$(command -v ${{ matrix.compiler }})" /usr/local/bin/cc
+          opam switch ${{ matrix.version }}
+          eval $(opam env --switch=${{ matrix.version }})
+          cd tests; ./run-cn-fulminate.sh
+
       - name: Checkout cn-tutorial
         uses: actions/checkout@v6
         with:
