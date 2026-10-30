@@ -578,12 +578,11 @@ let needs_enum_hack
 
 let functions_under_test
       ~(with_warning : bool)
-      (cabs_tunit : CF.Cabs.translation_unit)
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
   : Fulminate.Extract.instrumentation list
   =
-  let insts = fst (FExtract.collect_instrumentation cabs_tunit prog5) in
+  let insts = fst (FExtract.collect_instrumentation prog5) in
   let selected_fsyms =
     Check.select_functions
       !Check.skip_and_only
@@ -600,13 +599,12 @@ let functions_under_test
 let run_seq
       ~output_dir
       ~filename
-      (cabs_tunit : CF.Cabs.translation_unit)
       (sigma : Cerb_frontend.GenTypes.genTypeCategory Cerb_frontend.AilSyntax.sigma)
       (prog5 : unit Mucore.file)
   : int
   =
   Cerb_debug.begin_csv_timing ();
-  let insts = functions_under_test ~with_warning:false cabs_tunit sigma prog5 in
+  let insts = functions_under_test ~with_warning:false sigma prog5 in
   if Option.is_some prog5.main then
     failwith "Cannot test a file with a `main` function";
   let exit_code = generate ~output_dir ~filename sigma insts in

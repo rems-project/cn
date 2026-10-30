@@ -559,7 +559,6 @@ let main
       in_filename (* WARNING: this file will be deleted after this function *)
       out_filename
       output_dir
-      cabs_tunit
       ((startup_sym_opt, (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)) as
        ail_prog)
       prog5
@@ -568,7 +567,7 @@ let main
   (* disabled until fixed *)
   (* _gen_compile_commands_json cc output_dir out_filename; *)
   let (full_instrumentation : Extract.instrumentation list), _ =
-    Extract.collect_instrumentation cabs_tunit prog5
+    Extract.collect_instrumentation prog5
   in
   (* Filters based on functions passed to --only and/or --skip *)
   let filtered_instrumentation, filtered_sigm =
@@ -600,28 +599,21 @@ let main
       without_inline_statements
       filename
       filtered_instrumentation
-      cabs_tunit
       sigm
       prog5
   in
   let c_datatype_defs = generate_c_datatypes sigm in
   let c_function_defs, c_function_decls, _c_function_locs =
-    generate_c_functions filename remove_uninterp cabs_tunit prog5 sigm
+    generate_c_functions filename remove_uninterp prog5 sigm
   in
   let c_predicate_defs, c_predicate_decls, _c_predicate_locs =
-    generate_c_predicates
-      filename
-      without_ownership_checking
-      remove_uninterp
-      cabs_tunit
-      prog5
-      sigm
+    generate_c_predicates filename without_ownership_checking remove_uninterp prog5 sigm
   in
   let c_lemma_defs, c_lemma_decls =
     if without_lemma_checks then
       ("", "")
     else
-      generate_c_lemmas filename remove_uninterp cabs_tunit sigm prog5
+      generate_c_lemmas filename remove_uninterp sigm prog5
   in
   let conversion_function_defs, conversion_function_decls =
     generate_conversion_and_equality_functions filename sigm
@@ -634,9 +626,7 @@ let main
   let cn_converted_struct_defs = generate_cn_versions_of_structs ordered_ail_tag_defs in
   let record_fun_defs, record_fun_decls = Records.generate_c_record_funs sigm in
   let record_defs = Records.generate_all_record_strs () in
-  let fn_call_ghost_args_injs =
-    generate_fn_call_ghost_args_injs filename cabs_tunit sigm prog5
-  in
+  let fn_call_ghost_args_injs = generate_fn_call_ghost_args_injs filename sigm prog5 in
   let cn_ghost_enum = generate_ghost_enum prog5 in
   (* Forward declarations and CN types *)
   let cn_header_decls_list =
@@ -775,7 +765,6 @@ let main
           ~experimental_ownership_stack_mode
           ?max_bump_blocks
           ?bump_block_size
-          cabs_tunit
           sigm
           prog5
       in
@@ -796,7 +785,7 @@ let main
   output_string
     oc
     ("void* memcpy(void* dest, const void* src, __cerbty_size_t count );\n"
-     ^ Globals.accessors_prototypes filename cabs_tunit prog5);
+     ^ Globals.accessors_prototypes filename prog5);
   (match
      Source_injection.(
        output_injections
@@ -816,7 +805,7 @@ let main
    | Error str ->
      (* TODO(Christopher/Rini): maybe lift this error to the exception monad? *)
      prerr_endline str);
-  output_to_oc oc [ Globals.accessors_str filename cabs_tunit prog5 ];
+  output_to_oc oc [ Globals.accessors_str filename prog5 ];
   output_to_oc oc cn_defs_list;
   close_out oc;
   Stdlib.Sys.remove in_filename

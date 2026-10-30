@@ -22,7 +22,6 @@ module Releases = Releases
 
 val functions_under_test
   :  with_warning:bool ->
-  Cerb_frontend.Cabs.translation_unit ->
   Cerb_frontend.GenTypes.genTypeCategory Cerb_frontend.AilSyntax.sigma ->
   unit Mucore.file ->
   _ Typing.pause ->
@@ -31,7 +30,6 @@ val functions_under_test
 val export_specs
   :  path:string ->
   filename:string ->
-  Cerb_frontend.Cabs.translation_unit ->
   Cerb_frontend.GenTypes.genTypeCategory Cerb_frontend.AilSyntax.sigma ->
   unit Mucore.file ->
   _ Typing.pause ->
@@ -43,7 +41,6 @@ val run
   without_ownership_checking:bool ->
   remove_uninterp:bool ->
   TestGenConfig.build_tool ->
-  Cerb_frontend.Cabs.translation_unit ->
   Cerb_frontend.GenTypes.genTypeCategory Cerb_frontend.AilSyntax.sigma ->
   unit Mucore.file ->
   _ Typing.pause ->

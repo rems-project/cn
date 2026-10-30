@@ -101,7 +101,7 @@ let verify
     ~save_cpp:None
     ~disable_linemarkers:false
     ~handle_error:(Common.handle_type_error ~json ?output_dir ~serialize_json:json_trace)
-    ~f:(fun ~cerb_conf:_ ~cabs_tunit:_ ~prog5:_ ~ail_prog:_ ~statement_locs:_ ~paused ->
+    ~f:(fun ~cerb_conf:_ ~prog5:_ ~ail_prog:_ ~statement_locs:_ ~paused ->
       let check (functions, constraints_to_add, lemmas) =
         let open Typing in
         let@ errors =

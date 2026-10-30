@@ -32,7 +32,6 @@ let filename_base fn = fn |> Filename.basename |> Filename.remove_extension
 let compile_assumes
       ~(without_ownership_checking : bool)
       filename
-      (cabs_tunit : CF.Cabs.translation_unit)
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
       (insts : (bool * FExtract.instrumentation) list)
@@ -54,14 +53,13 @@ let compile_assumes
            filename
            prog5.resource_predicates
            sigma.cn_datatypes
-           (CtA.extract_global_variables cabs_tunit prog5)
+           (CtA.extract_global_variables prog5)
            prog5.resource_predicates
            without_ownership_checking
        @ ESpecInternal.generate_c_assume_pres_internal
            filename
            without_ownership_checking
            insts
-           cabs_tunit
            sigma
            prog5)
   in
@@ -213,7 +211,6 @@ let compile_test_file
       ~(without_ownership_checking : bool)
       ~(remove_uninterp : bool)
       ~(filename : string)
-      (cabs_tunit : CF.Cabs.translation_unit)
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
       (tests : Test.t list)
@@ -236,16 +233,10 @@ let compile_test_file
   let open ESpecInternal in
   let c_datatype_defs = generate_c_datatypes sigma in
   let c_function_defs, c_function_decls, _c_function_locs =
-    generate_c_functions filename remove_uninterp cabs_tunit prog5 sigma
+    generate_c_functions filename remove_uninterp prog5 sigma
   in
   let c_predicate_defs, c_predicate_decls, _c_predicate_locs =
-    generate_c_predicates
-      filename
-      without_ownership_checking
-      remove_uninterp
-      cabs_tunit
-      prog5
-      sigma
+    generate_c_predicates filename without_ownership_checking remove_uninterp prog5 sigma
   in
   let conversion_function_defs, conversion_function_decls =
     generate_conversion_and_equality_functions filename sigma
@@ -312,7 +303,7 @@ let compile_test_file
   ^^ twice hardline
   ^^ pp_label
        "Assume Ownership Functions"
-       (compile_assumes ~without_ownership_checking filename cabs_tunit sigma prog5 insts)
+       (compile_assumes ~without_ownership_checking filename sigma prog5 insts)
   ^^ (if Config.has_no_replicas () then
         empty
       else
@@ -370,7 +361,6 @@ let save ?(perm = 0o666) (output_dir : string) (filename : string) (doc : Pp.doc
 let save_generators
       ~output_dir
       ~filename
-      (cabs_tunit : CF.Cabs.translation_unit)
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
       (paused : _ Typing.pause)
@@ -390,7 +380,7 @@ let save_generators
       Pp.(
         separate
           hardline
-          ([ string (Fulminate.Globals.accessors_prototypes filename cabs_tunit prog5) ]
+          ([ string (Fulminate.Globals.accessors_prototypes filename prog5) ]
            @ [ Bennet.synthesize filename sigma prog5 paused tests_for_generators ]))
     in
     let generators_fn = filename_base ^ ".gen.h" in
@@ -402,7 +392,6 @@ let save_tests
       ~filename
       ~without_ownership_checking
       ~remove_uninterp
-      (cabs_tunit : CF.Cabs.translation_unit)
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
       (tests : Test.t list)
@@ -416,7 +405,6 @@ let save_tests
          ~without_ownership_checking
          ~remove_uninterp
          ~filename
-         cabs_tunit
          sigma
          prog5
          tests
@@ -471,14 +459,13 @@ let needs_enum_hack
 
 let functions_under_test
       ~(with_warning : bool)
-      (cabs_tunit : CF.Cabs.translation_unit)
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
       (paused : _ Typing.pause)
   : Test.t list
   =
   let insts =
-    FExtract.collect_instrumentation cabs_tunit prog5
+    FExtract.collect_instrumentation prog5
     |> fst
     |> List.filter (fun (inst : FExtract.instrumentation) ->
       CtA.has_cn_spec inst
@@ -507,25 +494,19 @@ let functions_under_test
    for its C signature. Declarations are excluded because they have no body
    or definition in this translation unit. *)
 let functions_for_export
-      (cabs_tunit : CF.Cabs.translation_unit)
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
       (paused : _ Typing.pause)
   : Test.t list
   =
-  FExtract.collect_instrumentation cabs_tunit prog5
+  FExtract.collect_instrumentation prog5
   |> fst
   |> List.filter (fun (inst : FExtract.instrumentation) -> Option.is_some inst.internal)
   |> List.map (Test.of_instrumentation sigma paused)
 
 
-let export_specs ~path ~filename cabs_tunit sigma prog5 paused : unit =
-  SpecExport.save
-    ~path
-    ~filename
-    sigma
-    prog5
-    (functions_for_export cabs_tunit sigma prog5 paused)
+let export_specs ~path ~filename sigma prog5 paused : unit =
+  SpecExport.save ~path ~filename sigma prog5 (functions_for_export sigma prog5 paused)
 
 
 let run
@@ -534,27 +515,25 @@ let run
       ~without_ownership_checking
       ~remove_uninterp
       (build_tool : TestGenConfig.build_tool)
-      (cabs_tunit : CF.Cabs.translation_unit)
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
       (paused : _ Typing.pause)
   : unit
   =
   Cerb_debug.begin_csv_timing ();
-  let insts = functions_under_test ~with_warning:false cabs_tunit sigma prog5 paused in
+  let insts = functions_under_test ~with_warning:false sigma prog5 paused in
   (* Before the generators, so `--export-spec-json` still produces a file for
      a specification the generator pipeline itself chokes on — the export is
      of the IR, not of anything downstream of it. *)
   Option.iter
-    (fun path -> export_specs ~path ~filename cabs_tunit sigma prog5 paused)
+    (fun path -> export_specs ~path ~filename sigma prog5 paused)
     (TestGenConfig.get_export_spec_json ());
-  save_generators ~output_dir ~filename cabs_tunit sigma prog5 paused insts;
+  save_generators ~output_dir ~filename sigma prog5 paused insts;
   save_tests
     ~output_dir
     ~filename
     ~without_ownership_checking
     ~remove_uninterp
-    cabs_tunit
     sigma
     prog5
     insts;

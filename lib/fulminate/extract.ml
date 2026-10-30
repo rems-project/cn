@@ -98,7 +98,7 @@ let from_loop ((_label_sym : Sym.t), (label_def : _ label_def)) : loop option =
     Some (contains_user_spec, loop_condition_loc, loop_loc, label_args_and_statements)
 
 
-let from_fn cabs_tunit (fn, decl) =
+let from_fn (file : _ Mucore.file) (fn, decl) =
   match decl with
   | ProcDecl (fn_loc, _fn) ->
     { fn;
@@ -120,41 +120,24 @@ let from_fn cabs_tunit (fn, decl) =
         args_and_body
     in
     let trusted_flag = match trusted with Mucore.Trusted _ -> true | _ -> false in
-    let is_static =
-      let (Cerb_frontend.Cabs.TUnit decls) = cabs_tunit in
-      List.exists
-        (fun decl ->
-           match decl with
-           | Cerb_frontend.Cabs.EDecl_func
-               (FunDef
-                  ( _,
-                    _,
-                    { storage_classes; _ },
-                    Declarator
-                      (_, DDecl_function (DDecl_identifier (_, Identifier (_, fn')), _)),
-                    _ ))
-             when String.equal (Sym.pp_string fn) fn'
-                  && List.exists
-                       (fun scs ->
-                          match scs with
-                          | Cerb_frontend.Cabs.SC_static -> true
-                          | _ -> false)
-                       storage_classes ->
-             true
-           | _ -> false)
-        decls
+    (* The external map records resolved linkage, including a definition that
+       inherits internal linkage from an earlier static declaration. *)
+    let has_external_linkage =
+      file.extern
+      |> Pmap.bindings_list
+      |> List.exists (fun (_, (symbols, _)) -> List.exists (Sym.equal fn) symbols)
     in
     { fn;
       fn_loc;
       internal = Some internal;
       trusted = trusted_flag;
       contains_function_level_spec;
-      is_static
+      is_static = not has_external_linkage
     }
 
 
-let collect_instrumentation cabs_tunit (file : _ Mucore.file) =
-  let instrs = List.map (from_fn cabs_tunit) (Pmap.bindings_list file.funs) in
+let collect_instrumentation (file : _ Mucore.file) =
+  let instrs = List.map (from_fn file) (Pmap.bindings_list file.funs) in
   (instrs, Compile.exec_spec_hack_syms)
 
 

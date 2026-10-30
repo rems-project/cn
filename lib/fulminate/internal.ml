@@ -133,11 +133,10 @@ let generate_c_loop_invariants
 
 let generate_fn_call_ghost_args_injs
       filename
-      (cabs_tunit : CF.Cabs.translation_unit)
       (sigm : _ CF.AilSyntax.sigma)
       (prog5 : unit Mucore.file)
   =
-  let globals = Cn_to_ail.extract_global_variables cabs_tunit prog5 in
+  let globals = Cn_to_ail.extract_global_variables prog5 in
   let dts = sigm.cn_datatypes in
   List.concat
     (List.map
@@ -177,7 +176,6 @@ let generate_c_specs_from_cn_internal
       without_inline_statements
       filename
       (instrumentation : Extract.instrumentation)
-      (cabs_tunit : CF.Cabs.translation_unit)
       (sigm : _ CF.AilSyntax.sigma)
       (prog5 : unit Mucore.file)
   : cn_spec_inj_info
@@ -189,7 +187,7 @@ let generate_c_specs_from_cn_internal
     | _, _, A.Decl_function (_, (_, ret_ty), _, _, _, _) -> ret_ty
     | _ -> failwith (__LOC__ ^ ": C function to be instrumented not found in Ail AST")
   in
-  let globals = Cn_to_ail.extract_global_variables cabs_tunit prog5 in
+  let globals = Cn_to_ail.extract_global_variables prog5 in
   let ail_executable_spec =
     Cn_to_ail.cn_to_ail_pre_post
       ~without_ownership_checking
@@ -238,7 +236,6 @@ let generate_c_specs_internal
       without_inline_statements
       filename
       (instrumentation : Extract.instrumentation)
-      (cabs_tunit : CF.Cabs.translation_unit)
       (sigm : _ CF.AilSyntax.sigma)
       (prog5 : unit Mucore.file)
   =
@@ -262,7 +259,6 @@ let generate_c_specs_internal
         without_inline_statements
         filename
         instrumentation
-        cabs_tunit
         sigm
         prog5
     else
@@ -294,7 +290,6 @@ let generate_c_assume_pres_internal
       filename
       without_ownership_checking
       (insts : (bool * Extract.instrumentation) list)
-      (cabs_tunit : CF.Cabs.translation_unit)
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
   =
@@ -309,7 +304,7 @@ let generate_c_assume_pres_internal
         List.map (fun ((x, bt), ct) -> (x, (bt, ct))) (List.combine arg_names arg_cts)
       | _ -> failwith ("unreachable @ " ^ __LOC__)
     in
-    let globals = Cn_to_ail.extract_global_variables cabs_tunit prog5 in
+    let globals = Cn_to_ail.extract_global_variables prog5 in
     let fsym =
       if is_static then
         Sym.fresh (Utils.static_prefix filename ^ "_" ^ Sym.pp_string inst.fn)
@@ -343,7 +338,6 @@ let generate_c_specs
       without_inline_statements
       filename
       instrumentation_list
-      (cabs_tunit : CF.Cabs.translation_unit)
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
       (prog5 : unit Mucore.file)
   : executable_spec
@@ -359,7 +353,6 @@ let generate_c_specs
       without_inline_statements
       filename
       instrumentation
-      cabs_tunit
       sigm
       prog5
   in
@@ -511,7 +504,6 @@ let generate_fun_def_and_decl_docs funs =
 let generate_c_functions
       filename
       (remove_uninterp : bool)
-      (cabs_tunit : CF.Cabs.translation_unit)
       (prog5 : _ Mucore.file)
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
   =
@@ -529,7 +521,6 @@ let generate_c_functions
          Cn_to_ail.cn_to_ail_function
            filename
            cn_f
-           cabs_tunit
            prog5
            sigm.cn_datatypes
            sigm.cn_functions)
@@ -558,7 +549,6 @@ let generate_c_predicates
       filename
       without_ownership_checking
       remove_uninterp
-      (cabs_tunit : CF.Cabs.translation_unit)
       (prog5 : _ Mucore.file)
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
   =
@@ -575,7 +565,7 @@ let generate_c_predicates
       cn_preds
       filename
       sigm.cn_datatypes
-      (Cn_to_ail.extract_global_variables cabs_tunit prog5)
+      (Cn_to_ail.extract_global_variables prog5)
       sigm.cn_predicates
       without_ownership_checking
   in
@@ -590,11 +580,10 @@ let generate_c_predicates
 let generate_c_lemmas
       filename
       (remove_uninterp : bool)
-      (cabs_tunit : CF.Cabs.translation_unit)
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
       (prog5 : unit Mucore.file)
   =
-  let globals = Cn_to_ail.extract_global_variables cabs_tunit prog5 in
+  let globals = Cn_to_ail.extract_global_variables prog5 in
   let cn_lemmas =
     if remove_uninterp then
       Uninterp.remove_uninterp_lemmas prog5.lemmata
@@ -768,7 +757,6 @@ let generate_global_assignments
       ?(experimental_ownership_stack_mode = false)
       ?max_bump_blocks
       ?bump_block_size
-      (cabs_tunit : CF.Cabs.translation_unit)
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
       (prog5 : unit Mucore.file)
   =
@@ -779,7 +767,7 @@ let generate_global_assignments
   match get_main sigm with
   | [] -> []
   | (main_sym, _) :: _ ->
-    let globals = Cn_to_ail.extract_global_variables cabs_tunit prog5 in
+    let globals = Cn_to_ail.extract_global_variables prog5 in
     let global_map_fcalls = List.map OE.generate_c_local_ownership_entry_fcall globals in
     let global_map_stmts_ = List.map (fun e -> A.AilSexpr e) global_map_fcalls in
     let fulm_init_fcall =
