@@ -2,7 +2,15 @@ module CF = Cerb_frontend
 module CB = Cerb_backend
 open Cn
 
-let run_instrumented_file ~filename ~cc ~no_debug_info ~output ~output_dir ~print_steps =
+let run_instrumented_file
+      ~filename
+      ~cc
+      ~no_debug_info
+      ~output
+      ~output_dir
+      ~print_steps
+      ~accept_uninterp
+  =
   let instrumented_filename =
     Option.value ~default:(Fulminate.get_instrumented_filename filename) output
   in
@@ -11,6 +19,10 @@ let run_instrumented_file ~filename ~cc ~no_debug_info ~output ~output_dir ~prin
       output_dir
       (match ext with Some ext' -> Filename.remove_extension fn ^ ext' | None -> fn)
   in
+  (* --accept-uninterp: the stubs of the uninterpreted CN functions and predicates
+     (Fulminate.main), compiled and linked with the instrumented file *)
+  let uninterp_filename = "uninterp.c" in
+  let with_uninterp = accept_uninterp && Sys.file_exists (in_folder uninterp_filename) in
   let opam_switch_prefix = Sys.getenv "OPAM_SWITCH_PREFIX" in
   let runtime_prefix = opam_switch_prefix ^ "/lib/cn/runtime" in
   let includes = "-I" ^ runtime_prefix ^ "/include/" in
@@ -42,6 +54,25 @@ let run_instrumented_file ~filename ~cc ~no_debug_info ~output ~output_dir ~prin
   else (
     print_endline ("Failed to compile '" ^ instrumented_filename ^ "'");
     exit 1);
+  if with_uninterp then
+    if
+      Sys.command
+        (cc
+         ^ " -c "
+         ^ flags
+         ^ " "
+         ^ includes
+         ^ " -o "
+         ^ in_folder ~ext:".o" uninterp_filename
+         ^ " "
+         ^ in_folder uninterp_filename)
+      == 0
+    then (
+      if print_steps then
+        print_endline ("Compiled '" ^ uninterp_filename ^ "'"))
+    else (
+      print_endline ("Failed to compile '" ^ uninterp_filename ^ "'");
+      exit 1);
   if
     Sys.command
       (cc
@@ -53,6 +84,7 @@ let run_instrumented_file ~filename ~cc ~no_debug_info ~output ~output_dir ~prin
        ^ in_folder ~ext:".out" instrumented_filename
        ^ " "
        ^ in_folder ~ext:".o" instrumented_filename
+       ^ (if with_uninterp then " " ^ in_folder ~ext:".o" uninterp_filename else "")
        ^ " "
        ^ Filename.concat runtime_prefix "libcn_exec.a")
     == 0
@@ -102,6 +134,7 @@ let generate_executable_specs
       source_locs_mode
       correct_missing_ownership_mode
       remove_uninterp
+      accept_uninterp
       experimental_ownership_stack_mode
       experimental_unions
       mktemp
@@ -206,6 +239,7 @@ let generate_executable_specs
                 ~source_locs_mode
                 ~correct_missing_ownership_mode
                 ~remove_uninterp
+                ~accept_uninterp
                 ~experimental_ownership_stack_mode
                 ~with_testing
                 ~skip_and_only:(skip, only)
@@ -234,7 +268,8 @@ let generate_executable_specs
              ~no_debug_info
              ~output
              ~output_dir
-             ~print_steps))
+             ~print_steps
+             ~accept_uninterp))
 
 
 open Cmdliner
@@ -430,6 +465,21 @@ module Flags = struct
        containing uninterpreted values from the output"
     in
     Arg.(value & flag & info ~docs:s_fulminate [ "remove-uninterp" ] ~doc)
+
+
+  let accept_uninterp =
+    let doc =
+      "Support uninterpreted CN functions and predicates at runtime by linking in their \
+       definitions: the instrumented file declares them and calls them like any other, \
+       and their stubs (a definition with an empty body per uninterpreted function or \
+       predicate, its CN signature in a comment) are written to uninterp.c in the output \
+       directory, to be filled in and compiled and linked with the instrumented file \
+       (--run does). The generated helpers (CN functions, predicates, struct \
+       conversions, record functions, ...) are then external instead of static, so a \
+       stub can call them. An existing uninterp.c is left as it is. Excludes \
+       --remove-uninterp."
+    in
+    Arg.(value & flag & info ~docs:s_fulminate [ "accept-uninterp" ] ~doc)
 end
 
 let cmd =
@@ -473,6 +523,7 @@ let cmd =
     $ Flags.source_locs_mode
     $ Flags.correct_missing_ownership_mode
     $ Flags.remove_uninterp
+    $ Flags.accept_uninterp
     $ Flags.experimental_ownership_stack_mode ~docs:s_fulminate
     $ Flags.experimental_unions
     $ Flags.mktemp

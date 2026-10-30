@@ -226,7 +226,12 @@ let generate_c_record_funs (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigm
   in
   let fun_prot_strs =
     (* TODO put a flag to control this behavior *)
-    List.map (fun doc -> [ "static " ^ CF.Pp_utils.to_plain_pretty_string doc ]) decl_docs
+    List.map
+      (fun doc ->
+         [ (if !Sym.fulminate_extern_helpers then "" else "static ")
+           ^ CF.Pp_utils.to_plain_pretty_string doc
+         ])
+      decl_docs
   in
   let fun_prot_strs = String.concat "\n" (List.concat fun_prot_strs) in
   (fun_strs, fun_prot_strs)

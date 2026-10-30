@@ -6,6 +6,12 @@ let executable_spec_enabled = ref false
 
 let experimental_unions = ref false
 
+(* Fulminate, cn instrument --accept-uninterp: the generated helpers (CN functions, predicates,
+   lemmas, struct and record functions, ownership functions) get external linkage instead of
+   `static`, so that the stubs of the uninterpreted functions and predicates, in the separate
+   uninterp.c, can call them. *)
+let fulminate_extern_helpers = ref false
+
 module Ord = struct
   type t = S.sym
 

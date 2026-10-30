@@ -486,22 +486,81 @@ let generate_cn_versions_of_structs c_structs =
   "\n/* CN VERSIONS OF C STRUCTS */\n\n" ^ generate_str_from_ail_structs ail_structs
 
 
-let generate_fun_def_and_decl_docs funs =
+(* [funs]: each CN function or predicate with its definition, or without one when it is
+   uninterpreted and accepted (--accept-uninterp): then its declaration is printed without
+   `static`, since its definition is the stub in uninterp.c, another translation unit. With
+   that flag every helper is external (Sym.fulminate_extern_helpers), so that the stubs can
+   call them. *)
+let generate_fun_def_and_decl_docs_opt funs =
   let one_def_prog (decl, def) =
     { A.empty_sigma with declarations = [ decl ]; function_definitions = [ def ] }
   in
-  let one_decl_prog (decl, _) = { A.empty_sigma with declarations = [ decl ] } in
-  let pp_it x =
-    !^"static "
+  let one_decl_prog decl = { A.empty_sigma with declarations = [ decl ] } in
+  let pp_it ~static x =
+    (if static && not !Sym.fulminate_extern_helpers then !^"static " else empty)
     ^^ CF.Pp_ail.(with_executable_spec (pp_program ~show_include:true) (None, x))
   in
-  let pp_many f xs = List.fold_left (fun d x -> pp_it (f x) ^^ d) empty xs in
-  let defs_doc = pp_many one_def_prog funs in
-  let decls_doc = pp_many one_decl_prog funs in
+  let defs_doc =
+    List.fold_left
+      (fun d (decl, def_opt) ->
+         match def_opt with
+         | Some def -> pp_it ~static:true (one_def_prog (decl, def)) ^^ d
+         | None -> d)
+      empty
+      funs
+  in
+  let decls_doc =
+    List.fold_left
+      (fun d (decl, def_opt) ->
+         pp_it ~static:(Option.is_some def_opt) (one_decl_prog decl) ^^ d)
+      empty
+      funs
+  in
   (defs_doc, decls_doc)
 
 
+let generate_fun_def_and_decl_docs funs =
+  generate_fun_def_and_decl_docs_opt (List.map (fun (decl, def) -> (decl, Some def)) funs)
+
+
+(* --accept-uninterp: the stubs of the uninterpreted CN functions and predicates, for
+   uninterp.c: a definition with an empty body per declaration (Cn_to_ail.uninterp_stub_def),
+   printed without `static` since the instrumented file calls them through its extern
+   declarations, each preceded by a comment giving the CN signature. *)
+let generate_uninterp_stub_defs (stubs : (A.sigma_declaration * string) list) =
+  let pp prog =
+    doc_to_pretty_string
+      CF.Pp_ail.(with_executable_spec (pp_program ~show_include:true) (None, prog))
+  in
+  let prototypes =
+    List.map (fun (decl, _) -> pp { A.empty_sigma with declarations = [ decl ] }) stubs
+  in
+  let defs =
+    List.filter_map
+      (fun (decl, comment) ->
+         Option.map
+           (fun def ->
+              "/* "
+              ^ comment
+              ^ " */\n"
+              ^ pp
+                  { A.empty_sigma with
+                    declarations = [ decl ];
+                    function_definitions = [ def ]
+                  })
+           (Cn_to_ail.uninterp_stub_def decl))
+      stubs
+  in
+  "/* PROTOTYPES */\n\n"
+  ^ String.concat "" prototypes
+  ^ "\n/* STUBS */\n\n"
+  ^ String.concat "\n" defs
+
+
+(* The fourth component: the declarations of the uninterpreted functions, accepted by
+   --accept-uninterp and so without a definition here, each with the comment for its stub *)
 let generate_c_functions
+      ~accept_uninterp
       filename
       (remove_uninterp : bool)
       (prog5 : _ Mucore.file)
@@ -516,24 +575,44 @@ let generate_c_functions
       prog5.logical_predicates
   in
   let ail_funs_and_records =
-    List.map
+    List.filter_map
       (fun cn_f ->
-         Cn_to_ail.cn_to_ail_function
-           filename
-           cn_f
-           prog5
-           sigm.cn_datatypes
-           sigm.cn_functions)
+         Option.map
+           (fun r -> (cn_f, r))
+           (Cn_to_ail.cn_to_ail_function
+              ~accept_uninterp
+              filename
+              cn_f
+              prog5
+              sigm.cn_datatypes
+              sigm.cn_functions))
       cn_funs
   in
-  let ail_funs_and_records = List.filter_map Fun.id ail_funs_and_records in
-  let ail_funs, _ = List.split ail_funs_and_records in
-  let locs_and_decls, defs = List.split ail_funs in
-  let locs, decls = List.split locs_and_decls in
-  let defs = List.filter_map Fun.id defs in
+  let ail_funs =
+    List.map (fun (cn_f, (fn, _records)) -> (cn_f, fn)) ail_funs_and_records
+  in
+  let locs = List.map (fun (_, ((loc, _), _)) -> loc) ail_funs in
+  let decls_and_defs = List.map (fun (_, ((_, decl), def)) -> (decl, def)) ail_funs in
+  let stubs =
+    List.filter_map
+      (fun ((fn_sym, (lf_def : Definition.Function.t)), ((_, decl), def)) ->
+         match def with
+         | None ->
+           Some
+             ( decl,
+               "uninterpreted CN function "
+               ^ Pp.plain (Definition.Function.pp_sig (Sym.pp fn_sym) lf_def)
+               ^ ", declared at "
+               ^ Pp.plain (Locations.pp lf_def.loc) )
+         | Some _ -> None)
+      ail_funs
+  in
   let decl_str_comment = "\n/* CN FUNCTIONS */\n\n" in
-  let defs_doc, decls_doc = generate_fun_def_and_decl_docs (List.combine decls defs) in
-  (doc_to_pretty_string defs_doc, decl_str_comment ^ doc_to_pretty_string decls_doc, locs)
+  let defs_doc, decls_doc = generate_fun_def_and_decl_docs_opt decls_and_defs in
+  ( doc_to_pretty_string defs_doc,
+    decl_str_comment ^ doc_to_pretty_string decls_doc,
+    locs,
+    stubs )
 
 
 let[@warning "-32" (* unused-value-declaration *)] rec remove_duplicates eq_fun = function
@@ -545,7 +624,9 @@ let[@warning "-32" (* unused-value-declaration *)] rec remove_duplicates eq_fun 
       t :: remove_duplicates eq_fun ts
 
 
+(* The fourth component: as for generate_c_functions, the uninterpreted predicates' *)
 let generate_c_predicates
+      ~accept_uninterp
       filename
       without_ownership_checking
       remove_uninterp
@@ -562,6 +643,7 @@ let generate_c_predicates
   in
   let ail_funs, _ =
     Cn_to_ail.cn_to_ail_predicates
+      ~accept_uninterp
       cn_preds
       filename
       sigm.cn_datatypes
@@ -571,10 +653,27 @@ let generate_c_predicates
   in
   let locs_and_decls, defs = List.split ail_funs in
   let locs, decls = List.split locs_and_decls in
-  let defs_doc, decls_doc = generate_fun_def_and_decl_docs (List.combine decls defs) in
+  let stubs =
+    List.filter_map
+      (fun ((pred_sym, (rp_def : Definition.Predicate.t)), (decl, def)) ->
+         match def with
+         | None ->
+           Some
+             ( decl,
+               "uninterpreted CN predicate "
+               ^ Pp.plain (Definition.Predicate.pp_sig (Sym.pp pred_sym) rp_def)
+               ^ ", declared at "
+               ^ Pp.plain (Locations.pp rp_def.loc) )
+         | Some _ -> None)
+      (List.combine cn_preds (List.combine decls defs))
+  in
+  let defs_doc, decls_doc =
+    generate_fun_def_and_decl_docs_opt (List.combine decls defs)
+  in
   ( "\n/* CN PREDICATES */\n\n" ^ doc_to_pretty_string defs_doc,
     doc_to_pretty_string decls_doc,
-    locs )
+    locs,
+    stubs )
 
 
 let generate_c_lemmas

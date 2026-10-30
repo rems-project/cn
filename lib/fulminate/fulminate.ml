@@ -564,6 +564,7 @@ let main
       ~source_locs_mode
       ~correct_missing_ownership_mode
       ~remove_uninterp
+      ~accept_uninterp
       ~experimental_ownership_stack_mode
       ~with_testing
       ~skip_and_only
@@ -579,6 +580,14 @@ let main
        ail_prog)
       prog5
   =
+  if remove_uninterp && accept_uninterp then (
+    print_endline
+      "--remove-uninterp and --accept-uninterp exclude each other: the first drops the \
+       assertions that mention an uninterpreted function or predicate, the second keeps \
+       them and leaves their definitions to uninterp.c.";
+    exit 1);
+  (* --accept-uninterp: the helpers are external, for the stubs in uninterp.c to call *)
+  Sym.fulminate_extern_helpers := accept_uninterp;
   let out_filename = get_filename_with_prefix output_dir out_filename in
   (* disabled until fixed *)
   (* _gen_compile_commands_json cc output_dir out_filename; *)
@@ -619,11 +628,17 @@ let main
       prog5
   in
   let c_datatype_defs = generate_c_datatypes sigm in
-  let c_function_defs, c_function_decls, _c_function_locs =
-    generate_c_functions filename remove_uninterp prog5 sigm
+  let c_function_defs, c_function_decls, _c_function_locs, c_function_stubs =
+    generate_c_functions ~accept_uninterp filename remove_uninterp prog5 sigm
   in
-  let c_predicate_defs, c_predicate_decls, _c_predicate_locs =
-    generate_c_predicates filename without_ownership_checking remove_uninterp prog5 sigm
+  let c_predicate_defs, c_predicate_decls, _c_predicate_locs, c_predicate_stubs =
+    generate_c_predicates
+      ~accept_uninterp
+      filename
+      without_ownership_checking
+      remove_uninterp
+      prog5
+      sigm
   in
   let c_lemma_defs, c_lemma_decls =
     if without_lemma_checks then
@@ -644,8 +659,13 @@ let main
   let record_defs = Records.generate_all_record_strs () in
   let fn_call_ghost_args_injs = generate_fn_call_ghost_args_injs filename sigm prog5 in
   let cn_ghost_enum = generate_ghost_enum prog5 in
-  (* Forward declarations and CN types *)
-  let cn_header_decls_list =
+  (* Forward declarations and CN types. [c_structs]: the original C structs and unions, as
+     definitions for the instrumented file, as forward declarations for uninterp.c (whose
+     stubs' signatures use only CN types, while the definitions may use the source's
+     typedefs). [helper_decls]: the prototypes of the generated helpers (ownership, conversion,
+     record, CN functions, predicates and lemmas), external with --accept-uninterp (see
+     Sym.fulminate_extern_helpers), so that uninterp.c gets them too. *)
+  let header_decls_list ~c_structs ~helper_decls =
     List.concat
       (* TODO instead use hcat on these includes and typedefs *)
       [ [ (* TODO need handling for the stuff in stdlib.h and stdint.h but we
@@ -665,27 +685,96 @@ let main
              Hoisting/lowering doesn't affect needing to do this *)
           "_Noreturn void abort(void);"
         ];
-        [ c_tag_defs ];
+        c_structs;
         [ (if not (String.equal record_defs "") then "\n/* CN RECORDS */\n\n" else "");
           record_defs;
           cn_converted_struct_defs
         ];
         (if List.is_empty c_datatype_defs then [] else [ "/* CN DATATYPES */" ]);
         List.map snd c_datatype_defs;
-        [ "\n\n/* OWNERSHIP FUNCTIONS */\n\n";
-          ownership_function_decls;
-          "/* CONVERSION FUNCTIONS */\n";
-          conversion_function_decls;
-          "/* RECORD FUNCTIONS */\n";
-          record_fun_decls;
-          c_function_decls;
-          "\n";
-          c_predicate_decls;
-          c_lemma_decls;
-          cn_ghost_enum
-        ]
+        (if helper_decls then
+           [ "\n\n/* OWNERSHIP FUNCTIONS */\n\n";
+             ownership_function_decls;
+             "/* CONVERSION FUNCTIONS */\n";
+             conversion_function_decls;
+             "/* RECORD FUNCTIONS */\n";
+             record_fun_decls;
+             c_function_decls;
+             "\n";
+             c_predicate_decls;
+             c_lemma_decls;
+             cn_ghost_enum
+           ]
+         else
+           [])
       ]
   in
+  let cn_header_decls_list =
+    header_decls_list ~c_structs:[ c_tag_defs ] ~helper_decls:true
+  in
+  (* --accept-uninterp: uninterp.c, the stubs of the uninterpreted CN functions and
+     predicates, to be filled in (by hand or by an LLM) and compiled and linked with the
+     instrumented file, which declares them (non-static) and calls them like any other. The
+     file is self-contained: the CN types the stubs' signatures use (records, the CN versions
+     of the structs, datatypes) and the prototypes of the generated helpers and of the
+     globals' accessors, which the flag makes external, so that a stub can call them. An
+     existing uninterp.c is left alone, so that re-instrumenting does not discard filled-in
+     stubs. *)
+  let uninterp_stubs = c_function_stubs @ c_predicate_stubs in
+  if accept_uninterp && not (List.is_empty uninterp_stubs) then (
+    let uninterp_filename = get_filename_with_prefix output_dir "uninterp.c" in
+    let names =
+      String.concat
+        ", "
+        (List.map (fun ((sym, _), _) -> Sym.pp_string sym) uninterp_stubs)
+    in
+    if Sys.file_exists uninterp_filename then
+      print_endline
+        ("Uninterpreted CN functions and predicates: "
+         ^ names
+         ^ "; "
+         ^ uninterp_filename
+         ^ " exists and is left as it is")
+    else (
+      let oc = Stdlib.open_out uninterp_filename in
+      output_to_oc
+        oc
+        ([ "/* Stubs of the uninterpreted CN functions and predicates of "
+           ^ filename
+           ^ ",\n\
+             \   generated by cn instrument --accept-uninterp. Fill in the bodies; \
+              compile and link this file\n\
+             \   with "
+           ^ Filename.basename out_filename
+           ^ ", which declares and calls them. A stub has the runtime's API \
+              (cn-executable/utils.h:\n\
+             \   a CN value is built with convert_to_cn_integer(...), \
+              convert_to_cn_bool(...), ...), the types\n\
+             \   below, and the instrumented file's helpers declared below (CN functions \
+              and predicates, struct\n\
+             \   conversions, record functions, the globals' accessors), which are \
+              external with this flag. */\n";
+           "#define __CN_INSTRUMENT\n";
+           "#include <cn-executable/utils.h>\n"
+         ]
+         @ header_decls_list
+             ~c_structs:
+               ("\n"
+                :: List.map
+                     (fun s -> s ^ "\n")
+                     (generate_c_tag_decl_strs ordered_ail_tag_defs))
+             ~helper_decls:true
+         @ [ "\n/* GLOBAL ACCESSORS */\n";
+             Globals.accessors_prototypes filename prog5;
+             "\n"
+           ]
+         @ [ "\n"; generate_uninterp_stub_defs uninterp_stubs; "\n" ]);
+      close_out oc;
+      print_endline
+        ("Uninterpreted CN functions and predicates: "
+         ^ names
+         ^ "; stubs written to "
+         ^ uninterp_filename)));
   (* Definitions for CN helper functions *)
   (* TODO: Topological sort *)
   let cn_defs_list =
