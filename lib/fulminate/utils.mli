@@ -62,3 +62,11 @@ val remove_last_semicolon : string list -> string list
 val line_and_column_numbers : Cerb_location.t -> ((int * int) * (int * int)) option
 
 val from_same_file : Cerb_location.t * Cerb_location.t -> bool
+
+val is_register
+  :  AilSyntax.ail_identifier
+     * ((Cerb_location.t * AilSyntax.storageDuration * bool)
+       * Ctype.alignment option
+       * Ctype.qualifiers
+       * Ctype.ctype) ->
+  bool
