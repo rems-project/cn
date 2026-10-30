@@ -21,7 +21,7 @@ let run_instrumented_file
   in
   (* --accept-uninterp: the stubs of the uninterpreted CN functions and predicates
      (Fulminate.main), compiled and linked with the instrumented file *)
-  let uninterp_filename = "uninterp.c" in
+  let uninterp_filename = Fulminate.get_uninterp_filename filename in
   let with_uninterp = accept_uninterp && Sys.file_exists (in_folder uninterp_filename) in
   let opam_switch_prefix = Sys.getenv "OPAM_SWITCH_PREFIX" in
   let runtime_prefix = opam_switch_prefix ^ "/lib/cn/runtime" in
@@ -472,12 +472,12 @@ module Flags = struct
       "Support uninterpreted CN functions and predicates at runtime by linking in their \
        definitions: the instrumented file declares them and calls them like any other, \
        and their stubs (a definition with an empty body per uninterpreted function or \
-       predicate, its CN signature in a comment) are written to uninterp.c in the output \
-       directory, to be filled in and compiled and linked with the instrumented file \
-       (--run does). The generated helpers (CN functions, predicates, struct \
-       conversions, record functions, ...) are then external instead of static, so a \
-       stub can call them. An existing uninterp.c is left as it is. Excludes \
-       --remove-uninterp."
+       predicate, its CN signature in a comment) are written to <input>.uninterp.c in \
+       the output directory, to be filled in and compiled and linked with the \
+       instrumented file (--run does). The generated helpers (CN functions, predicates, \
+       struct conversions, record functions, ...) are then external instead of static, \
+       so a stub can call them. An existing <input>.uninterp.c is left as it is. \
+       Excludes --remove-uninterp."
     in
     Arg.(value & flag & info ~docs:s_fulminate [ "accept-uninterp" ] ~doc)
 end

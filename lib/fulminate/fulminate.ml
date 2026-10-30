@@ -524,6 +524,11 @@ let get_instrumented_filename filename =
   Filename.(remove_extension (basename filename)) ^ ".exec.c"
 
 
+(* --accept-uninterp: the stubs of input.c go to input.uninterp.c, one file per input *)
+let get_uninterp_filename filename =
+  Filename.(remove_extension (basename filename)) ^ ".uninterp.c"
+
+
 let get_filename_with_prefix output_dir filename = Filename.concat output_dir filename
 
 (* TODO: fix + add CLI flag *)
@@ -584,9 +589,9 @@ let main
     print_endline
       "--remove-uninterp and --accept-uninterp exclude each other: the first drops the \
        assertions that mention an uninterpreted function or predicate, the second keeps \
-       them and leaves their definitions to uninterp.c.";
+       them and leaves their definitions to <input>.uninterp.c.";
     exit 1);
-  (* --accept-uninterp: the helpers are external, for the stubs in uninterp.c to call *)
+  (* --accept-uninterp: the helpers are external, for the stubs in <input>.uninterp.c to call *)
   Sym.fulminate_extern_helpers := accept_uninterp;
   let out_filename = get_filename_with_prefix output_dir out_filename in
   (* disabled until fixed *)
@@ -660,11 +665,11 @@ let main
   let fn_call_ghost_args_injs = generate_fn_call_ghost_args_injs filename sigm prog5 in
   let cn_ghost_enum = generate_ghost_enum prog5 in
   (* Forward declarations and CN types. [c_structs]: the original C structs and unions, as
-     definitions for the instrumented file, as forward declarations for uninterp.c (whose
+     definitions for the instrumented file, as forward declarations for <input>.uninterp.c (whose
      stubs' signatures use only CN types, while the definitions may use the source's
      typedefs). [helper_decls]: the prototypes of the generated helpers (ownership, conversion,
      record, CN functions, predicates and lemmas), external with --accept-uninterp (see
-     Sym.fulminate_extern_helpers), so that uninterp.c gets them too. *)
+     Sym.fulminate_extern_helpers), so that <input>.uninterp.c gets them too. *)
   let header_decls_list ~c_structs ~helper_decls =
     List.concat
       (* TODO instead use hcat on these includes and typedefs *)
@@ -712,17 +717,19 @@ let main
   let cn_header_decls_list =
     header_decls_list ~c_structs:[ c_tag_defs ] ~helper_decls:true
   in
-  (* --accept-uninterp: uninterp.c, the stubs of the uninterpreted CN functions and
+  (* --accept-uninterp: <input>.uninterp.c, the stubs of the uninterpreted CN functions and
      predicates, to be filled in (by hand or by an LLM) and compiled and linked with the
      instrumented file, which declares them (non-static) and calls them like any other. The
      file is self-contained: the CN types the stubs' signatures use (records, the CN versions
      of the structs, datatypes) and the prototypes of the generated helpers and of the
      globals' accessors, which the flag makes external, so that a stub can call them. An
-     existing uninterp.c is left alone, so that re-instrumenting does not discard filled-in
+     existing <input>.uninterp.c is left alone, so that re-instrumenting does not discard filled-in
      stubs. *)
   let uninterp_stubs = c_function_stubs @ c_predicate_stubs in
   if accept_uninterp && not (List.is_empty uninterp_stubs) then (
-    let uninterp_filename = get_filename_with_prefix output_dir "uninterp.c" in
+    let uninterp_filename =
+      get_filename_with_prefix output_dir (get_uninterp_filename filename)
+    in
     let names =
       String.concat
         ", "

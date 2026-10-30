@@ -3674,7 +3674,7 @@ let cn_to_ail_function
   | Def it | Rec_Def it -> cn_to_ail_function_aux it
   | Uninterp when accept_uninterp ->
     (* --accept-uninterp: the declaration alone, which the instrumented file calls through;
-       the definition is the stub in uninterp.c (see Internal.generate_uninterp_stub_defs) *)
+       the definition is the stub in <input>.uninterp.c (see Internal.generate_uninterp_stub_defs) *)
     Some (((loc, decl), None), ail_record_opt)
   | Uninterp ->
     Cerb_colour.with_colour
@@ -3693,7 +3693,7 @@ let cn_to_ail_function
 
 
 (* --accept-uninterp: the stub of an uninterpreted CN function or predicate, from its
-   declaration: a definition with an empty body, for uninterp.c. The parameter names are
+   declaration: a definition with an empty body, for <input>.uninterp.c. The parameter names are
    fresh, the body being empty. *)
 let uninterp_stub_def ((sym, (loc, attrs, decl)) : A.sigma_declaration)
   : CF.GenTypes.genTypeCategory A.sigma_function_definition option
@@ -3870,7 +3870,7 @@ let cn_to_ail_predicate
     function
     | Some clauses -> Some (clause_translate_aux clauses)
     | None when accept_uninterp ->
-      (* --accept-uninterp: the declaration alone; the definition is the stub in uninterp.c *)
+      (* --accept-uninterp: the declaration alone; the definition is the stub in <input>.uninterp.c *)
       None
     | None ->
       (* Uninterpreted predicate *)

@@ -488,7 +488,7 @@ let generate_cn_versions_of_structs c_structs =
 
 (* [funs]: each CN function or predicate with its definition, or without one when it is
    uninterpreted and accepted (--accept-uninterp): then its declaration is printed without
-   `static`, since its definition is the stub in uninterp.c, another translation unit. With
+   `static`, since its definition is the stub in <input>.uninterp.c, another translation unit. With
    that flag every helper is external (Sym.fulminate_extern_helpers), so that the stubs can
    call them. *)
 let generate_fun_def_and_decl_docs_opt funs =
@@ -524,7 +524,7 @@ let generate_fun_def_and_decl_docs funs =
 
 
 (* --accept-uninterp: the stubs of the uninterpreted CN functions and predicates, for
-   uninterp.c: a definition with an empty body per declaration (Cn_to_ail.uninterp_stub_def),
+   <input>.uninterp.c: a definition with an empty body per declaration (Cn_to_ail.uninterp_stub_def),
    printed without `static` since the instrumented file calls them through its extern
    declarations, each preceded by a comment giving the CN signature. *)
 let generate_uninterp_stub_defs (stubs : (A.sigma_declaration * string) list) =

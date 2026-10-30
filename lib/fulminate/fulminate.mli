@@ -8,6 +8,8 @@ module Utils = Utils
 
 val get_instrumented_filename : string -> string
 
+val get_uninterp_filename : string -> string
+
 val main
   :  cerb_conf:Cerb_frontend.Config.config ->
   without_ownership_checking:bool ->
