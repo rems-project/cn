@@ -75,7 +75,7 @@ let frontend
       idents = [ Alloc.History.(str, sym, None) ]
     }
   in
-  let@ cabs_tunit_opt, ail_prog_opt, prog0 =
+  let@ _cabs_tunit_opt, ail_prog_opt, prog0 =
     c_frontend_and_elaboration
       ~cn_init_scope
       cerb_conf
@@ -90,7 +90,6 @@ let frontend
     else
       return ()
   in
-  let cabs_tunit = Option.get cabs_tunit_opt in
   let markers_env, ail_prog = Option.get ail_prog_opt in
   Sctypes.tagDefs_ref := prog0.CF.Core.tagDefs;
   let prog1 = CF.Remove_unspecs.rewrite_file prog0 in
@@ -104,7 +103,7 @@ let frontend
   let statement_locs = CStatements.search (snd ail_prog) in
   print_log_file ("original", `CORE prog0);
   print_log_file ("without_unspec", `CORE prog1);
-  return (cerb_conf, cabs_tunit, prog3, (markers_env, ail_prog), statement_locs)
+  return (cerb_conf, prog3, (markers_env, ail_prog), statement_locs)
 
 
 let handle_frontend_error = function
@@ -165,14 +164,13 @@ let with_well_formedness_check
        handle_error
       ~(f :
          cerb_conf:CF.Config.config ->
-         cabs_tunit:CF.Cabs.translation_unit ->
          prog5:unit Mucore.file ->
          ail_prog:CF.GenTypes.genTypeCategory CF.AilSyntax.ail_program ->
          statement_locs:Cerb_location.t CStatements.LocMap.t ->
          paused:_ Typing.pause ->
          unit Or_TypeError.t)
   =
-  let cerb_conf, cabs_tunit, prog, (markers_env, ail_prog), statement_locs =
+  let cerb_conf, prog, (markers_env, ail_prog), statement_locs =
     handle_frontend_error
       (frontend
          ~cc
@@ -205,7 +203,7 @@ let with_well_formedness_check
         Typing.run_to_pause Context.empty (Check.check_decls_lemmata_fun_specs prog5)
       in
       Result.iter_error handle_error (Typing.pause_to_result paused);
-      let@ _ = f ~cerb_conf ~cabs_tunit ~prog5 ~ail_prog ~statement_locs ~paused in
+      let@ _ = f ~cerb_conf ~prog5 ~ail_prog ~statement_locs ~paused in
       Option.iter
         (fun path ->
            let prologue = Pp_mucore_coq.pp_prologue () in

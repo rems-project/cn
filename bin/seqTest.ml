@@ -68,7 +68,7 @@ let run_seq_tests
     ~save_cpp:(Some pp_file)
     ~disable_linemarkers:true
     ~handle_error
-    ~f:(fun ~cerb_conf ~cabs_tunit ~prog5 ~ail_prog ~statement_locs:_ ~paused:_ ->
+    ~f:(fun ~cerb_conf ~prog5 ~ail_prog ~statement_locs:_ ~paused:_ ->
       Cerb_colour.without_colour
         (fun () ->
            let _, sigma = ail_prog in
@@ -92,7 +92,6 @@ let run_seq_tests
              pp_file
              out_file
              output_dir
-             cabs_tunit
              ail_prog
              prog5;
            let config : SeqTests.seq_config =
@@ -106,7 +105,7 @@ let run_seq_tests
            in
            SeqTests.set_seq_config config;
            let exit_code =
-             SeqTests.run_seq ~output_dir ~filename cabs_tunit sigma prog5
+            SeqTests.run_seq ~output_dir ~filename sigma prog5
            in
            if exit_code <> 0 then
              exit exit_code)

@@ -116,7 +116,7 @@ let run
     ~save_cpp:(Some pp_file)
     ~disable_linemarkers:true
     ~handle_error
-    ~f:(fun ~cerb_conf ~cabs_tunit ~prog5 ~ail_prog ~statement_locs:_ ~paused ->
+    ~f:(fun ~cerb_conf ~prog5 ~ail_prog ~statement_locs:_ ~paused ->
       let config : TestGeneration.config =
         { TestGeneration.default_cfg with
           skip_and_only = (skip, only);
@@ -187,7 +187,6 @@ let run
         List.is_empty
           (TestGeneration.functions_under_test
              ~with_warning:true
-             cabs_tunit
              sigma
              prog5
              paused)
@@ -195,7 +194,7 @@ let run
         (try
            Option.iter
              (fun path ->
-                TestGeneration.export_specs ~path ~filename cabs_tunit sigma prog5 paused)
+                TestGeneration.export_specs ~path ~filename sigma prog5 paused)
              (TestGeneration.Config.get_export_spec_json ())
          with
          | e -> handle_test_generation_error e);
@@ -224,7 +223,6 @@ let run
            pp_file
            out_file
            output_dir
-           cabs_tunit
            ail_prog
            prog5
        with
@@ -237,7 +235,6 @@ let run
            ~without_ownership_checking
            ~remove_uninterp
            build_tool
-           cabs_tunit
            sigma
            prog5
            paused

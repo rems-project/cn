@@ -41,8 +41,7 @@ type instrumentation =
   }
 
 val collect_instrumentation
-  :  Cerb_frontend.Cabs.translation_unit ->
-  'a Mucore.file ->
+  :  'a Mucore.file ->
   instrumentation list * BaseTypes.Surface.t Hashtbl.Make(Sym).t
 
 val args_and_body_list_of_mucore : 'a Mucore.file -> 'a Mucore.args_and_body list

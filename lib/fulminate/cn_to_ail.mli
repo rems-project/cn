@@ -70,7 +70,6 @@ type ail_executable_spec =
 
 val extract_global_variables
   :  ?prune_unused:bool ->
-  Cabs.translation_unit ->
   _ Mucore.file ->
   (Sym.t * Cerb_frontend.Ctype.ctype) list
 
@@ -197,7 +196,6 @@ val cn_to_ail_records
 val cn_to_ail_function
   :  string ->
   Sym.t * Definition.Function.t ->
-  Cabs.translation_unit ->
   _ Mucore.file ->
   AilSyntax.sigma_cn_datatype list ->
   AilSyntax.sigma_cn_function list ->

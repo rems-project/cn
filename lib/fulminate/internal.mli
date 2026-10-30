@@ -13,7 +13,6 @@ val generate_c_assume_pres_internal
   :  string ->
   bool ->
   (bool * Extract.instrumentation) list ->
-  Cabs.translation_unit ->
   GenTypes.genTypeCategory AilSyntax.sigma ->
   unit Mucore.file ->
   (AilSyntax.sigma_declaration
@@ -30,7 +29,6 @@ val generate_c_specs
   bool ->
   string ->
   Extract.instrumentation list ->
-  Cabs.translation_unit ->
   GenTypes.genTypeCategory AilSyntax.sigma ->
   unit Mucore.file ->
   executable_spec
@@ -69,7 +67,6 @@ val generate_cn_versions_of_structs : AilSyntax.sigma_tag_definition list -> str
 val generate_c_functions
   :  string ->
   bool ->
-  Cabs.translation_unit ->
   _ Mucore.file ->
   GenTypes.genTypeCategory AilSyntax.sigma ->
   string * string * Cerb_location.t list
@@ -78,7 +75,6 @@ val generate_c_predicates
   :  string ->
   bool ->
   bool ->
-  Cabs.translation_unit ->
   _ Mucore.file ->
   GenTypes.genTypeCategory AilSyntax.sigma ->
   string * string * Cerb_location.t list
@@ -86,7 +82,6 @@ val generate_c_predicates
 val generate_c_lemmas
   :  string ->
   bool ->
-  Cabs.translation_unit ->
   GenTypes.genTypeCategory AilSyntax.sigma ->
   unit Mucore.file ->
   string * string
@@ -115,14 +110,12 @@ val generate_global_assignments
   ?experimental_ownership_stack_mode:bool ->
   ?max_bump_blocks:int ->
   ?bump_block_size:int ->
-  Cabs.translation_unit ->
   GenTypes.genTypeCategory AilSyntax.sigma ->
   unit Mucore.file ->
   (Sym.t * (string list * string list)) list
 
 val generate_fn_call_ghost_args_injs
   :  string ->
-  Cabs.translation_unit ->
   GenTypes.genTypeCategory AilSyntax.sigma ->
   unit Mucore.file ->
   (Cerb_location.t * string list) list

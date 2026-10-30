@@ -3550,7 +3550,6 @@ let rec generate_record_opt pred_sym bt =
 
 let extract_global_variables
       ?(prune_unused = false)
-      (cabs_tunit : CF.Cabs.translation_unit)
       (prog5 : _ Mucore.file)
   =
   let filter_fn =
@@ -3564,7 +3563,7 @@ let extract_global_variables
           |> List.fold_left Sym.Set.union Sym.Set.empty
         in
         let from_annotations =
-          fst (Extract.collect_instrumentation cabs_tunit prog5)
+          fst (Extract.collect_instrumentation prog5)
           |> List.map (fun (inst : Extract.instrumentation) -> inst.internal)
           |> List.filter_map (fun x -> x)
           |> List.map
@@ -3614,7 +3613,6 @@ let extract_global_variables
 let cn_to_ail_function
       (filename : string)
       (fn_sym, (lf_def : Definition.Function.t))
-      (cabs_tunit : CF.Cabs.translation_unit)
       (prog5 : _ Mucore.file)
       (cn_datatypes : A.sigma_cn_datatype list)
       (cn_functions : A.sigma_cn_function list)
@@ -3628,7 +3626,6 @@ let cn_to_ail_function
         (it : TN.t)
         (filename : string)
         (fn_sym, (lf_def : Definition.Function.t))
-        (cabs_tunit : CF.Cabs.translation_unit)
         (prog5 : _ Mucore.file)
         (cn_datatypes : A.sigma_cn_datatype list)
         (cn_functions : A.sigma_cn_function list)
@@ -3638,7 +3635,7 @@ let cn_to_ail_function
         filename
         (Some fn_sym)
         cn_datatypes
-        (extract_global_variables cabs_tunit prog5)
+        (extract_global_variables prog5)
         None
         it
         Return
@@ -3693,7 +3690,6 @@ let cn_to_ail_function
       it
       filename
       (fn_sym, lf_def)
-      cabs_tunit
       prog5
       cn_datatypes
       cn_functions

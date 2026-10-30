@@ -150,7 +150,7 @@ let generate_executable_specs
     ~disable_linemarkers:(not source_locs_mode)
       (* If output locations requested, disable linemarkers in preproc step *)
     ~handle_error
-    ~f:(fun ~cerb_conf ~cabs_tunit ~prog5 ~ail_prog ~statement_locs:_ ~paused:_ ->
+    ~f:(fun ~cerb_conf ~prog5 ~ail_prog ~statement_locs:_ ~paused:_ ->
       if run && Option.is_none prog5.main then (
         print_endline "Tried running instrumented file (`--run`) without `main` function.";
         exit 1);
@@ -184,7 +184,6 @@ let generate_executable_specs
                 pp_file
                 out_file
                 output_dir
-                cabs_tunit
                 ail_prog
                 prog5
             with
