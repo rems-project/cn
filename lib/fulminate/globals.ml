@@ -124,11 +124,7 @@ let accessors filename (prog5 : unit Mucore.file)
   |> List.split
 
 
-let accessors_prototypes
-      (filename : string)
-      (prog5 : unit Mucore.file)
-  : string
-  =
+let accessors_prototypes (filename : string) (prog5 : unit Mucore.file) : string =
   let decls, _ = accessors filename prog5 in
   Pp.(
     plain
@@ -141,11 +137,7 @@ let accessors_prototypes
        ^^ hardline))
 
 
-let accessors_str
-      (filename : string)
-      (prog5 : unit Mucore.file)
-  : string
-  =
+let accessors_str (filename : string) (prog5 : unit Mucore.file) : string =
   let declarations, function_definitions = accessors filename prog5 in
   Pp.plain
     CF.Pp_ail.(

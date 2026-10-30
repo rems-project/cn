@@ -3548,10 +3548,7 @@ let rec generate_record_opt pred_sym bt =
   | _ -> None
 
 
-let extract_global_variables
-      ?(prune_unused = false)
-      (prog5 : _ Mucore.file)
-  =
+let extract_global_variables ?(prune_unused = false) (prog5 : _ Mucore.file) =
   let filter_fn =
     if prune_unused then (
       (* Collect free variables from resource predicates *)
@@ -3686,13 +3683,7 @@ let cn_to_ail_function
   in
   match lf_def.body with
   | Def it | Rec_Def it ->
-    cn_to_ail_function_aux
-      it
-      filename
-      (fn_sym, lf_def)
-      prog5
-      cn_datatypes
-      cn_functions
+    cn_to_ail_function_aux it filename (fn_sym, lf_def) prog5 cn_datatypes cn_functions
   | Uninterp ->
     Cerb_colour.with_colour
       (fun () ->

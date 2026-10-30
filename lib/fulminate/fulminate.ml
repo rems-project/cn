@@ -607,12 +607,7 @@ let main
     generate_c_functions filename remove_uninterp prog5 sigm
   in
   let c_predicate_defs, c_predicate_decls, _c_predicate_locs =
-    generate_c_predicates
-      filename
-      without_ownership_checking
-      remove_uninterp
-      prog5
-      sigm
+    generate_c_predicates filename without_ownership_checking remove_uninterp prog5 sigm
   in
   let c_lemma_defs, c_lemma_decls =
     if without_lemma_checks then
@@ -631,9 +626,7 @@ let main
   let cn_converted_struct_defs = generate_cn_versions_of_structs ordered_ail_tag_defs in
   let record_fun_defs, record_fun_decls = Records.generate_c_record_funs sigm in
   let record_defs = Records.generate_all_record_strs () in
-  let fn_call_ghost_args_injs =
-    generate_fn_call_ghost_args_injs filename sigm prog5
-  in
+  let fn_call_ghost_args_injs = generate_fn_call_ghost_args_injs filename sigm prog5 in
   let cn_ghost_enum = generate_ghost_enum prog5 in
   (* Forward declarations and CN types *)
   let cn_header_decls_list =

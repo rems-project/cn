@@ -104,9 +104,7 @@ let run_seq_tests
              }
            in
            SeqTests.set_seq_config config;
-           let exit_code =
-            SeqTests.run_seq ~output_dir ~filename sigma prog5
-           in
+           let exit_code = SeqTests.run_seq ~output_dir ~filename sigma prog5 in
            if exit_code <> 0 then
              exit exit_code)
         ();

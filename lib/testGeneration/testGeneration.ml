@@ -236,12 +236,7 @@ let compile_test_file
     generate_c_functions filename remove_uninterp prog5 sigma
   in
   let c_predicate_defs, c_predicate_decls, _c_predicate_locs =
-    generate_c_predicates
-      filename
-      without_ownership_checking
-      remove_uninterp
-      prog5
-      sigma
+    generate_c_predicates filename without_ownership_checking remove_uninterp prog5 sigma
   in
   let conversion_function_defs, conversion_function_decls =
     generate_conversion_and_equality_functions filename sigma
@@ -511,12 +506,7 @@ let functions_for_export
 
 
 let export_specs ~path ~filename sigma prog5 paused : unit =
-  SpecExport.save
-    ~path
-    ~filename
-    sigma
-    prog5
-    (functions_for_export sigma prog5 paused)
+  SpecExport.save ~path ~filename sigma prog5 (functions_for_export sigma prog5 paused)
 
 
 let run

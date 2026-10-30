@@ -185,16 +185,11 @@ let run
       in
       if
         List.is_empty
-          (TestGeneration.functions_under_test
-             ~with_warning:true
-             sigma
-             prog5
-             paused)
+          (TestGeneration.functions_under_test ~with_warning:true sigma prog5 paused)
       then (
         (try
            Option.iter
-             (fun path ->
-                TestGeneration.export_specs ~path ~filename sigma prog5 paused)
+             (fun path -> TestGeneration.export_specs ~path ~filename sigma prog5 paused)
              (TestGeneration.Config.get_export_spec_json ())
          with
          | e -> handle_test_generation_error e);
