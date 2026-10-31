@@ -149,14 +149,6 @@ let rec gen_loop_ownership_entry_decls bindings = function
        failwith error_msg)
 
 
-let _ignore_registers (bindings, decls) =
-  let bindings = List.filter (fun b -> not (Utils.is_register b)) bindings in
-  let decls =
-    List.filter (fun (sym, _) -> List.mem Sym.equal sym (List.map fst bindings)) decls
-  in
-  (bindings, decls)
-
-
 let generate_c_local_ownership_entry_inj
       ~contains_user_spec
       ~is_forloop
