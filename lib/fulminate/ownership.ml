@@ -389,7 +389,8 @@ let rec get_c_control_flow_ownership_injs_aux
       }
     ]
   (* Continue dealt with in AilSgoto case *)
-  | AilScontinue | AilSskip | AilSexpr _ | AilSpar _ | AilSreg_store _ | AilSmarker _ ->
+  | AilScontinue | AilSskip | AilSexpr _ | AilSpar _ | AilSreg_store _ | AilSmarker _
+  | AilSasm _ ->
     []
 
 
@@ -612,7 +613,7 @@ let get_c_block_entry_exit_injs_aux ~contains_user_spec cerb_conf bindings s =
       aux_stmt bindings s
     | AilSreturn e | AilSexpr e | AilSreg_store (_, e) -> aux_expr e
     | AilSgoto _ | AilScontinue | AilSbreak | AilSskip | AilSreturnVoid | AilSpar _
-    | AilSmarker _ ->
+    | AilSmarker _ | AilSasm _ ->
       empty_block_local_injs
   in
   aux_stmt bindings s

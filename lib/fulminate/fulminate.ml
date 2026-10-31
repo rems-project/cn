@@ -134,7 +134,7 @@ let collect_memory_accesses (_, sigm) =
       scan_for_decls_and_update_env (bs, ss) env aux_expr aux_stmt
   and aux_stmt stmt env =
     match stmt.node with
-    | AilSskip | AilSbreak | AilScontinue | AilSreturnVoid | AilSgoto _ -> ()
+    | AilSskip | AilSbreak | AilScontinue | AilSreturnVoid | AilSgoto _ | AilSasm _ -> ()
     | AilSexpr e | AilSreturn e | AilSreg_store (_, e) -> aux_expr e env
     | AilSblock (bs, ss) -> scan_for_decls_and_update_env (bs, ss) env aux_expr aux_stmt
     | AilSpar ss -> List.iter (fun s -> aux_stmt s env) ss
@@ -328,7 +328,7 @@ let contains_compound_literal s =
       aux_stmt s
     | AilSreturn e | AilSexpr e | AilSreg_store (_, e) -> aux_expr e
     | AilSgoto _ | AilScontinue | AilSbreak | AilSskip | AilSreturnVoid | AilSpar _
-    | AilSmarker _ ->
+    | AilSmarker _ | AilSasm _ ->
       false
   in
   aux_stmt s
@@ -453,7 +453,7 @@ let gen_single_stat_control_flow_injs statement =
        | AilSlabel (_, s, _) | AilSdefault s -> aux_stmt s
        | AilSreturn e | AilSexpr e | AilSreg_store (_, e) -> aux_expr e
        | AilSgoto _ | AilScontinue | AilSbreak | AilSskip | AilSreturnVoid | AilSpar _
-       | AilSmarker _ ->
+       | AilSmarker _ | AilSasm _ ->
          [])
   in
   aux_stmt statement
