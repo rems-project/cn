@@ -75,6 +75,8 @@ The runner uses the supplied environment and installs nothing.
 
 `ounit/` contains the export and fake-Austen suites; `fixtures/` holds their shared
 fixtures, the real-Austen scalar build fixture, and migrated campaign fixtures.
+`fixtures/pending/` holds migrated specifications that still cannot produce a
+complete export and are excluded from native campaigns.
 Generic OUnit tests stay in
 `../ounit/` and are included by the centralized runner.
 
@@ -107,11 +109,32 @@ prevent the independent unit jobs from finishing.
 ## Campaign outcome baseline
 
 `campaigns.json` lists each fixture/function pair with an intended result and
-explicit current expectations for Bennet and Darcy. The first batch moves 11
-scalar fixtures from `legacy/src/` into `fixtures/campaigns/`; their C types and
-implementations are preserved. CN specifications now use integer terms with
-finite C bounds and the original overflow exclusions. Two no-argument controls
-exercise successful dispatch and a confirmed postcondition failure.
+explicit current expectations for Bennet and Darcy. After the initial 11 scalar
+fixtures, a further 42 legacy fixtures have been migrated: 41 join the active
+campaign fixtures, while MKM remains pending export support. The active corpus
+now includes heap ownership, arrays, globals, records, recursive lists and trees,
+queues, and the runway state machine. Migration does not imply that either
+backend can execute every specification.
+
+The reviewed manifest covers 114 functions in 56 C fixtures: 228 engine/function
+expectations comprising 172 passes, 15 confirmed findings, 19 blocked cases,
+21 inconclusive cases, and one unsupported precondition oracle.
+
+Specifications use mathematical integers while preserving finite C domains,
+overflow exclusions, and the original algorithms and C types. Where old casts
+wrapped, explicit modulo arithmetic retains their behavior: signed lengths cast
+to `u64` use modulo `2^64`, and narrowed signed indices reconstruct their signed
+value after modulo `2^32`. Recursive arithmetic retains wrapping where reachable;
+widening casts are removed only when they preserve the value. Queue specifications
+use `rem` for the old signed remainder operation. Their original bounds remain
+in place; negative lengths are not silently excluded to make generation easier.
+
+Calls to the retired `cn_malloc`/`cn_free_sized` helpers use standard
+`malloc`/`free`. Normal allocation and algorithm behavior is retained, but the
+old runtime's ownership bookkeeping and allocation-failure retry handling are
+not reproduced. The spec-only static global in `non_access_global.pass.c` has a
+Clang-only `used` attribute so the native harness can locate it without adding a
+C access to that global.
 
 The exporter gives Austen finite-width C arguments and owned values, then casts
 them to mathematical integers for specification expressions. Logical structs
@@ -120,8 +143,7 @@ The width regressions exercise signed boundaries, `UINT64_MAX` with mathematical
 addition, canonical Boolean values, scalar ownership, nested structs passed and
 returned by value, ownership-only structs with arrays, uninitialized ownership,
 and a confirmed postcondition failure.
-The reviewed baseline contains 52 engine/function runs: 48 passes and four
-confirmed findings. All 20 former scalar-width blockers now pass. Equivalent
+The original scalar-width blockers were resolved. Equivalent
 raw-bitvector equality constraints supplement the original integer equalities
 so finite draws can be solved without expensive mixed integer/bitvector search.
 
@@ -130,22 +152,43 @@ so finite draws can be solved without expensive mixed integer/bitvector search.
 finding depended on per-access ownership instrumentation, while Austen checks
 entry/exit oracles. The manifest retains its intended finding and records this
 current difference with a reason; filenames do not determine observed outcomes.
+The same distinction matters for `runway.fail.c:tick`, whose original regression
+targets an internal callee's precondition. Entry/exit testing does not establish
+that every internal call or annotated statement satisfies its specification.
 
 The array functions in `export_widths.pass.c` (`aggregate_echo`,
 `owned_aggregate`, `fixed_array`, `quantified_array`, and `empty_array`) have
-structural export coverage but are not yet selected by the passing campaign
-baseline. Real runs exposed additional Austen 0.0.1 limitations: Bennet rejects
+explicit campaign expectations alongside their structural export coverage.
+Real runs exposed Austen 0.0.1 limitations: Bennet rejects
 integer map indices, standalone owned arrays lack C-shape-aware generation, and
-Darcy's dynamic quantified-array case dispatches no inputs. These failures are
-not accepted as successful regressions. Reproductions and the required upstream
+Darcy's dynamic quantified-array case can dispatch no inputs. Such failures and
+empty campaigns remain blockers or inconclusive outcomes; successful campaigns
+on supported engine/function combinations are recorded separately. Reproductions and upstream
 work are recorded in [the Austen handoff](../../docs/austen-integer-export-followups.md).
 
 Only a completed report with dispatched inputs and supported oracle results can
-count as a pass or finding. A known blocker must match its exact report stage,
-error kind, blame, and message. Missing/malformed reports, compiler failures,
-timeouts, signals, empty runs, and unsupported oracle results cannot satisfy a
-known-blocker expectation. Active fixture files omitted from the manifest are
-rejected.
+count as a pass or finding. The baseline distinguishes the other supported
+outcomes explicitly:
+
+- `blocked`: a report-backed specification conversion or generation error with
+  an exact stage, error kind, blame, and message. Conversion reports must identify
+  the requested configuration. A generator may fail after dispatching some
+  inputs; its counters and supported oracle results must remain consistent, and
+  it must have no confirmed findings. Partial execution does not turn it into a
+  pass.
+- `inconclusive`: Austen reports a completed campaign with exit 0, but CN exits
+  2 because no inputs were seen, selected, or dispatched. Execution and finding
+  counters must be zero; rejection counters are retained for diagnosis.
+- `unsupported`: a completed Austen report exits 0 while CN exits 2, every
+  selected input has an unsupported precondition result, and no inputs are
+  dispatched. All other oracle and finding counters must be zero. This narrow
+  case records an unsupported oracle without treating it as successful testing.
+
+These expectations track known limitations without counting them as passes or
+findings. Missing or malformed reports, compiler/tool failures, timeouts,
+signals, inconsistent counters, internal oracle errors, and other unsupported
+oracle combinations remain errors; they cannot satisfy one of these
+expectations. Active fixture files omitted from the manifest are rejected.
 
 Every expectation change fails the run, including an unexpected improvement or
 a different error replacing a known blocker. To investigate locally:
@@ -160,7 +203,24 @@ logs. Confirm the new behavior, then edit the relevant engine expectation in
 The runner never rewrites its baseline automatically. CI retains these artifacts
 and publishes the outcome table even when the baseline comparison fails.
 
-## Remaining legacy corpus
+## Pending export and retained legacy fixtures
+
+`fixtures/pending/mkm.pass.c` has migrated integer specifications, preserved
+unsigned offset and signed-narrowing behavior, and Cerberus-compatible POSIX
+type includes. Its predicates read values obtained from uninitialized ownership,
+which the exporter cannot yet represent. Reproduce from the repository root:
+
+```sh
+dune build cn.install --profile=dev
+case_dir=$(mktemp -d /tmp/cn-mkm-export.XXXXXX)
+_build/default/bin/main.exe test export \
+  tests/random-testing/fixtures/pending/mkm.pass.c -o "$case_dir/spec.json"
+```
+
+The current diagnostic is `AustenTest cannot represent a specification reading
+an uninitialized Owned value`. Export currently warns and exits 0 without
+creating `spec.json`; an exit code alone does not establish export success.
+MKM stays outside `campaigns.json` until it produces a complete specification.
 
 `legacy/src/` and `legacy/run-cn-test-gen.py` preserve the old test-generation
 corpus and runner for migration. They are inactive and excluded from active
@@ -168,10 +228,15 @@ runner modes and CI. The old runner still needs `tqdm` and assumes retired engin
 options, and runtime behavior; it cannot validate the current Austen backend.
 Its local memory cache now lives beside that script.
 
-`cast_equality.pass.c` remains there because its integer-to-`u64` cast is
-unsupported; removing that cast would erase its regression coverage.
-`bounds.pass.c` stays for the heap/array batch, where signed sizes and unsigned
-index casts need a separate review. The known-bug exclusion and Lucas-specific
-fixture are unchanged. Further fixture batches, flaky-fixture retries, retained
-option support, and CN's multi-function campaign orchestration remain migration
-work. This runner selects each function explicitly in a separate CN invocation.
+Four legacy fixtures remain unchanged:
+
+| Fixture | Reason retained |
+| --- | --- |
+| `cast_equality.pass.c` | Its unsupported integer-to-`u64` cast is the regression's purpose; removing it would erase that coverage. |
+| `learn_cast.special.c` | Tests learning across mixed-width casts; an integer-only rewrite would remove the behavior under test. |
+| `array2d.buggy.c` | Preserves the existing known-bug exclusion. |
+| `bitwise_mask.pass.c` | Targets the retired Lucas/tristate abstract-domain behavior; retained for a separate retirement decision. |
+
+Flaky-fixture retries, retained option support, and CN's multi-function campaign
+orchestration remain migration work. This runner selects each function
+explicitly in a separate CN invocation.

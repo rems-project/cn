@@ -10,8 +10,20 @@ TEST_ROOT = Path(__file__).resolve().parent
 REPO_ROOT = TEST_ROOT.parents[1]
 ENGINES = ("bennet", "darcy")
 UINT64_MAX = (1 << 64) - 1
+ORACLE_COUNTERS = (
+    "parse_rejected", "pre_passed", "pre_failed", "pre_unsupported",
+    "pre_internal_error", "post_unsupported",
+)
 # A compiler/tool failure must never satisfy a known migration blocker.
-SPEC_BLOCKERS = {("generate", "driver.unrunnable", "spec")}
+SPEC_BLOCKERS = {
+    ("generate", "driver.unrunnable", "spec"),
+    ("convert", "driver.convert", "spec"),
+}
+# Counters a conversion failure reports as null because no campaign ran.
+CONVERSION_NULL_FIELDS = (
+    "engine", "seen", "selected", "dispatched", "crashes", "findings",
+    "oracle", "inputs", "rejected", "rejections",
+)
 
 
 def require(condition, message):
@@ -55,7 +67,7 @@ def counter(obj, field):
 
 def _expect(obj, field, value):
     require(
-        type(obj.get(field)) is type(value) and obj[field] == value,
+        field in obj and type(obj[field]) is type(value) and obj[field] == value,
         f"{field}: expected {value!r}, got {obj.get(field)!r}",
     )
 
@@ -106,7 +118,8 @@ def load_manifest(path):
         for engine, outcome in expected.items():
             require(type(outcome) is dict, f"{case_id}/{engine}: expected outcome must be an object")
             kind = outcome.get("outcome")
-            require(kind in ("pass", "finding", "blocked"), f"{case_id}/{engine}: invalid expected outcome")
+            require(kind in ("pass", "finding", "blocked", "inconclusive", "unsupported"),
+                    f"{case_id}/{engine}: invalid expected outcome")
             allowed = {"outcome", "reason"}
             if kind == "blocked":
                 allowed |= {"stage", "kind", "blame", "message"}
@@ -129,17 +142,60 @@ def load_manifest(path):
     return manifest
 
 
+def _oracle_counts(report):
+    oracle = report.get("oracle")
+    require(type(oracle) is dict, "campaign report has no oracle counters")
+    return {key: counter(oracle, key) for key in ORACLE_COUNTERS}
+
+
+def validate_oracle(report, *, dispatched, selected):
+    counts = _oracle_counts(report)
+    require(not any(counts[key] for key in ("pre_unsupported", "pre_internal_error", "post_unsupported")),
+            "campaign oracle is unsupported or has internal errors")
+    require(dispatched <= counts["pre_passed"], "dispatch exceeds successful preconditions")
+    require(sum(counts[key] for key in ("parse_rejected", "pre_passed", "pre_failed")) <= selected,
+            "oracle counters exceed selected inputs")
+
+
+def _blocked(report):
+    _expect(report, "status", "error")
+    error = report.get("error")
+    require(type(error) is dict, "failed campaign report has no error object")
+    signature = (report.get("stage"), error.get("kind"), error.get("blame"))
+    require(signature in SPEC_BLOCKERS, f"infrastructure or unrecognized campaign error: {signature!r}")
+    require(type(error.get("message")) is str and error["message"], "campaign error has no message")
+    return {
+        "outcome": "blocked", "stage": signature[0], "kind": signature[1],
+        "blame": signature[2], "message": error["message"],
+    }
+
+
 def classify_report(report, status, *, fn, engine, duration, seed):
-    """Classify only complete campaigns or narrowly identified spec blockers."""
+    """Classify executed campaigns and narrowly validated migration failures."""
     require(type(report) is dict, "campaign report must be an object")
     require(type(status) is int and status in (0, 1, 2), f"unexpected campaign exit status {status}")
     for field, value in (
-        ("schema_version", 1), ("function", fn), ("engine", engine),
+        ("schema_version", 1), ("function", fn),
         ("budget", "seconds"), ("duration", duration), ("seed", seed),
         ("check_heap_ownership", True), ("effective_check_heap_ownership", True),
-        ("exit", status),
     ):
         _expect(report, field, value)
+    if report.get("stage") == "convert":
+        require(status == 2, "conversion blocker must exit with status 2")
+        _expect(report, "exit", 2)
+        blocked = _blocked(report)
+        for field in CONVERSION_NULL_FIELDS:
+            _expect(report, field, None)
+        provenance = report.get("provenance")
+        require(type(provenance) is dict, "conversion report has no provenance object")
+        configuration = provenance.get("configuration")
+        require(type(configuration) is dict, "conversion report has no configuration object")
+        for field, value in (("engine", engine), ("duration_seconds", duration),
+                             ("seed", seed), ("mode", "campaign"),
+                             ("check_heap_ownership", True)):
+            _expect(configuration, field, value)
+        return blocked
+    _expect(report, "engine", engine)
     seen, selected, dispatched = (counter(report, key) for key in ("seen", "selected", "dispatched"))
     require(dispatched <= selected <= seen, "inconsistent campaign dispatch counters")
     findings = report.get("findings")
@@ -150,45 +206,54 @@ def classify_report(report, status, *, fn, engine, duration, seed):
             "findings.capped must be a boolean or null")
     require(counter(report, "crashes") == confirmed, "crashes and confirmed findings disagree")
     require(post_failed <= confirmed <= dispatched, "inconsistent campaign findings counters")
+    if status == 2 and report.get("exit") == 0:
+        _expect(report, "status", "ok")
+        _expect(report, "stage", "complete")
+        _expect(report, "error", None)
+        require(dispatched == confirmed == post_failed == 0,
+                "incomplete campaign has nonzero execution counters")
+        rejections = report.get("rejections")
+        require(type(rejections) is dict, "incomplete campaign has no rejection counters")
+        for key in rejections:
+            require(type(key) is str and key, "invalid campaign rejection name")
+            counter(rejections, key)
+        if report.get("oracle") is not None:
+            counts = _oracle_counts(report)
+            require(set(report["oracle"]) == set(ORACLE_COUNTERS),
+                    "unsupported campaign has invalid oracle counters")
+            require(counts["pre_unsupported"] > 0 and counts["pre_unsupported"] == selected,
+                    "unsupported preconditions must account for every selected input")
+            require(not any(value for key, value in counts.items() if key != "pre_unsupported"),
+                    "unsupported campaign has mixed oracle results or internal errors")
+            return {"outcome": "unsupported"}
+        _expect(report, "oracle", None)
+        require(seen == selected == 0, "inconclusive campaign has nonzero input counters")
+        return {"outcome": "inconclusive"}
+    _expect(report, "exit", status)
     if status == 2:
-        _expect(report, "status", "error")
-        error = report.get("error")
-        require(type(error) is dict, "failed campaign report has no error object")
-        signature = (report.get("stage"), error.get("kind"), error.get("blame"))
-        require(all(type(value) is str for value in signature) and signature in SPEC_BLOCKERS,
-                f"infrastructure or unrecognized campaign error: {signature!r}")
-        require(type(error.get("message")) is str and error["message"], "campaign error has no message")
-        require(dispatched == 0 and confirmed == 0 and report.get("oracle") is None,
-                "unrunnable generator report has inconsistent execution counters")
-        return {
-            "outcome": "blocked", "stage": signature[0], "kind": signature[1],
-            "blame": signature[2], "message": error["message"],
-        }
+        blocked = _blocked(report)
+        require(confirmed == 0, "unrunnable generator report has confirmed findings")
+        if dispatched:
+            validate_oracle(report, dispatched=dispatched, selected=selected)
+        else:
+            _expect(report, "oracle", None)
+        return blocked
     _expect(report, "status", "ok")
     _expect(report, "stage", "complete")
     require("error" in report and report["error"] is None, "completed campaign has an error")
     require(dispatched > 0, "campaign dispatched zero inputs")
-    oracle = report.get("oracle")
-    require(type(oracle) is dict, "campaign report has no oracle counters")
-    counts = {key: counter(oracle, key) for key in (
-        "parse_rejected", "pre_passed", "pre_failed", "pre_unsupported",
-        "pre_internal_error", "post_unsupported",
-    )}
-    require(not any(counts[key] for key in ("pre_unsupported", "pre_internal_error", "post_unsupported")),
-            "campaign oracle is unsupported or has internal errors")
-    require(dispatched <= counts["pre_passed"], "dispatch exceeds successful preconditions")
-    require(sum(counts[key] for key in ("parse_rejected", "pre_passed", "pre_failed")) <= selected,
-            "oracle counters exceed selected inputs")
+    validate_oracle(report, dispatched=dispatched, selected=selected)
     require(status == (1 if confirmed else 0), "process exit does not match confirmed findings")
     return {"outcome": "finding" if confirmed else "pass"}
 
 
 def _write_summary(root, rows):
     (root / "summary.json").write_text(json.dumps(rows, indent=2) + "\n", encoding="utf-8")
-    lines = ["| Case | Engine | Intent | Expected | Actual | Changed |", "|---|---|---|---|---|---|"]
+    lines = ["| Case | Engine | Intent | Expected | Actual | Changed | Rejections |",
+             "|---|---|---|---|---|---|---|"]
     for row in rows:
         lines.append("| " + " | ".join(str(row[key]).replace("|", "\\|").replace("\n", " ")
-                                      for key in ("id", "engine", "intent", "expected", "actual", "changed")) + " |")
+                                      for key in ("id", "engine", "intent", "expected", "actual", "changed", "rejections")) + " |")
     (root / "summary.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
@@ -215,6 +280,7 @@ def check_campaigns(output_root, timeout, run_command, *, manifest_path=None, en
             row = {
                 "id": case["id"], "engine": selected_engine, "intent": case["intent"],
                 "expected": expected["outcome"], "actual": "infrastructure-error", "changed": True,
+                "rejections": None,
             }
             rows.append(row)
             try:
@@ -233,7 +299,8 @@ def check_campaigns(output_root, timeout, run_command, *, manifest_path=None, en
                 row["actual"] = actual["outcome"]
                 row["observed"] = actual
                 row["dispatched"] = report["dispatched"]
-                row["confirmed"] = report["findings"]["confirmed"]
+                row["confirmed"] = report["findings"]["confirmed"] if report["findings"] else None
+                row["rejections"] = report.get("rejections")
                 fingerprint = {key: value for key, value in expected.items() if key != "reason"}
                 row["changed"] = actual != fingerprint
                 if row["changed"]:

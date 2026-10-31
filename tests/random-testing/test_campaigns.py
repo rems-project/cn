@@ -17,6 +17,18 @@ BLOCKER = {
     "message": "the generator is structurally unrunnable: no scalar width for base type Integer",
     "reason": "Austen 0.0.1 cannot generate unbounded CN Integer arguments.",
 }
+CONVERSION_BLOCKER = {
+    "outcome": "blocked", "stage": "convert", "kind": "driver.convert", "blame": "spec",
+    "message": "convert target: Transform(UnsupportedIndexType { bt: Integer })",
+    "reason": "Austen 0.0.1 rejects bounded integer map indices during conversion.",
+}
+PARTIAL_BLOCKER = {
+    **BLOCKER,
+    "message": "the generator is structurally unrunnable: input defaults do not support base type Integer",
+    "reason": "Austen cannot generate a later recursive branch after executing earlier inputs.",
+}
+INCONCLUSIVE = {"outcome": "inconclusive", "reason": "No inputs were dispatched within the budget."}
+UNSUPPORTED = {"outcome": "unsupported", "reason": "Every selected input has an unsupported precondition oracle."}
 
 
 def successful_report(engine="bennet", confirmed=0):
@@ -38,6 +50,39 @@ def blocked_report(engine="bennet"):
     report = successful_report(engine)
     report.update(status="error", stage="generate", exit=2, seen=0, selected=0, dispatched=0,
                   oracle=None, error={key: BLOCKER[key] for key in ("kind", "blame", "message")})
+    return report
+
+
+def conversion_report(engine="bennet"):
+    report = successful_report(engine)
+    report.update(status="error", stage="convert", exit=2,
+                  error={key: CONVERSION_BLOCKER[key] for key in ("kind", "blame", "message")},
+                  provenance={"configuration": {"engine": engine, "duration_seconds": 1,
+                                                "seed": 0, "mode": "campaign",
+                                                "check_heap_ownership": True}})
+    report.update({key: None for key in campaigns.CONVERSION_NULL_FIELDS})
+    return report
+
+
+def partial_blocker_report(engine="bennet"):
+    report = successful_report(engine)
+    report.update(status="error", stage="generate", exit=2,
+                  error={key: PARTIAL_BLOCKER[key] for key in ("kind", "blame", "message")})
+    return report
+
+
+def inconclusive_report(engine="bennet"):
+    report = successful_report(engine)
+    report.update(seen=0, selected=0, dispatched=0, oracle=None,
+                  rejections={"solver-unknown": 1, "retries-exhausted": 2})
+    return report
+
+
+def unsupported_report(engine="bennet"):
+    report = successful_report(engine)
+    report.update(seen=106, selected=106, dispatched=0, rejections={})
+    report["oracle"] = {key: 106 if key == "pre_unsupported" else 0
+                        for key in campaigns.ORACLE_COUNTERS}
     return report
 
 
@@ -97,6 +142,14 @@ class CampaignTests(unittest.TestCase):
         return campaigns.classify_report(report, report["exit"] if status is None else status,
                                          fn="target", engine="bennet", duration=1, seed=0)
 
+    def assert_rejects(self, factory, mutations, status=None):
+        for name, mutate in mutations:
+            with self.subTest(name=name):
+                report = factory()
+                mutate(report)
+                with self.assertRaises(RuntimeError):
+                    self.classify(report, status=status)
+
     def test_runs_both_engines_with_explicit_seed_and_budget(self):
         self.run_campaigns(self.fake_command(successful_report))
         self.assertEqual(len(self.commands), 3)
@@ -130,6 +183,196 @@ class CampaignTests(unittest.TestCase):
         self.expect(BLOCKER)
         self.run_campaigns(self.fake_command(blocked_report))
         self.assertTrue(all(row["actual"] == "blocked" and not row["changed"] for row in self.summary()))
+
+    def test_generator_blocker_after_partial_dispatch_preserves_executed_count(self):
+        self.expect(PARTIAL_BLOCKER)
+        self.run_campaigns(self.fake_command(partial_blocker_report))
+        self.assertTrue(all(row["actual"] == "blocked" and not row["changed"] for row in self.summary()))
+        self.assertTrue(all(row["dispatched"] == 3 and row["confirmed"] == 0 for row in self.summary()))
+
+    def test_partial_generator_blocker_requires_consistent_supported_oracles(self):
+        mutations = [
+            ("missing oracle", lambda report: report.pop("oracle")),
+            ("null oracle", lambda report: report.update(oracle=None)),
+            ("dispatch exceeds preconditions", lambda report: report["oracle"].update(pre_passed=2)),
+            ("oracle exceeds selected", lambda report: report["oracle"].update(pre_failed=3)),
+            ("dispatch exceeds selected", lambda report: report.update(selected=2)),
+            ("confirmed finding", lambda report: (report.update(crashes=1),
+                 report["findings"].update(confirmed=1, post_failed=1))),
+        ]
+        for field in ("pre_unsupported", "post_unsupported", "pre_internal_error"):
+            mutations.append((field, lambda report, field=field: report["oracle"].update({field: 1})))
+        for field in campaigns.ORACLE_COUNTERS:
+            mutations.append(("missing " + field, lambda report, field=field: report["oracle"].pop(field)))
+            mutations.append(("bool " + field, lambda report, field=field: report["oracle"].update({field: False})))
+        self.assert_rejects(partial_blocker_report, mutations)
+
+    def test_zero_dispatch_generator_blocker_still_requires_explicit_null_oracle(self):
+        for oracle in ({}, successful_report()["oracle"]):
+            with self.subTest(oracle=oracle):
+                report = blocked_report()
+                report["oracle"] = oracle
+                with self.assertRaises(RuntimeError):
+                    self.classify(report)
+        report = blocked_report()
+        report.pop("oracle")
+        with self.assertRaises(RuntimeError):
+            self.classify(report)
+
+    def test_accepts_sparse_conversion_report_with_verified_provenance(self):
+        self.expect(CONVERSION_BLOCKER)
+        self.run_campaigns(self.fake_command(conversion_report))
+        self.assertTrue(all(row["actual"] == "blocked" and not row["changed"] for row in self.summary()))
+        self.assertTrue(all(row["confirmed"] is None and row["dispatched"] is None for row in self.summary()))
+
+    def test_conversion_blocker_rejects_missing_or_inconsistent_identity_and_counters(self):
+        mutations = [
+            ("wrong function", lambda report: report.update(function="other")),
+            ("wrong top-level seed", lambda report: report.update(seed=1)),
+            ("wrong top-level duration", lambda report: report.update(duration=2)),
+            ("wrong exit", lambda report: report.update(exit=0)),
+            ("wrong status", lambda report: report.update(status="ok")),
+            ("wrong blame", lambda report: report["error"].update(blame="environment")),
+            ("wrong kind", lambda report: report["error"].update(kind="build.cc")),
+            ("missing error", lambda report: report.pop("error")),
+            ("empty message", lambda report: report["error"].update(message="")),
+            ("no provenance", lambda report: report.pop("provenance")),
+            ("no configuration", lambda report: report["provenance"].pop("configuration")),
+        ]
+        for field, value in (("engine", "darcy"), ("duration_seconds", 2), ("seed", 1),
+                             ("mode", "build-only"), ("check_heap_ownership", False)):
+            mutations.append(("wrong provenance " + field,
+                              lambda report, field=field, value=value:
+                              report["provenance"]["configuration"].update({field: value})))
+            mutations.append(("missing provenance " + field,
+                              lambda report, field=field:
+                              report["provenance"]["configuration"].pop(field)))
+        for field in campaigns.CONVERSION_NULL_FIELDS:
+            mutations.append(("missing nullable " + field,
+                              lambda report, field=field: report.pop(field)))
+            mutations.append(("non-null " + field,
+                              lambda report, field=field: report.update({field: 0})))
+        self.assert_rejects(conversion_report, mutations, status=2)
+        with self.assertRaises(RuntimeError):
+            self.classify(conversion_report(), status=0)
+
+    def test_conversion_blocker_fingerprint_changes_fail(self):
+        self.expect(CONVERSION_BLOCKER)
+        def changed(engine):
+            report = conversion_report(engine)
+            report["error"]["message"] = "a different conversion failure"
+            return report
+        with self.assertRaisesRegex(RuntimeError, "baseline changed"):
+            self.run_campaigns(self.fake_command(changed))
+        self.assertTrue(all(row["changed"] for row in self.summary()))
+
+    def test_inconclusive_campaign_records_rejections_without_fingerprinting_counts(self):
+        self.expect(INCONCLUSIVE)
+        def rejected(engine):
+            report = inconclusive_report(engine)
+            report["rejections"]["solver-unknown"] = 1 if engine == "bennet" else 9
+            return report
+        self.run_campaigns(self.fake_command(rejected, status=2))
+        rows = self.summary()
+        self.assertTrue(all(row["actual"] == "inconclusive" and not row["changed"] for row in rows))
+        self.assertEqual([row["rejections"]["solver-unknown"] for row in rows], [1, 9])
+        self.assertTrue(all(row["observed"] == {"outcome": "inconclusive"} for row in rows))
+        self.assertIn("solver-unknown", (self.output / "campaigns/summary.md").read_text())
+
+    def test_inconclusive_campaign_is_never_pass_or_finding(self):
+        with self.assertRaisesRegex(RuntimeError, "baseline changed"):
+            self.run_campaigns(self.fake_command(inconclusive_report, status=2))
+        self.assertTrue(all(row["actual"] == "inconclusive" and row["changed"] for row in self.summary()))
+
+    def test_inconclusive_improvement_is_a_baseline_change(self):
+        self.expect(INCONCLUSIVE)
+        with self.assertRaisesRegex(RuntimeError, "baseline changed"):
+            self.run_campaigns(self.fake_command(successful_report))
+        self.assertTrue(all(row["actual"] == "pass" and row["changed"] for row in self.summary()))
+
+    def test_tracks_campaigns_with_only_unsupported_preconditions(self):
+        self.expect(UNSUPPORTED)
+        self.run_campaigns(self.fake_command(unsupported_report, status=2))
+        self.assertTrue(all(row["actual"] == "unsupported" and not row["changed"] for row in self.summary()))
+        self.assertTrue(all(row["dispatched"] == row["confirmed"] == 0 for row in self.summary()))
+
+    def test_unsupported_cannot_satisfy_pass_or_finding_expectations(self):
+        for intent in ("pass", "finding"):
+            with self.subTest(intent=intent), tempfile.TemporaryDirectory(dir=self.root) as output:
+                self.output = Path(output)
+                self.expect({"outcome": intent}, intent=intent)
+                with self.assertRaisesRegex(RuntimeError, "baseline changed"):
+                    self.run_campaigns(self.fake_command(unsupported_report, status=2))
+                self.assertTrue(all(row["actual"] == "unsupported" and row["changed"] for row in self.summary()))
+
+    def test_unsupported_improvement_is_a_baseline_change(self):
+        self.expect(UNSUPPORTED)
+        with self.assertRaisesRegex(RuntimeError, "baseline changed"):
+            self.run_campaigns(self.fake_command(successful_report))
+        self.assertTrue(all(row["actual"] == "pass" and row["changed"] for row in self.summary()))
+
+    def test_unsupported_requires_exact_precondition_only_failure_shape(self):
+        mutations = [
+            ("wrong engine", lambda report: report.update(engine="darcy")),
+            ("wrong function", lambda report: report.update(function="other")),
+            ("wrong seed", lambda report: report.update(seed=1)),
+            ("wrong duration", lambda report: report.update(duration=2)),
+            ("wrong report exit", lambda report: report.update(exit=2)),
+            ("wrong report status", lambda report: report.update(status="error")),
+            ("wrong stage", lambda report: report.update(stage="generate")),
+            ("error object", lambda report: report.update(error={})),
+            ("dispatch", lambda report: report.update(dispatched=1)),
+            ("findings", lambda report: (report.update(crashes=1, dispatched=1),
+                 report["findings"].update(confirmed=1, post_failed=1))),
+            ("too few seen", lambda report: report.update(seen=105)),
+            ("missing selected input", lambda report: report.update(selected=105)),
+            ("unaccounted selected input", lambda report: report.update(seen=107, selected=107)),
+            ("zero unsupported", lambda report: report["oracle"].update(pre_unsupported=0)),
+            ("unknown oracle counter", lambda report: report["oracle"].update(post_internal_error=0)),
+        ]
+        for field in campaigns.ORACLE_COUNTERS:
+            mutations.append(("missing " + field, lambda report, field=field: report["oracle"].pop(field)))
+            mutations.append(("bool " + field, lambda report, field=field: report["oracle"].update({field: False})))
+            mutations.append(("negative " + field, lambda report, field=field: report["oracle"].update({field: -1})))
+            if field != "pre_unsupported":
+                mutations.append(("nonzero " + field,
+                                  lambda report, field=field: report["oracle"].update({field: 1})))
+        self.assert_rejects(unsupported_report, mutations, status=2)
+        for status in (0, 1):
+            with self.subTest(status=status), self.assertRaises(RuntimeError):
+                self.classify(unsupported_report(), status=status)
+
+    def test_inconclusive_rejects_inconsistent_status_counters_and_rejections(self):
+        mutations = [
+            ("wrong engine", lambda report: report.update(engine="darcy")),
+            ("wrong function", lambda report: report.update(function="other")),
+            ("wrong seed", lambda report: report.update(seed=1)),
+            ("wrong budget", lambda report: report.update(duration=10)),
+            ("wrong exit", lambda report: report.update(exit=2)),
+            ("wrong status", lambda report: report.update(status="error")),
+            ("wrong stage", lambda report: report.update(stage="generate")),
+            ("error present", lambda report: report.update(error={})),
+            ("missing error", lambda report: report.pop("error")),
+            ("oracle present", lambda report: report.update(oracle={})),
+            ("missing oracle", lambda report: report.pop("oracle")),
+            ("missing rejections", lambda report: report.pop("rejections")),
+            ("null rejections", lambda report: report.update(rejections=None)),
+            ("array rejections", lambda report: report.update(rejections=[])),
+            ("negative rejection", lambda report: report.update(rejections={"solver-unknown": -1})),
+            ("bool rejection", lambda report: report.update(rejections={"solver-unknown": True})),
+            ("float rejection", lambda report: report.update(rejections={"solver-unknown": 1.0})),
+            ("overflow rejection", lambda report: report.update(rejections={"solver-unknown": 1 << 64})),
+            ("empty rejection name", lambda report: report.update(rejections={"": 1})),
+        ]
+        for field in ("seen", "selected", "dispatched", "crashes"):
+            mutations.append(("nonzero " + field, lambda report, field=field: report.update({field: 1})))
+        for field in ("confirmed", "post_failed"):
+            mutations.append(("nonzero " + field,
+                              lambda report, field=field: report["findings"].update({field: 1})))
+        self.assert_rejects(inconclusive_report, mutations, status=2)
+        for status in (0, 1):
+            with self.subTest(status=status), self.assertRaises(RuntimeError):
+                self.classify(inconclusive_report(), status=status)
 
     def test_unexpected_improvement_is_failure_and_preserves_summary(self):
         self.expect(BLOCKER)
@@ -224,12 +467,7 @@ class CampaignTests(unittest.TestCase):
             ("wrong stage", lambda report: report.update(stage="generate")),
             ("error object", lambda report: report.update(error={})),
         ]
-        for name, mutate in mutations:
-            with self.subTest(name=name):
-                report = successful_report()
-                mutate(report)
-                with self.assertRaises(RuntimeError):
-                    self.classify(report)
+        self.assert_rejects(successful_report, mutations)
 
     def test_unbacked_finding_exit_is_rejected(self):
         report = successful_report()
@@ -258,6 +496,11 @@ class CampaignTests(unittest.TestCase):
             ("bad intent", lambda contents: contents["cases"][0].update(intent="skip")),
             ("unknown outcome", lambda contents: contents["cases"][0]["expected"]["bennet"].update(outcome="skip")),
             ("no differing reason", lambda contents: contents["cases"][0]["expected"]["bennet"].update(outcome="finding")),
+            ("inconclusive needs reason", lambda contents: contents["cases"][0]["expected"]["bennet"].update(outcome="inconclusive")),
+            ("unsupported needs reason", lambda contents: contents["cases"][0]["expected"]["bennet"].update(outcome="unsupported")),
+            ("inconclusive rejects fingerprints", lambda contents: contents["cases"][0]["expected"].update(bennet={
+                **INCONCLUSIVE, "rejections": {"solver-unknown": 1},
+            })),
             ("arbitrary blocker", lambda contents: contents["cases"][0]["expected"].update(bennet={
                 "outcome": "blocked", "stage": "compile-target", "kind": "build.cc", "blame": "environment",
                 "message": "compiler failed", "reason": "not supported",

@@ -368,6 +368,1358 @@
           "outcome": "pass"
         }
       }
+    },
+    {
+      "id": "abs_mem.fail-abs_mem",
+      "source": "fixtures/campaigns/abs_mem.fail.c",
+      "function": "abs_mem",
+      "intent": "finding",
+      "expected": {
+        "bennet": {
+          "outcome": "finding"
+        },
+        "darcy": {
+          "outcome": "finding"
+        }
+      }
+    },
+    {
+      "id": "abs_mem.pass-abs_mem",
+      "source": "fixtures/campaigns/abs_mem.pass.c",
+      "function": "abs_mem",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "array_shift.pass-f",
+      "source": "fixtures/campaigns/array_shift.pass.c",
+      "function": "f",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "inconclusive",
+          "reason": "No inputs dispatched with seed 0 and a one-second budget. Recorded generation diagnostics: retries-exhausted, solver-unsupported."
+        }
+      }
+    },
+    {
+      "id": "avl.pass-get_height",
+      "source": "fixtures/campaigns/avl.pass.c",
+      "function": "get_height",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "avl_bounded.pass-avl_id",
+      "source": "fixtures/campaigns/avl_bounded.pass.c",
+      "function": "avl_id",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "inconclusive",
+          "reason": "No inputs dispatched with seed 0 and a one-second budget. Recorded generation diagnostics: solver-unknown."
+        }
+      }
+    },
+    {
+      "id": "bin_tree.pass-deepCopyRecursive",
+      "source": "fixtures/campaigns/bin_tree.pass.c",
+      "function": "deepCopyRecursive",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "bounds.pass-bounds1",
+      "source": "fixtures/campaigns/bounds.pass.c",
+      "function": "bounds1",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "blocked",
+          "stage": "convert",
+          "kind": "driver.convert",
+          "blame": "spec",
+          "message": "convert bounds1: Transform(UnsupportedIndexType { bt: Integer })",
+          "reason": "Austen 0.0.1 rejects mathematical-integer map indices during conversion, including explicitly finite ranges."
+        },
+        "darcy": {
+          "outcome": "inconclusive",
+          "reason": "No inputs dispatched with seed 0 and a one-second budget. Recorded generation diagnostics: solver-unknown."
+        }
+      }
+    },
+    {
+      "id": "bounds.pass-bounds2",
+      "source": "fixtures/campaigns/bounds.pass.c",
+      "function": "bounds2",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "blocked",
+          "stage": "convert",
+          "kind": "driver.convert",
+          "blame": "spec",
+          "message": "convert bounds2: Transform(UnsupportedIndexType { bt: Integer })",
+          "reason": "Austen 0.0.1 rejects mathematical-integer map indices during conversion, including explicitly finite ranges."
+        },
+        "darcy": {
+          "outcome": "inconclusive",
+          "reason": "No inputs dispatched with seed 0 and a one-second budget. Recorded generation diagnostics: solver-unknown."
+        }
+      }
+    },
+    {
+      "id": "bounds.pass-bounds3",
+      "source": "fixtures/campaigns/bounds.pass.c",
+      "function": "bounds3",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "blocked",
+          "stage": "convert",
+          "kind": "driver.convert",
+          "blame": "spec",
+          "message": "convert bounds3: Transform(UnsupportedIndexType { bt: Integer })",
+          "reason": "Austen 0.0.1 rejects mathematical-integer map indices during conversion, including explicitly finite ranges."
+        },
+        "darcy": {
+          "outcome": "inconclusive",
+          "reason": "No inputs dispatched with seed 0 and a one-second budget. Recorded generation diagnostics: solver-unknown."
+        }
+      }
+    },
+    {
+      "id": "bounds.pass-bounds4",
+      "source": "fixtures/campaigns/bounds.pass.c",
+      "function": "bounds4",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "blocked",
+          "stage": "convert",
+          "kind": "driver.convert",
+          "blame": "spec",
+          "message": "convert bounds4: Transform(UnsupportedIndexType { bt: Integer })",
+          "reason": "Austen 0.0.1 rejects mathematical-integer map indices during conversion, including explicitly finite ranges."
+        },
+        "darcy": {
+          "outcome": "unsupported",
+          "reason": "Austen 0.0.1 cannot evaluate this disjunctive integer-index precondition; every selected input reports pre_unsupported and none dispatches."
+        }
+      }
+    },
+    {
+      "id": "bst.flaky-map_insert",
+      "source": "fixtures/campaigns/bst.flaky.c",
+      "function": "map_insert",
+      "intent": "finding",
+      "expected": {
+        "bennet": {
+          "outcome": "finding"
+        },
+        "darcy": {
+          "outcome": "pass",
+          "reason": "The intentional duplicate-key bug produced no confirmed finding with Darcy, seed 0 and a one-second budget; retain the finding intent explicitly."
+        }
+      }
+    },
+    {
+      "id": "bst.pass-deleteKey",
+      "source": "fixtures/campaigns/bst.pass.c",
+      "function": "deleteKey",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "bst.pass-deleteSmallest",
+      "source": "fixtures/campaigns/bst.pass.c",
+      "function": "deleteSmallest",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "inconclusive",
+          "reason": "No inputs dispatched with seed 0 and a one-second budget. Recorded generation diagnostics: solver-unknown."
+        }
+      }
+    },
+    {
+      "id": "bst.pass-findParent",
+      "source": "fixtures/campaigns/bst.pass.c",
+      "function": "findParent",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "bst.pass-map_insert",
+      "source": "fixtures/campaigns/bst.pass.c",
+      "function": "map_insert",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "bst.pass-newNode",
+      "source": "fixtures/campaigns/bst.pass.c",
+      "function": "newNode",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "counter.pass-count",
+      "source": "fixtures/campaigns/counter.pass.c",
+      "function": "count",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "counter.pass-count_alt",
+      "source": "fixtures/campaigns/counter.pass.c",
+      "function": "count_alt",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "delete_main.pass-ten",
+      "source": "fixtures/campaigns/delete_main.pass.c",
+      "function": "ten",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "dll.pass-add",
+      "source": "fixtures/campaigns/dll.pass.c",
+      "function": "add",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "dll.pass-list_remove",
+      "source": "fixtures/campaigns/dll.pass.c",
+      "function": "list_remove",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "dll.pass-singleton",
+      "source": "fixtures/campaigns/dll.pass.c",
+      "function": "singleton",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "dll.pass-slcons",
+      "source": "fixtures/campaigns/dll.pass.c",
+      "function": "slcons",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "dll.pass-slnil",
+      "source": "fixtures/campaigns/dll.pass.c",
+      "function": "slnil",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "export_widths.pass-aggregate_echo",
+      "source": "fixtures/campaigns/export_widths.pass.c",
+      "function": "aggregate_echo",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "blocked",
+          "stage": "convert",
+          "kind": "driver.convert",
+          "blame": "spec",
+          "message": "convert aggregate_echo: Transform(UnsupportedIndexType { bt: Integer })",
+          "reason": "Austen 0.0.1 rejects mathematical-integer map indices during conversion, including explicitly finite ranges."
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "export_widths.pass-empty_array",
+      "source": "fixtures/campaigns/export_widths.pass.c",
+      "function": "empty_array",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "blocked",
+          "stage": "convert",
+          "kind": "driver.convert",
+          "blame": "spec",
+          "message": "convert empty_array: Transform(UnsupportedIndexType { bt: Integer })",
+          "reason": "Austen 0.0.1 rejects mathematical-integer map indices during conversion, including explicitly finite ranges."
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "export_widths.pass-fixed_array",
+      "source": "fixtures/campaigns/export_widths.pass.c",
+      "function": "fixed_array",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "blocked",
+          "stage": "convert",
+          "kind": "driver.convert",
+          "blame": "spec",
+          "message": "convert fixed_array: Transform(UnsupportedIndexType { bt: Integer })",
+          "reason": "Austen 0.0.1 rejects mathematical-integer map indices during conversion, including explicitly finite ranges."
+        },
+        "darcy": {
+          "outcome": "blocked",
+          "stage": "generate",
+          "kind": "driver.unrunnable",
+          "blame": "spec",
+          "message": "the generator is structurally unrunnable: no scalar width for base type Map(Bits(Unsigned, 64), Bits(Signed, 32))",
+          "reason": "Austen 0.0.1 draws the standalone owned array as a generic map without its fixed C shape."
+        }
+      }
+    },
+    {
+      "id": "export_widths.pass-owned_aggregate",
+      "source": "fixtures/campaigns/export_widths.pass.c",
+      "function": "owned_aggregate",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "blocked",
+          "stage": "convert",
+          "kind": "driver.convert",
+          "blame": "spec",
+          "message": "convert owned_aggregate: Transform(UnsupportedIndexType { bt: Integer })",
+          "reason": "Austen 0.0.1 rejects mathematical-integer map indices during conversion, including explicitly finite ranges."
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "export_widths.pass-quantified_array",
+      "source": "fixtures/campaigns/export_widths.pass.c",
+      "function": "quantified_array",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "blocked",
+          "stage": "convert",
+          "kind": "driver.convert",
+          "blame": "spec",
+          "message": "convert quantified_array: Transform(UnsupportedIndexType { bt: Integer })",
+          "reason": "Austen 0.0.1 rejects mathematical-integer map indices during conversion, including explicitly finite ranges."
+        },
+        "darcy": {
+          "outcome": "inconclusive",
+          "reason": "No inputs dispatched with seed 0 and a one-second budget. Recorded generation diagnostics: solver-unknown."
+        }
+      }
+    },
+    {
+      "id": "ini_queue.fail-put",
+      "source": "fixtures/campaigns/ini_queue.fail.c",
+      "function": "put",
+      "intent": "finding",
+      "expected": {
+        "bennet": {
+          "outcome": "blocked",
+          "stage": "convert",
+          "kind": "driver.convert",
+          "blame": "spec",
+          "message": "convert put: Transform(UnsupportedIndexType { bt: Integer })",
+          "reason": "Austen 0.0.1 rejects mathematical-integer map indices during conversion, including explicitly finite ranges."
+        },
+        "darcy": {
+          "outcome": "inconclusive",
+          "reason": "No inputs dispatched with seed 0 and a one-second budget. Recorded generation diagnostics: solver-unknown."
+        }
+      }
+    },
+    {
+      "id": "ini_queue.pass-get",
+      "source": "fixtures/campaigns/ini_queue.pass.c",
+      "function": "get",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "blocked",
+          "stage": "convert",
+          "kind": "driver.convert",
+          "blame": "spec",
+          "message": "convert get: Transform(UnsupportedIndexType { bt: Integer })",
+          "reason": "Austen 0.0.1 rejects mathematical-integer map indices during conversion, including explicitly finite ranges."
+        },
+        "darcy": {
+          "outcome": "inconclusive",
+          "reason": "No inputs dispatched with seed 0 and a one-second budget. Recorded generation diagnostics: solver-unknown."
+        }
+      }
+    },
+    {
+      "id": "ini_queue.pass-malloc_buf",
+      "source": "fixtures/campaigns/ini_queue.pass.c",
+      "function": "malloc_buf",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "ini_queue.pass-malloc_queue",
+      "source": "fixtures/campaigns/ini_queue.pass.c",
+      "function": "malloc_queue",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "ini_queue.pass-new",
+      "source": "fixtures/campaigns/ini_queue.pass.c",
+      "function": "new",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "ini_queue.pass-put",
+      "source": "fixtures/campaigns/ini_queue.pass.c",
+      "function": "put",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "blocked",
+          "stage": "convert",
+          "kind": "driver.convert",
+          "blame": "spec",
+          "message": "convert put: Transform(UnsupportedIndexType { bt: Integer })",
+          "reason": "Austen 0.0.1 rejects mathematical-integer map indices during conversion, including explicitly finite ranges."
+        },
+        "darcy": {
+          "outcome": "inconclusive",
+          "reason": "No inputs dispatched with seed 0 and a one-second budget. Recorded generation diagnostics: solver-unknown."
+        }
+      }
+    },
+    {
+      "id": "ini_queue.pass-queueSize",
+      "source": "fixtures/campaigns/ini_queue.pass.c",
+      "function": "queueSize",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "blocked",
+          "stage": "convert",
+          "kind": "driver.convert",
+          "blame": "spec",
+          "message": "convert queueSize: Transform(UnsupportedIndexType { bt: Integer })",
+          "reason": "Austen 0.0.1 rejects mathematical-integer map indices during conversion, including explicitly finite ranges."
+        },
+        "darcy": {
+          "outcome": "inconclusive",
+          "reason": "No inputs dispatched with seed 0 and a one-second budget. Recorded generation diagnostics: solver-unknown."
+        }
+      }
+    },
+    {
+      "id": "learn_multiple.special-p",
+      "source": "fixtures/campaigns/learn_multiple.special.c",
+      "function": "p",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "inconclusive",
+          "reason": "No inputs dispatched with seed 0 and a one-second budget. Recorded generation diagnostics: assert-failed, let-exhausted, retries-exhausted."
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "list_rev.fail-IntList_rev_aux",
+      "source": "fixtures/campaigns/list_rev.fail.c",
+      "function": "IntList_rev_aux",
+      "intent": "finding",
+      "expected": {
+        "bennet": {
+          "outcome": "finding"
+        },
+        "darcy": {
+          "outcome": "finding"
+        }
+      }
+    },
+    {
+      "id": "list_rev.pass-IntList_rev",
+      "source": "fixtures/campaigns/list_rev.pass.c",
+      "function": "IntList_rev",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "list_rev.pass-IntList_rev_aux",
+      "source": "fixtures/campaigns/list_rev.pass.c",
+      "function": "IntList_rev_aux",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "list_seg.pass-sum",
+      "source": "fixtures/campaigns/list_seg.pass.c",
+      "function": "sum",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "member_shift.pass-f",
+      "source": "fixtures/campaigns/member_shift.pass.c",
+      "function": "f",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "memcpy.pass-naive_memcpy",
+      "source": "fixtures/campaigns/memcpy.pass.c",
+      "function": "naive_memcpy",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "blocked",
+          "stage": "convert",
+          "kind": "driver.convert",
+          "blame": "spec",
+          "message": "convert naive_memcpy: Transform(UnsupportedIndexType { bt: Integer })",
+          "reason": "Austen 0.0.1 rejects mathematical-integer map indices during conversion, including explicitly finite ranges."
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "mps_1.pass-Coincidence_2_4",
+      "source": "fixtures/campaigns/mps_1.pass.c",
+      "function": "Coincidence_2_4",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "inconclusive",
+          "reason": "No inputs dispatched with seed 0 and a one-second budget. Recorded generation diagnostics: retries-exhausted, solver-unsupported."
+        }
+      }
+    },
+    {
+      "id": "non_access_global.pass-access_global",
+      "source": "fixtures/campaigns/non_access_global.pass.c",
+      "function": "access_global",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "pointer_ordering.special-need_ordered_pointers",
+      "source": "fixtures/campaigns/pointer_ordering.special.c",
+      "function": "need_ordered_pointers",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "inconclusive",
+          "reason": "No inputs dispatched with seed 0 and a one-second budget. Recorded generation diagnostics: asgn-out-of-bounds, assert-failed, let-exhausted, retries-exhausted."
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "range.fail-range",
+      "source": "fixtures/campaigns/range.fail.c",
+      "function": "range",
+      "intent": "finding",
+      "expected": {
+        "bennet": {
+          "outcome": "blocked",
+          "stage": "convert",
+          "kind": "driver.convert",
+          "blame": "spec",
+          "message": "convert range: Transform(UnsupportedIndexType { bt: Integer })",
+          "reason": "Austen 0.0.1 rejects mathematical-integer map indices during conversion, including explicitly finite ranges."
+        },
+        "darcy": {
+          "outcome": "inconclusive",
+          "reason": "No inputs dispatched with seed 0 and a one-second budget. Recorded generation diagnostics: solver-unknown."
+        }
+      }
+    },
+    {
+      "id": "range.pass-range",
+      "source": "fixtures/campaigns/range.pass.c",
+      "function": "range",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "blocked",
+          "stage": "convert",
+          "kind": "driver.convert",
+          "blame": "spec",
+          "message": "convert range: Transform(UnsupportedIndexType { bt: Integer })",
+          "reason": "Austen 0.0.1 rejects mathematical-integer map indices during conversion, including explicitly finite ranges."
+        },
+        "darcy": {
+          "outcome": "inconclusive",
+          "reason": "No inputs dispatched with seed 0 and a one-second budget. Recorded generation diagnostics: solver-unknown."
+        }
+      }
+    },
+    {
+      "id": "record.pass-f",
+      "source": "fixtures/campaigns/record.pass.c",
+      "function": "f",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "record.pass-test_basic_constructor",
+      "source": "fixtures/campaigns/record.pass.c",
+      "function": "test_basic_constructor",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "record.pass-test_constructor_record",
+      "source": "fixtures/campaigns/record.pass.c",
+      "function": "test_constructor_record",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "record.pass-test_simple_record",
+      "source": "fixtures/campaigns/record.pass.c",
+      "function": "test_simple_record",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "runway.fail-increment_Runway_Time",
+      "source": "fixtures/campaigns/runway.fail.c",
+      "function": "increment_Runway_Time",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "runway.fail-tick",
+      "source": "fixtures/campaigns/runway.fail.c",
+      "function": "tick",
+      "intent": "finding",
+      "expected": {
+        "bennet": {
+          "outcome": "pass",
+          "reason": "The legacy finding depended on checking an internal call to increment_Runway_Time against its precondition. Austen checks the selected function at entry and exit, so tick currently passes."
+        },
+        "darcy": {
+          "outcome": "pass",
+          "reason": "The legacy finding depended on checking an internal call to increment_Runway_Time against its precondition. Austen checks the selected function at entry and exit, so tick currently passes."
+        }
+      }
+    },
+    {
+      "id": "runway.pass-arrive",
+      "source": "fixtures/campaigns/runway.pass.c",
+      "function": "arrive",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "runway.pass-depart",
+      "source": "fixtures/campaigns/runway.pass.c",
+      "function": "depart",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "runway.pass-increment_Plane_Counter",
+      "source": "fixtures/campaigns/runway.pass.c",
+      "function": "increment_Plane_Counter",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "runway.pass-increment_Runway_Time",
+      "source": "fixtures/campaigns/runway.pass.c",
+      "function": "increment_Runway_Time",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "runway.pass-init",
+      "source": "fixtures/campaigns/runway.pass.c",
+      "function": "init",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "runway.pass-reset_Plane_Counter",
+      "source": "fixtures/campaigns/runway.pass.c",
+      "function": "reset_Plane_Counter",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "runway.pass-reset_Runway_Time",
+      "source": "fixtures/campaigns/runway.pass.c",
+      "function": "reset_Runway_Time",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "runway.pass-switch_modes",
+      "source": "fixtures/campaigns/runway.pass.c",
+      "function": "switch_modes",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "runway.pass-tick",
+      "source": "fixtures/campaigns/runway.pass.c",
+      "function": "tick",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "sized_array.pass-test_gen_const_array",
+      "source": "fixtures/campaigns/sized_array.pass.c",
+      "function": "test_gen_const_array",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "slf_sized_stack.pass-IntList_cons",
+      "source": "fixtures/campaigns/slf_sized_stack.pass.c",
+      "function": "IntList_cons",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "slf_sized_stack.pass-IntList_length",
+      "source": "fixtures/campaigns/slf_sized_stack.pass.c",
+      "function": "IntList_length",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "slf_sized_stack.pass-IntList_nil",
+      "source": "fixtures/campaigns/slf_sized_stack.pass.c",
+      "function": "IntList_nil",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "slf_sized_stack.pass-create",
+      "source": "fixtures/campaigns/slf_sized_stack.pass.c",
+      "function": "create",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "slf_sized_stack.pass-pop",
+      "source": "fixtures/campaigns/slf_sized_stack.pass.c",
+      "function": "pop",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "inconclusive",
+          "reason": "No inputs dispatched with seed 0 and a one-second budget. Recorded generation diagnostics: solver-unknown."
+        }
+      }
+    },
+    {
+      "id": "slf_sized_stack.pass-push",
+      "source": "fixtures/campaigns/slf_sized_stack.pass.c",
+      "function": "push",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "slf_sized_stack.pass-sizeOf",
+      "source": "fixtures/campaigns/slf_sized_stack.pass.c",
+      "function": "sizeOf",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "slf_sized_stack.pass-top",
+      "source": "fixtures/campaigns/slf_sized_stack.pass.c",
+      "function": "top",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "inconclusive",
+          "reason": "No inputs dispatched with seed 0 and a one-second budget. Recorded generation diagnostics: solver-unknown."
+        }
+      }
+    },
+    {
+      "id": "sorted_list.cons.fail-cons",
+      "source": "fixtures/campaigns/sorted_list.cons.fail.c",
+      "function": "cons",
+      "intent": "finding",
+      "expected": {
+        "bennet": {
+          "outcome": "finding"
+        },
+        "darcy": {
+          "outcome": "finding"
+        }
+      }
+    },
+    {
+      "id": "sorted_list.insert.flaky-insert",
+      "source": "fixtures/campaigns/sorted_list.insert.flaky.c",
+      "function": "insert",
+      "intent": "finding",
+      "expected": {
+        "bennet": {
+          "outcome": "finding"
+        },
+        "darcy": {
+          "outcome": "finding"
+        }
+      }
+    },
+    {
+      "id": "sorted_list.insert.pass-insert",
+      "source": "fixtures/campaigns/sorted_list.insert.pass.c",
+      "function": "insert",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "sorted_list.sum.pass-sum",
+      "source": "fixtures/campaigns/sorted_list.sum.pass.c",
+      "function": "sum",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "sorted_list_alt.insert.flaky-insert",
+      "source": "fixtures/campaigns/sorted_list_alt.insert.flaky.c",
+      "function": "insert",
+      "intent": "finding",
+      "expected": {
+        "bennet": {
+          "outcome": "finding"
+        },
+        "darcy": {
+          "outcome": "finding"
+        }
+      }
+    },
+    {
+      "id": "sorted_list_alt.insert.pass-insert",
+      "source": "fixtures/campaigns/sorted_list_alt.insert.pass.c",
+      "function": "insert",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "sorted_list_alt2.pass-insert",
+      "source": "fixtures/campaigns/sorted_list_alt2.pass.c",
+      "function": "insert",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "blocked",
+          "stage": "generate",
+          "kind": "driver.unrunnable",
+          "blame": "spec",
+          "message": "the generator is structurally unrunnable: input defaults do not support base type Integer",
+          "reason": "Austen 0.0.1 cannot construct default logical Integer values on this generation path; the error can follow successful dispatches."
+        }
+      }
+    },
+    {
+      "id": "sorted_list_alt2.pass-sum",
+      "source": "fixtures/campaigns/sorted_list_alt2.pass.c",
+      "function": "sum",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "blocked",
+          "stage": "generate",
+          "kind": "driver.unrunnable",
+          "blame": "spec",
+          "message": "the generator is structurally unrunnable: input defaults do not support base type Integer",
+          "reason": "Austen 0.0.1 cannot construct default logical Integer values on this generation path; the error can follow successful dispatches."
+        }
+      }
+    },
+    {
+      "id": "sorted_list_alt3.pass-insert",
+      "source": "fixtures/campaigns/sorted_list_alt3.pass.c",
+      "function": "insert",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "sorted_list_alt3.pass-sum",
+      "source": "fixtures/campaigns/sorted_list_alt3.pass.c",
+      "function": "sum",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "struct_arg_destruct.pass-reset_Plane_Counter",
+      "source": "fixtures/campaigns/struct_arg_destruct.pass.c",
+      "function": "reset_Plane_Counter",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "tutorial_queue.pass-empty_queue",
+      "source": "fixtures/campaigns/tutorial_queue.pass.c",
+      "function": "empty_queue",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "tutorial_queue.pass-pop_queue",
+      "source": "fixtures/campaigns/tutorial_queue.pass.c",
+      "function": "pop_queue",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "inconclusive",
+          "reason": "No inputs dispatched with seed 0 and a one-second budget. Recorded generation diagnostics: asgn-out-of-bounds, assert-failed, assert-unevaluatable, let-exhausted, retries-exhausted."
+        },
+        "darcy": {
+          "outcome": "inconclusive",
+          "reason": "No inputs dispatched with seed 0 and a one-second budget. Recorded generation diagnostics: path-unsat, retries-exhausted, solver-unsupported."
+        }
+      }
+    },
+    {
+      "id": "tutorial_queue.pass-push_lemma",
+      "source": "fixtures/campaigns/tutorial_queue.pass.c",
+      "function": "push_lemma",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "inconclusive",
+          "reason": "No inputs dispatched with seed 0 and a one-second budget. Recorded generation diagnostics: asgn-out-of-bounds, assert-failed, assert-unevaluatable, let-exhausted, retries-exhausted."
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "tutorial_queue.pass-push_queue",
+      "source": "fixtures/campaigns/tutorial_queue.pass.c",
+      "function": "push_queue",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "void_pred.pass-free_foo",
+      "source": "fixtures/campaigns/void_pred.pass.c",
+      "function": "free_foo",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
     }
   ]
 }
