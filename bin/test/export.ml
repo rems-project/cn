@@ -44,7 +44,7 @@ let run
     ~allow_split_magic_comments (* Callbacks *)
     ~save_cpp:None
     ~disable_linemarkers:false
-    ~handle_error:Shared.handle_type_error
+    ~handle_error:Common.print_type_error_and_exit
     ~f:(fun ~cerb_conf:_ ~prog5 ~ail_prog ~statement_locs:_ ~paused ->
       let _, sigma = ail_prog in
       (* Function metadata consults the test-generation config only to choose a

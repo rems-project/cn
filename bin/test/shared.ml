@@ -8,12 +8,6 @@ open Cn
    from the common flags, so unset engine flags keep their defaults. *)
 type engine_flags = TestGeneration.config -> TestGeneration.config
 
-let handle_type_error (e : TypeErrors.t) =
-  let report = TypeErrors.pp_message e.msg in
-  Pp.error e.loc report.short (Option.to_list report.descr);
-  match e.msg with TypeErrors.Unsupported _ -> exit 2 | _ -> exit 1
-
-
 (* Preprocessor macros defined for every `cn test` subcommand, so exported
    specifications come from the same source that test generation sees. *)
 let test_macros = [ ("__CN_TEST", None); ("__CN_INSTRUMENT", None) ]
@@ -120,7 +114,7 @@ let run
     ~allow_split_magic_comments (* Callbacks *)
     ~save_cpp:(Some pp_file)
     ~disable_linemarkers:true
-    ~handle_error:handle_type_error
+    ~handle_error:Common.print_type_error_and_exit
     ~f:(fun ~cerb_conf ~prog5 ~ail_prog ~statement_locs:_ ~paused ->
       let config : TestGeneration.config =
         { TestGeneration.default_cfg with

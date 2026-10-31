@@ -118,11 +118,6 @@ let generate_executable_specs
   Check.fail_fast := fail_fast;
   Sym.executable_spec_enabled := true;
   Sym.experimental_unions := experimental_unions;
-  let handle_error (e : TypeErrors.t) =
-    let report = TypeErrors.pp_message e.msg in
-    Pp.error e.loc report.short (Option.to_list report.descr);
-    match e.msg with TypeErrors.Unsupported _ -> exit 2 | _ -> exit 1
-  in
   let filename = Common.there_can_only_be_one filename in
   let basefile = Filename.basename filename in
   let pp_file = Filename.temp_file "cn_" basefile in
@@ -149,7 +144,7 @@ let generate_executable_specs
     ~save_cpp:(Some pp_file)
     ~disable_linemarkers:(not source_locs_mode)
       (* If output locations requested, disable linemarkers in preproc step *)
-    ~handle_error
+    ~handle_error:Common.print_type_error_and_exit
     ~f:(fun ~cerb_conf ~prog5 ~ail_prog ~statement_locs:_ ~paused:_ ->
       if run && Option.is_none prog5.main then (
         print_endline "Tried running instrumented file (`--run`) without `main` function.";

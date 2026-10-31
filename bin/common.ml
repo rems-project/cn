@@ -276,6 +276,13 @@ let handle_type_error
   exit (exit_code_of_error error)
 
 
+(** Print the provided error as a located diagnostic, then exit. *)
+let print_type_error_and_exit (error : TypeErrors.t) =
+  let report = TypeErrors.pp_message error.msg in
+  Pp.error error.loc report.short (Option.to_list report.descr);
+  exit (exit_code_of_error error)
+
+
 let print_uncaught_exception (e : exn) : unit =
   let msg = Printexc.to_string e in
   let stack = Printexc.get_backtrace () in
