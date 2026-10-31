@@ -15,9 +15,8 @@ let set_flags ~debug_level ~print_level =
 
 
 (* Run the CN frontend on [filename] and call [f] with the checked program.
-   [save_cpp] and [disable_linemarkers] are the only settings that differ
-   between export (diagnostics cite original lines) and the legacy testing path
-   (Fulminate consumes the saved preprocessed file). *)
+   Export passes [~save_cpp:None ~disable_linemarkers:false], so diagnostics
+   cite original source lines. *)
 let with_checked_program
       ~filename
       ~cc

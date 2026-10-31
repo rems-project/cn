@@ -6,7 +6,6 @@ end
 
 module Config = TestGenConfig
 module Options = Config.Options
-module Releases = Releases
 
 type engine = TestGenConfig.engine =
   | Bennet

@@ -18,7 +18,6 @@ val default_cfg : config
 val set_config : config -> unit
 
 module Options = TestGenConfig.Options
-module Releases = Releases
 
 (** Testing roots: specified, non-[main] function definitions that CN can test,
     restricted by [skip_and_only]. *)

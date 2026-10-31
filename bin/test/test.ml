@@ -42,17 +42,14 @@ let legacy_t =
 
 
 let doc =
-  "Generates tests for all functions in [FILE] with CN specifications.\n\
-  \    The inputs are guaranteed to satisfy the CN precondition.\n\
-  \    Engines: bennet (random backtracking search, the default), darcy \
-   (symbolic/SMT-based), lucas (randomized refinement of abstract elements).\n\
-  \    Paper-release subcommands (e.g. darcy-pldi26) run an engine with frozen settings.\n\
-  \    The export subcommand writes the specification JSON without testing.\n\
-  \    A script [run_tests.sh] for building and running the tests will be placed in \
-   [output-dir]."
+  "Tests all functions in [FILE] with CN specifications.\n\
+  \    Engines: bennet (random backtracking search, the default) and darcy \
+   (symbolic/SMT-based). The testing backend is temporarily unavailable; lucas is not \
+   supported.\n\
+  \    The export subcommand writes the specification JSON without testing."
 
 
-let subcommands = [ Bennet.cmd; Darcy.cmd; Lucas.cmd ] @ Releases.all @ [ Export.cmd ]
+let subcommands = [ Bennet.cmd; Darcy.cmd; Lucas.cmd; Export.cmd ]
 
 let cmd = Cmd.group (Cmd.info "test" ~doc) subcommands
 
