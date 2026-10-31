@@ -274,6 +274,3 @@ let rec remove_last_semicolon =
     let res = String.concat ";" without_whitespace_x in
     [ res ]
   | x :: xs -> x :: remove_last_semicolon xs
-
-
-let is_register (_, ((_, _, b), _, _, _)) = b
