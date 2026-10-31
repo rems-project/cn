@@ -197,10 +197,7 @@ module Flags = struct
 
   let seed =
     let doc = "Set the seed for random testing" in
-    Arg.(
-      value
-      & opt (some string) TestGeneration.default_cfg.seed
-      & info ~docs:s_generation [ "seed" ] ~doc)
+    Arg.(value & opt (some string) None & info ~docs:s_generation [ "seed" ] ~doc)
 
 
   let logging_level =
@@ -235,10 +232,7 @@ module Flags = struct
 
   let until_timeout =
     let doc = "Run tests until the given timeout (in seconds) has been reached" in
-    Arg.(
-      value
-      & opt (some int) TestGeneration.default_cfg.until_timeout
-      & info ~docs:s_generation [ "until-timeout" ] ~doc)
+    Arg.(value & opt (some int) None & info ~docs:s_generation [ "until-timeout" ] ~doc)
 
 
   let exit_fast =
@@ -290,10 +284,7 @@ module Flags = struct
 
   let output_tyche =
     let doc = "Enable output in Tyche format" in
-    Arg.(
-      value
-      & opt (some string) TestGeneration.default_cfg.output_tyche
-      & info ~docs:s_output [ "output-tyche" ] ~doc)
+    Arg.(value & opt (some string) None & info ~docs:s_output [ "output-tyche" ] ~doc)
 
 
   let export_spec_json =
@@ -453,6 +444,44 @@ module Flags = struct
       & info ~docs:s_generation [ "max-array-length" ] ~doc)
 end
 
+(* With [--no-run], which runs no campaign, Bennet and Darcy reject the
+   campaign-only flags as a usage error, naming the first one given. Lucas is
+   unsupported whatever its flags, so it is not checked. Their CLI defaults
+   are unset, so a set value was given explicitly. *)
+let reject_campaign_options_with_no_run (engine : TestGeneration.engine Term.t)
+  : TestGeneration.engine Term.t
+  =
+  let check engine dont_run until_timeout seed output_tyche exit_fast =
+    let given =
+      [ ("--until-timeout", Option.is_some until_timeout);
+        ("--seed", Option.is_some seed);
+        ("--output-tyche", Option.is_some output_tyche);
+        ("--exit-fast", exit_fast)
+      ]
+    in
+    (match (engine, List.find_opt snd given) with
+     | (TestGeneration.Bennet | Darcy), Some (flag, _) when dont_run ->
+       let name = TestGeneration.Config.cli_name engine in
+       Printf.eprintf
+         "cn test %s: %s cannot be used with --no-run, which runs no campaign.\n\
+          Try 'cn test %s --help' for more information.\n"
+         name
+         flag
+         name;
+       exit Cmd.Exit.cli_error
+     | _ -> ());
+    engine
+  in
+  Term.(
+    const check
+    $ engine
+    $ Flags.dont_run
+    $ Flags.until_timeout
+    $ Flags.seed
+    $ Flags.output_tyche
+    $ Flags.exit_fast)
+
+
 (* Compose two engine flag updaters *)
 let compose_flags (a : engine_flags Term.t) (b : engine_flags Term.t)
   : engine_flags Term.t
@@ -502,8 +531,10 @@ let gen_term : engine_flags Term.t =
 (* The common flag chain, shared by all engine subcommands. [engine] decides
    which engine runs; [engine_flags] is the engine's config updater, so
    wrong-engine flags are rejected as unknown options. Until a backend is
-   connected, [$-] parses each flag but discards its value, and [run] is
-   applied only after every flag has been converted. *)
+   connected, [$-] parses each other flag but discards its value. Cmdliner
+   evaluates a function term before its argument, so the [--no-run] check
+   wraps the chain, and it and [run] apply only after every flag has been
+   converted. *)
 let mk_term
       ~(engine : TestGeneration.engine Term.t)
       ~(experimental_section : string -> string)
@@ -540,24 +571,19 @@ let mk_term
      $- Flags.skip
      $- Flags.only_fulminate
      $- Flags.skip_fulminate
-     $- Flags.dont_run
      $- Flags.gen_max_unfolds
      $- Term.product Flags.sanitize Flags.no_sanitize
      $- Flags.print_seed
      $- Flags.input_timeout
      $- Flags.null_in_every
-     $- Flags.seed
      $- Flags.logging_level
      $- Flags.trace_granularity
      $- Flags.progress_level
-     $- Flags.until_timeout
-     $- Flags.exit_fast
      $- Flags.coverage ~docs:(experimental_section s_output)
      $- Flags.disable_passes
      $- Flags.trap
      $- Flags.no_replays
      $- Flags.no_replicas
-     $- Flags.output_tyche
      $- Flags.export_spec_json
      $- Flags.inline
      $- Flags.experimental_struct_asgn_destruction
@@ -577,7 +603,8 @@ let mk_term
      $- Flags.max_input_alloc
      $- Flags.dsl_log_dir
      $- Flags.disable_specialization
-     $- compose_flags gen_term engine_flags)
+     $- compose_flags gen_term engine_flags
+     |> reject_campaign_options_with_no_run)
 
 
 (* Build an engine subcommand. [engine] is named once - both the runtime engine

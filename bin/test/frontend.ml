@@ -5,8 +5,9 @@
 
 open Cn
 
-(* Preprocessor macros defined for every `cn test` subcommand. *)
-let test_macros = [ ("__CN_TEST", None); ("__CN_INSTRUMENT", None) ]
+(* Preprocessor macros defined for every `cn test` subcommand. Unlike
+   `cn instrument`, testing does not define [__CN_INSTRUMENT]. *)
+let test_macros = [ ("__CN_TEST", None) ]
 
 let set_flags ~debug_level ~print_level =
   Cerb_debug.debug_level := debug_level;
