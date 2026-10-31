@@ -1,6 +1,4 @@
 module Private = struct
-  module Bennet = Bennet
-  module BuildScripts = BuildScripts
   module SpecExport = SpecExport
 end
 
@@ -16,10 +14,6 @@ type config = Config.t
 
 let default_cfg : config = Config.default
 
-let set_config = Config.initialize
-
 let functions_under_test = TestRoots.functions_under_test
 
 let export_specs = SpecExport.export
-
-let run = LegacyHarness.run

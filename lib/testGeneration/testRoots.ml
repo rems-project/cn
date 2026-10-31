@@ -82,7 +82,7 @@ let functions_under_test
   insts
   |> List.filter (fun (inst : FExtract.instrumentation) ->
     Sym.Set.mem inst.fn selected_fsyms)
-  |> List.map (Test.of_instrumentation sigma paused)
+  |> List.map (Test.of_instrumentation paused)
 
 
 (* Specification export is intentionally broader than test generation. Every
@@ -90,13 +90,10 @@ let functions_under_test
    when it has no user-written clauses or CN cannot generate a test harness
    for its C signature. Declarations are excluded because they have no body
    or definition in this translation unit. *)
-let functions_for_export
-      (sigma : CF.GenTypes.genTypeCategory A.sigma)
-      (prog5 : unit Mucore.file)
-      (paused : _ Typing.pause)
+let functions_for_export (prog5 : unit Mucore.file) (paused : _ Typing.pause)
   : Test.t list
   =
   FExtract.collect_instrumentation prog5
   |> fst
   |> List.filter (fun (inst : FExtract.instrumentation) -> Option.is_some inst.internal)
-  |> List.map (Test.of_instrumentation sigma paused)
+  |> List.map (Test.of_instrumentation paused)

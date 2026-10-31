@@ -1,15 +1,7 @@
-type build_tool =
-  | Bash
-  | Make
-
 type engine =
   | Bennet (* Backtracking random search *)
   | Darcy (* Symbolic constraint-based generation *)
   | Lucas (* Randomized refinement of abstract elements *)
-
-(* Every engine; extend when adding one.
-  ([@@deriving enumerate] on [engine] would generate this automatically.) *)
-let all_of_engine = [ Bennet; Darcy; Lucas ]
 
 let string_of_engine (engine : engine) =
   match engine with Bennet -> "Bennet" | Darcy -> "Darcy" | Lucas -> "Lucas"
@@ -21,21 +13,6 @@ let cli_name (engine : engine) = String.lowercase_ascii (string_of_engine engine
 (* Whether an engine is experimental (not yet ready for general use). *)
 let is_experimental (engine : engine) =
   match engine with Bennet | Darcy -> false | Lucas -> true
-
-
-(* User-facing names of the engines that are ready for general use. *)
-let stable_engine_names =
-  List.filter_map
-    (fun e -> if is_experimental e then None else Some (string_of_engine e))
-    all_of_engine
-
-
-(* User-facing reminder shown when an experimental engine is selected. *)
-let experimental_message (engine : engine) =
-  Printf.sprintf
-    "%s is experimental and not ready for use. Choose a stable engine instead: %s."
-    (string_of_engine engine)
-    (String.concat ", " stable_engine_names)
 
 
 type logging_level =
@@ -82,9 +59,7 @@ type t =
     skip_and_only : string list * string list;
     cc : string;
     print_steps : bool;
-    num_samples : int;
     max_backtracks : int;
-    build_tool : build_tool;
     sanitizers : string option * string option;
     inline : inline_mode;
     experimental_struct_asgn_destruction : bool;
@@ -161,9 +136,7 @@ let default =
   { skip_and_only = ([], []);
     cc = "cc";
     print_steps = false;
-    num_samples = 100;
     max_backtracks = 25;
-    build_tool = Bash;
     sanitizers = (None, None);
     inline = Nothing;
     experimental_struct_asgn_destruction = false;
@@ -279,8 +252,6 @@ let string_of_dynamic_absint_assign_mode (mode : dynamic_absint_assign_mode) =
 
 
 module Options = struct
-  let build_tool = [ ("bash", Bash); ("make", Make) ]
-
   let logging_level : (string * logging_level) list =
     List.map (fun lvl -> (string_of_logging_level lvl, lvl)) [ None; Error; Info ]
 
@@ -322,187 +293,3 @@ module Options = struct
       (fun mode -> (string_of_dynamic_absint_assign_mode mode, mode))
       [ DynamicAbsIntAssignAlso; DynamicAbsIntAssignOnly ]
 end
-
-let instance : t option ref = ref Option.None
-
-let initialize (cfg : t) = instance := Some cfg
-
-let get_skip_and_only () = (Option.get !instance).skip_and_only
-
-let get_cc () = (Option.get !instance).cc
-
-let is_print_steps () = (Option.get !instance).print_steps
-
-let is_print_seed () = (Option.get !instance).print_seed
-
-let get_num_samples () = (Option.get !instance).num_samples
-
-let get_max_backtracks () = (Option.get !instance).max_backtracks
-
-let get_build_tool () = (Option.get !instance).build_tool
-
-let has_sanitizers () = (Option.get !instance).sanitizers
-
-let is_experimental_struct_asgn_destruction () =
-  (Option.get !instance).experimental_struct_asgn_destruction
-
-
-let is_experimental_product_arg_destruction () =
-  (Option.get !instance).experimental_product_arg_destruction
-
-
-let is_experimental_arg_pruning () = (Option.get !instance).experimental_arg_pruning
-
-let is_experimental_return_pruning () = (Option.get !instance).experimental_return_pruning
-
-let is_ad_pruning () = (Option.get !instance).ad_pruning
-
-let has_static_absint () = (Option.get !instance).static_absint
-
-let get_domains () = (Option.get !instance).domains
-
-let get_local_iterations () = (Option.get !instance).local_iterations
-
-let has_smt_pruning_before_absint () = (Option.get !instance).smt_pruning_before_absint
-
-let has_smt_pruning_after_absint () = (Option.get !instance).smt_pruning_after_absint
-
-let is_smt_pruning_remove_redundant_assertions () =
-  (Option.get !instance).smt_pruning_remove_redundant_assertions
-
-
-let is_smt_pruning_at_runtime () = (Option.get !instance).smt_pruning_at_runtime
-
-let is_runtime_assert_domain () = (Option.get !instance).runtime_assert_domain
-
-let get_inline_mode () = (Option.get !instance).inline
-
-let has_input_timeout () = (Option.get !instance).input_timeout
-
-let has_null_in_every () = (Option.get !instance).null_in_every
-
-let has_seed () = (Option.get !instance).seed
-
-let has_logging_level () = (Option.get !instance).logging_level
-
-let has_logging_level_str () =
-  Option.map string_of_logging_level (Option.get !instance).logging_level
-
-
-let has_trace_granularity () = (Option.get !instance).trace_granularity
-
-let has_trace_granularity_str () =
-  Option.map string_of_trace_granularity (Option.get !instance).trace_granularity
-
-
-let has_progress_level () = (Option.get !instance).progress_level
-
-let has_progress_level_str () =
-  Option.map string_of_progress_level (Option.get !instance).progress_level
-
-
-let is_until_timeout () = (Option.get !instance).until_timeout
-
-let is_exit_fast () = (Option.get !instance).exit_fast
-
-let has_max_stack_depth () = (Option.get !instance).max_stack_depth
-
-let has_max_depth_failures () = (Option.get !instance).max_depth_failures
-
-let has_max_generator_size () = (Option.get !instance).max_generator_size
-
-let has_sizing_strategy () = (Option.get !instance).sizing_strategy
-
-let has_sizing_strategy_str () =
-  Option.map string_of_sizing_strategy (Option.get !instance).sizing_strategy
-
-
-let is_random_size_splits () = (Option.get !instance).random_size_splits
-
-let has_allowed_size_split_backtracks () =
-  (Option.get !instance).allowed_size_split_backtracks
-
-
-let is_coverage () = (Option.get !instance).coverage
-
-let has_pass s = not (List.mem String.equal s (Option.get !instance).disable_passes)
-
-let is_trap () = (Option.get !instance).trap
-
-let has_no_replays () = (Option.get !instance).no_replays
-
-let has_no_replicas () = (Option.get !instance).no_replicas
-
-let get_output_tyche () = (Option.get !instance).output_tyche
-
-let get_export_spec_json () = (Option.get !instance).export_spec_json
-
-let will_print_size_info () = (Option.get !instance).print_size_info
-
-let will_print_backtrack_info () = (Option.get !instance).print_backtrack_info
-
-let will_print_satisfaction_info () = (Option.get !instance).print_satisfaction_info
-
-let will_print_discard_info () = (Option.get !instance).print_discard_info
-
-let will_print_timing_info () = (Option.get !instance).print_timing_info
-
-let is_progress_backtracks () = (Option.get !instance).progress_backtracks
-
-let get_engine () = (Option.get !instance).engine
-
-let is_symbolic_enabled () =
-  match get_engine () with Darcy -> true | Bennet | Lucas -> false
-
-
-let has_symbolic_timeout () = (Option.get !instance).symbolic_timeout
-
-let get_max_unfolds () = (Option.get !instance).max_unfolds
-
-let get_max_array_length () = (Option.get !instance).max_array_length
-
-let is_use_solver_eval () = (Option.get !instance).use_solver_eval
-
-let get_smt_solver () = (Option.get !instance).smt_solver
-
-let is_just_reset_solver () = (Option.get !instance).just_reset_solver
-
-let get_smt_skewing_mode () = (Option.get !instance).smt_skewing_mode
-
-let get_smt_logging () = (Option.get !instance).smt_logging
-
-let get_smt_log_unsat_cores () = (Option.get !instance).smt_log_unsat_cores
-
-let has_max_bump_blocks () = (Option.get !instance).max_bump_blocks
-
-let has_bump_block_size () = (Option.get !instance).bump_block_size
-
-let has_max_input_alloc () = (Option.get !instance).max_input_alloc
-
-let is_smt_skew_pointer_order () = (Option.get !instance).smt_skew_pointer_order
-
-let get_dsl_log_dir () = (Option.get !instance).dsl_log_dir
-
-let is_specialization_disabled () = (Option.get !instance).disable_specialization
-
-let is_only_top_level_ite_lifting () = (Option.get !instance).only_top_level_ite_lifting
-
-let is_extrema_skew_disabled () = (Option.get !instance).disable_extrema_skew
-
-let get_discard_factor () = (Option.get !instance).discard_factor
-
-let has_dynamic_arbitrary_domain () = (Option.get !instance).dynamic_arbitrary_domain
-
-let has_dynamic_arbitrary_propagation () =
-  (Option.get !instance).dynamic_arbitrary_propagation
-
-
-let has_dynamic_assert_domain () = (Option.get !instance).dynamic_assert_domain
-
-let has_dynamic_return_propagation () = (Option.get !instance).dynamic_return_propagation
-
-let is_old_style_alloc () = (Option.get !instance).old_style_alloc
-
-let get_dynamic_absint_assign () = (Option.get !instance).dynamic_absint_assign
-
-let get_dynamic_local_iterations () = (Option.get !instance).dynamic_local_iterations

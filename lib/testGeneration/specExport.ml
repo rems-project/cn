@@ -853,7 +853,7 @@ let json_of_function_linkage (test : Test.t) : json =
     `String "external"
 
 
-let json_of_test _filename sigma (test : Test.t) : json =
+let json_of_test sigma (test : Test.t) : json =
   let name = Sym.pp_string test.fn in
   let params, ret = c_signature sigma test.fn in
   let post, _fn_body = AT.get_return test.internal in
@@ -959,7 +959,7 @@ let save ~path ~filename sigma prog5 (tests : Test.t list) : unit =
   let functions =
     List.filter_map
       (fun (test : Test.t) ->
-         match json_of_test filename sigma test with
+         match json_of_test sigma test with
          | function_json -> Some (test, test_name filename test, function_json)
          | exception Unrepresentable what ->
            Pp.warn_noloc
@@ -1020,4 +1020,4 @@ let save ~path ~filename sigma prog5 (tests : Test.t list) : unit =
 (* Export every function definition in the translation unit (see
    [TestRoots.functions_for_export]). *)
 let export ~path ~filename sigma prog5 paused : unit =
-  save ~path ~filename sigma prog5 (TestRoots.functions_for_export sigma prog5 paused)
+  save ~path ~filename sigma prog5 (TestRoots.functions_for_export prog5 paused)
