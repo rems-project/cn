@@ -82,14 +82,7 @@ let assert_status expected (status, stderr) =
     status
 
 
-let assert_contains ~needle haystack =
-  let n = String.length needle in
-  let rec go i =
-    i + n <= String.length haystack
-    && (String.equal (String.sub haystack i n) needle || go (i + 1))
-  in
-  assert_bool (Printf.sprintf "expected %S in %S" needle haystack) (go 0)
-
+let assert_contains = SpecExport.assert_contains
 
 (* The fixture copied to [dir], the fake Austen's directory and recording,
    and the output directory, all below [dir]. *)

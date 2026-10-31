@@ -22,4 +22,10 @@
        (setenv
         CN_AUSTEN_FORCED_INCLUDE
         %{dep:../fixtures/austen/include/forced.h}
-        (run ./test_runner.exe)))))))))
+        (setenv
+         CN_EXPORT_WIDTHS_FIXTURE
+         %{dep:../fixtures/campaigns/export_widths.pass.c}
+         (setenv
+          CN_UNINIT_VALUE_FIXTURE
+          %{dep:../fixtures/spec_export/uninit_value.c}
+          (run ./test_runner.exe)))))))))))

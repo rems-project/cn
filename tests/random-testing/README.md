@@ -113,14 +113,32 @@ implementations are preserved. CN specifications now use integer terms with
 finite C bounds and the original overflow exclusions. Two no-argument controls
 exercise successful dispatch and a confirmed postcondition failure.
 
-The current 28 engine/function runs have 6 passes, 2 confirmed findings, and 20
-known generator blockers. The blocker is Austen 0.0.1's inability to generate
-an exported unbounded `Integer` scalar argument, even when the specification
-constrains it to finite C bounds. `no_args.pass.c:pred_no_args` executes with both
-engines. `test_macro.fail.c:always_fail` also executes successfully: its legacy
+The exporter gives Austen finite-width C arguments and owned values, then casts
+them to mathematical integers for specification expressions. Logical structs
+use records, with their C storage layouts retained for native calls and memory.
+The width regressions exercise signed boundaries, `UINT64_MAX` with mathematical
+addition, canonical Boolean values, scalar ownership, nested structs passed and
+returned by value, ownership-only structs with arrays, uninitialized ownership,
+and a confirmed postcondition failure.
+The reviewed baseline contains 52 engine/function runs: 48 passes and four
+confirmed findings. All 20 former scalar-width blockers now pass. Equivalent
+raw-bitvector equality constraints supplement the original integer equalities
+so finite draws can be solved without expensive mixed integer/bitvector search.
+
+`no_args.pass.c:pred_no_args` executes with both engines.
+`test_macro.fail.c:always_fail` also executes successfully: its legacy
 finding depended on per-access ownership instrumentation, while Austen checks
 entry/exit oracles. The manifest retains its intended finding and records this
 current difference with a reason; filenames do not determine observed outcomes.
+
+The array functions in `export_widths.pass.c` (`aggregate_echo`,
+`owned_aggregate`, `fixed_array`, `quantified_array`, and `empty_array`) have
+structural export coverage but are not yet selected by the passing campaign
+baseline. Real runs exposed additional Austen 0.0.1 limitations: Bennet rejects
+integer map indices, standalone owned arrays lack C-shape-aware generation, and
+Darcy's dynamic quantified-array case dispatches no inputs. These failures are
+not accepted as successful regressions. Reproductions and the required upstream
+work are recorded in [the Austen handoff](../../docs/austen-integer-export-followups.md).
 
 Only a completed report with dispatched inputs and supported oracle results can
 count as a pass or finding. A known blocker must match its exact report stage,

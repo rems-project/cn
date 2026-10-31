@@ -10,20 +10,10 @@
       "intent": "pass",
       "expected": {
         "bennet": {
-          "outcome": "blocked",
-          "stage": "generate",
-          "kind": "driver.unrunnable",
-          "blame": "spec",
-          "message": "the generator is structurally unrunnable: no scalar width for base type Integer",
-          "reason": "Austen 0.0.1 cannot generate the exported unbounded Integer scalar argument, despite the finite C bounds in the specification."
+          "outcome": "pass"
         },
         "darcy": {
-          "outcome": "blocked",
-          "stage": "generate",
-          "kind": "driver.unrunnable",
-          "blame": "spec",
-          "message": "the generator is structurally unrunnable: no scalar width for base type Integer",
-          "reason": "Austen 0.0.1 cannot generate the exported unbounded Integer scalar argument, despite the finite C bounds in the specification."
+          "outcome": "pass"
         }
       }
     },
@@ -34,20 +24,10 @@
       "intent": "pass",
       "expected": {
         "bennet": {
-          "outcome": "blocked",
-          "stage": "generate",
-          "kind": "driver.unrunnable",
-          "blame": "spec",
-          "message": "the generator is structurally unrunnable: no scalar width for base type Integer",
-          "reason": "Austen 0.0.1 cannot generate the exported unbounded Integer scalar argument, despite the finite C bounds in the specification."
+          "outcome": "pass"
         },
         "darcy": {
-          "outcome": "blocked",
-          "stage": "generate",
-          "kind": "driver.unrunnable",
-          "blame": "spec",
-          "message": "the generator is structurally unrunnable: no scalar width for base type Integer",
-          "reason": "Austen 0.0.1 cannot generate the exported unbounded Integer scalar argument, despite the finite C bounds in the specification."
+          "outcome": "pass"
         }
       }
     },
@@ -58,20 +38,10 @@
       "intent": "pass",
       "expected": {
         "bennet": {
-          "outcome": "blocked",
-          "stage": "generate",
-          "kind": "driver.unrunnable",
-          "blame": "spec",
-          "message": "the generator is structurally unrunnable: no scalar width for base type Integer",
-          "reason": "Austen 0.0.1 cannot generate the exported unbounded Integer scalar argument, despite the finite C bounds in the specification."
+          "outcome": "pass"
         },
         "darcy": {
-          "outcome": "blocked",
-          "stage": "generate",
-          "kind": "driver.unrunnable",
-          "blame": "spec",
-          "message": "the generator is structurally unrunnable: no scalar width for base type Integer",
-          "reason": "Austen 0.0.1 cannot generate the exported unbounded Integer scalar argument, despite the finite C bounds in the specification."
+          "outcome": "pass"
         }
       }
     },
@@ -82,20 +52,10 @@
       "intent": "pass",
       "expected": {
         "bennet": {
-          "outcome": "blocked",
-          "stage": "generate",
-          "kind": "driver.unrunnable",
-          "blame": "spec",
-          "message": "the generator is structurally unrunnable: no scalar width for base type Integer",
-          "reason": "Austen 0.0.1 cannot generate the exported unbounded Integer scalar argument, despite the finite C bounds in the specification."
+          "outcome": "pass"
         },
         "darcy": {
-          "outcome": "blocked",
-          "stage": "generate",
-          "kind": "driver.unrunnable",
-          "blame": "spec",
-          "message": "the generator is structurally unrunnable: no scalar width for base type Integer",
-          "reason": "Austen 0.0.1 cannot generate the exported unbounded Integer scalar argument, despite the finite C bounds in the specification."
+          "outcome": "pass"
         }
       }
     },
@@ -106,20 +66,10 @@
       "intent": "pass",
       "expected": {
         "bennet": {
-          "outcome": "blocked",
-          "stage": "generate",
-          "kind": "driver.unrunnable",
-          "blame": "spec",
-          "message": "the generator is structurally unrunnable: no scalar width for base type Integer",
-          "reason": "Austen 0.0.1 cannot generate the exported unbounded Integer scalar argument, despite the finite C bounds in the specification."
+          "outcome": "pass"
         },
         "darcy": {
-          "outcome": "blocked",
-          "stage": "generate",
-          "kind": "driver.unrunnable",
-          "blame": "spec",
-          "message": "the generator is structurally unrunnable: no scalar width for base type Integer",
-          "reason": "Austen 0.0.1 cannot generate the exported unbounded Integer scalar argument, despite the finite C bounds in the specification."
+          "outcome": "pass"
         }
       }
     },
@@ -130,20 +80,10 @@
       "intent": "pass",
       "expected": {
         "bennet": {
-          "outcome": "blocked",
-          "stage": "generate",
-          "kind": "driver.unrunnable",
-          "blame": "spec",
-          "message": "the generator is structurally unrunnable: no scalar width for base type Integer",
-          "reason": "Austen 0.0.1 cannot generate the exported unbounded Integer scalar argument, despite the finite C bounds in the specification."
+          "outcome": "pass"
         },
         "darcy": {
-          "outcome": "blocked",
-          "stage": "generate",
-          "kind": "driver.unrunnable",
-          "blame": "spec",
-          "message": "the generator is structurally unrunnable: no scalar width for base type Integer",
-          "reason": "Austen 0.0.1 cannot generate the exported unbounded Integer scalar argument, despite the finite C bounds in the specification."
+          "outcome": "pass"
         }
       }
     },
@@ -154,20 +94,10 @@
       "intent": "pass",
       "expected": {
         "bennet": {
-          "outcome": "blocked",
-          "stage": "generate",
-          "kind": "driver.unrunnable",
-          "blame": "spec",
-          "message": "the generator is structurally unrunnable: no scalar width for base type Integer",
-          "reason": "Austen 0.0.1 cannot generate the exported unbounded Integer scalar argument, despite the finite C bounds in the specification."
+          "outcome": "pass"
         },
         "darcy": {
-          "outcome": "blocked",
-          "stage": "generate",
-          "kind": "driver.unrunnable",
-          "blame": "spec",
-          "message": "the generator is structurally unrunnable: no scalar width for base type Integer",
-          "reason": "Austen 0.0.1 cannot generate the exported unbounded Integer scalar argument, despite the finite C bounds in the specification."
+          "outcome": "pass"
         }
       }
     },
@@ -178,20 +108,10 @@
       "intent": "pass",
       "expected": {
         "bennet": {
-          "outcome": "blocked",
-          "stage": "generate",
-          "kind": "driver.unrunnable",
-          "blame": "spec",
-          "message": "the generator is structurally unrunnable: no scalar width for base type Integer",
-          "reason": "Austen 0.0.1 cannot generate the exported unbounded Integer scalar argument, despite the finite C bounds in the specification."
+          "outcome": "pass"
         },
         "darcy": {
-          "outcome": "blocked",
-          "stage": "generate",
-          "kind": "driver.unrunnable",
-          "blame": "spec",
-          "message": "the generator is structurally unrunnable: no scalar width for base type Integer",
-          "reason": "Austen 0.0.1 cannot generate the exported unbounded Integer scalar argument, despite the finite C bounds in the specification."
+          "outcome": "pass"
         }
       }
     },
@@ -202,20 +122,10 @@
       "intent": "pass",
       "expected": {
         "bennet": {
-          "outcome": "blocked",
-          "stage": "generate",
-          "kind": "driver.unrunnable",
-          "blame": "spec",
-          "message": "the generator is structurally unrunnable: no scalar width for base type Integer",
-          "reason": "Austen 0.0.1 cannot generate the exported unbounded Integer scalar argument, despite the finite C bounds in the specification."
+          "outcome": "pass"
         },
         "darcy": {
-          "outcome": "blocked",
-          "stage": "generate",
-          "kind": "driver.unrunnable",
-          "blame": "spec",
-          "message": "the generator is structurally unrunnable: no scalar width for base type Integer",
-          "reason": "Austen 0.0.1 cannot generate the exported unbounded Integer scalar argument, despite the finite C bounds in the specification."
+          "outcome": "pass"
         }
       }
     },
@@ -240,20 +150,10 @@
       "intent": "pass",
       "expected": {
         "bennet": {
-          "outcome": "blocked",
-          "stage": "generate",
-          "kind": "driver.unrunnable",
-          "blame": "spec",
-          "message": "the generator is structurally unrunnable: no scalar width for base type Integer",
-          "reason": "Austen 0.0.1 cannot generate the exported unbounded Integer scalar argument, despite the finite C bounds in the specification."
+          "outcome": "pass"
         },
         "darcy": {
-          "outcome": "blocked",
-          "stage": "generate",
-          "kind": "driver.unrunnable",
-          "blame": "spec",
-          "message": "the generator is structurally unrunnable: no scalar width for base type Integer",
-          "reason": "Austen 0.0.1 cannot generate the exported unbounded Integer scalar argument, despite the finite C bounds in the specification."
+          "outcome": "pass"
         }
       }
     },
@@ -298,6 +198,174 @@
         },
         "darcy": {
           "outcome": "finding"
+        }
+      }
+    },
+    {
+      "id": "export_widths.pass-signed_echo",
+      "source": "fixtures/campaigns/export_widths.pass.c",
+      "function": "signed_echo",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "export_widths.pass-unsigned_echo",
+      "source": "fixtures/campaigns/export_widths.pass.c",
+      "function": "unsigned_echo",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "export_widths.pass-boolean_echo",
+      "source": "fixtures/campaigns/export_widths.pass.c",
+      "function": "boolean_echo",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "export_widths.pass-owned_increment",
+      "source": "fixtures/campaigns/export_widths.pass.c",
+      "function": "owned_increment",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "export_widths.pass-uninitialized_output",
+      "source": "fixtures/campaigns/export_widths.pass.c",
+      "function": "uninitialized_output",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "export_widths.pass-signed_edges",
+      "source": "fixtures/campaigns/export_widths.pass.c",
+      "function": "signed_edges",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "export_widths.pass-unsigned_max",
+      "source": "fixtures/campaigns/export_widths.pass.c",
+      "function": "unsigned_max",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "export_widths.pass-owned_boolean",
+      "source": "fixtures/campaigns/export_widths.pass.c",
+      "function": "owned_boolean",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "export_widths.pass-nested_echo",
+      "source": "fixtures/campaigns/export_widths.pass.c",
+      "function": "nested_echo",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "export_widths.pass-owned_nested",
+      "source": "fixtures/campaigns/export_widths.pass.c",
+      "function": "owned_nested",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "export_widths.fail-wrong_increment",
+      "source": "fixtures/campaigns/export_widths.fail.c",
+      "function": "wrong_increment",
+      "intent": "finding",
+      "expected": {
+        "bennet": {
+          "outcome": "finding"
+        },
+        "darcy": {
+          "outcome": "finding"
+        }
+      }
+    },
+    {
+      "id": "export_widths.pass-unused_aggregate",
+      "source": "fixtures/campaigns/export_widths.pass.c",
+      "function": "unused_aggregate",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
         }
       }
     }
