@@ -68,73 +68,70 @@ let collect_memory_accesses (_, sigm) =
          | _ -> f_stmt s !env_cell)
       ss
   in
-  let rec aux_expr (AnnotatedExpression (genType, _, loc, expr_)) env =
-    match genType with
-    | CF.GenTypes.GenLValueType (_, _, is_register) when is_register -> ()
-    | _ ->
-      (match expr_ with
-       | AilErvalue lvalue ->
-         acc := (Load { loc; lvalue }, env) :: !acc;
-         aux_expr lvalue env
-       | AilEassign (lvalue, expr) ->
-         acc := (Store { loc; lvalue; expr }, env) :: !acc;
-         aux_expr lvalue env;
-         aux_expr expr env
-       | AilEcompoundAssign (lvalue, aop, expr) ->
-         acc := (StoreOp { loc; lvalue; aop; expr }, env) :: !acc;
-         aux_expr lvalue env;
-         aux_expr expr env
-       | AilEunary (PostfixIncr, lvalue) ->
-         acc := (Postfix { loc; op = `Incr; lvalue }, env) :: !acc;
-         aux_expr lvalue env
-       | AilEunary (PostfixDecr, lvalue) ->
-         acc := (Postfix { loc; op = `Decr; lvalue }, env) :: !acc;
-         aux_expr lvalue env
-       | AilEunion (_, _, None)
-       | AilEoffsetof _ | AilEbuiltin _ | AilEstr _ | AilEconst _ | AilEident _
-       (* TODO(vla): if the type is a VLA, the size expression is evaluated *)
-       | AilEsizeof _
-       (* the sub-expr is not evaluated; TODO(vla): except if it is possible
+  let rec aux_expr (AnnotatedExpression (_, _, loc, expr_)) env =
+    match expr_ with
+    | AilErvalue lvalue ->
+      acc := (Load { loc; lvalue }, env) :: !acc;
+      aux_expr lvalue env
+    | AilEassign (lvalue, expr) ->
+      acc := (Store { loc; lvalue; expr }, env) :: !acc;
+      aux_expr lvalue env;
+      aux_expr expr env
+    | AilEcompoundAssign (lvalue, aop, expr) ->
+      acc := (StoreOp { loc; lvalue; aop; expr }, env) :: !acc;
+      aux_expr lvalue env;
+      aux_expr expr env
+    | AilEunary (PostfixIncr, lvalue) ->
+      acc := (Postfix { loc; op = `Incr; lvalue }, env) :: !acc;
+      aux_expr lvalue env
+    | AilEunary (PostfixDecr, lvalue) ->
+      acc := (Postfix { loc; op = `Decr; lvalue }, env) :: !acc;
+      aux_expr lvalue env
+    | AilEunion (_, _, None)
+    | AilEoffsetof _ | AilEbuiltin _ | AilEstr _ | AilEconst _ | AilEident _
+    (* TODO(vla): if the type is a VLA, the size expression is evaluated *)
+    | AilEsizeof _
+    (* the sub-expr is not evaluated; TODO(vla): except if it is possible
            to have an expression with VLA type here (?) *)
-       | AilEsizeof_expr _ | AilEalignof _ | AilEreg_load _ | AilEinvalid _
-       | AilElabel_addressGNU _ ->
-         ()
-       | AilEunary (_, e)
-       | AilEcast (_, _, e)
-       | AilEassert e
-       | AilEunion (_, _, Some e)
-       | AilEcompound (_, _, e)
-       | AilEmemberof (e, _)
-       | AilEmemberofptr (e, _)
-       | AilEannot (_, e)
-       | AilEva_start (e, _)
-       | AilEva_arg (e, _)
-       | AilEva_end e
-       | AilEprint_type e
-       | AilEbmc_assume e
-       | AilEarray_decay e
-       | AilEfunction_decay e
-       | AilEatomic e ->
-         aux_expr e env
-       | AilEbinary (e1, _, e2) | AilEcond (e1, None, e2) | AilEva_copy (e1, e2) ->
-         aux_expr e1 env;
-         aux_expr e2 env
-       | AilEcond (e1, Some e2, e3) ->
-         aux_expr e1 env;
-         aux_expr e2 env;
-         aux_expr e3 env
-       | AilEcall (e, es) ->
-         aux_expr e env;
-         List.iter (fun e -> aux_expr e env) es
-       | AilEgeneric (e, _, gas) ->
-         aux_expr e env;
-         List.iter (function AilGAtype (_, _, e) | AilGAdefault e -> aux_expr e env) gas
-       | AilEarray (_, _, xs) ->
-         List.iter (function None -> () | Some e -> aux_expr e env) xs
-       | AilEstruct (_, xs) ->
-         List.iter (function _, None -> () | _, Some e -> aux_expr e env) xs
-       | AilEgcc_statement (bs, ss) ->
-         scan_for_decls_and_update_env (bs, ss) env aux_expr aux_stmt)
+    | AilEsizeof_expr _ | AilEalignof _ | AilEreg_load _ | AilEinvalid _
+    | AilElabel_addressGNU _ ->
+      ()
+    | AilEunary (_, e)
+    | AilEcast (_, _, e)
+    | AilEassert e
+    | AilEunion (_, _, Some e)
+    | AilEcompound (_, _, e)
+    | AilEmemberof (e, _)
+    | AilEmemberofptr (e, _)
+    | AilEannot (_, e)
+    | AilEva_start (e, _)
+    | AilEva_arg (e, _)
+    | AilEva_end e
+    | AilEprint_type e
+    | AilEbmc_assume e
+    | AilEarray_decay e
+    | AilEfunction_decay e
+    | AilEatomic e ->
+      aux_expr e env
+    | AilEbinary (e1, _, e2) | AilEcond (e1, None, e2) | AilEva_copy (e1, e2) ->
+      aux_expr e1 env;
+      aux_expr e2 env
+    | AilEcond (e1, Some e2, e3) ->
+      aux_expr e1 env;
+      aux_expr e2 env;
+      aux_expr e3 env
+    | AilEcall (e, es) ->
+      aux_expr e env;
+      List.iter (fun e -> aux_expr e env) es
+    | AilEgeneric (e, _, gas) ->
+      aux_expr e env;
+      List.iter (function AilGAtype (_, _, e) | AilGAdefault e -> aux_expr e env) gas
+    | AilEarray (_, _, xs) ->
+      List.iter (function None -> () | Some e -> aux_expr e env) xs
+    | AilEstruct (_, xs) ->
+      List.iter (function _, None -> () | _, Some e -> aux_expr e env) xs
+    | AilEgcc_statement (bs, ss) ->
+      scan_for_decls_and_update_env (bs, ss) env aux_expr aux_stmt
   and aux_stmt stmt env =
     match stmt.node with
     | AilSskip | AilSbreak | AilScontinue | AilSreturnVoid | AilSgoto _ -> ()
@@ -186,63 +183,78 @@ let memory_accesses_injections ail_prog =
   in
   let acc = ref [] in
   let xs = collect_memory_accesses ail_prog in
+  let is_register (A.AnnotatedExpression (genType, _, _, _)) =
+    match genType with
+    | CF.GenTypes.GenLValueType (_, _, is_register) -> is_register
+    | _ -> false
+  in
+  let is_access_register = function
+    | Load { lvalue; _ }
+    | Store { lvalue; _ }
+    | StoreOp { lvalue; _ }
+    | Postfix { lvalue; _ } ->
+      is_register lvalue
+  in
   List.iter
     (* HK: Currently, `env` is ignored. It will be used in future patches. *)
     (fun (access, _env) ->
-       match access with
-       | Load { loc; _ } ->
-         let b, e = pos_bbox loc in
-         acc := (point b, [ "CN_LOAD(" ]) :: (point e, [ ")" ]) :: !acc
-       | Store { lvalue; expr; _ } ->
-         (* NOTE: we are not using the location of the access (the AilEassign), because if
+       if is_access_register access then
+         ()
+       else (
+         match access with
+         | Load { loc; _ } ->
+           let b, e = pos_bbox loc in
+           acc := (point b, [ "CN_LOAD(" ]) :: (point e, [ ")" ]) :: !acc
+         | Store { lvalue; expr; _ } ->
+           (* NOTE: we are not using the location of the access (the AilEassign), because if
            in the source the assignment was surrounded by parens its location will contain
            the parens, which will break the CN_STORE macro call *)
-         let b, pos1 = pos_bbox (loc_of_expr lvalue) in
-         let pos2, e = pos_bbox (loc_of_expr expr) in
-         acc
-         := (point b, [ "CN_STORE(" ])
-            :: (region (pos1, pos2) NoCursor, [ ", " ])
-            :: (point e, [ ")" ])
-            :: !acc
-       | StoreOp { lvalue; aop; expr; loc } ->
-         (match bbox [ loc_of_expr expr ] with
-          | `Other _ ->
-            (* This prettyprinter doesn not produce valid C, but it's
+           let b, pos1 = pos_bbox (loc_of_expr lvalue) in
+           let pos2, e = pos_bbox (loc_of_expr expr) in
+           acc
+           := (point b, [ "CN_STORE(" ])
+              :: (region (pos1, pos2) NoCursor, [ ", " ])
+              :: (point e, [ ")" ])
+              :: !acc
+         | StoreOp { lvalue; aop; expr; loc } ->
+           (match bbox [ loc_of_expr expr ] with
+            | `Other _ ->
+              (* This prettyprinter doesn not produce valid C, but it's
                      correct for simple expressions and we use it here for
                      simple literals *)
-            let pp_expr e = CF.Pp_utils.to_plain_string (Pp_ail.pp_expression e) in
-            let sstart, ssend = pos_bbox loc in
-            let b, _ = pos_bbox (loc_of_expr lvalue) in
-            acc
-            := (region (sstart, b) NoCursor, [ "" ])
-               :: ( point b,
-                    [ "CN_STORE_OP("
-                      ^ pp_expr lvalue
-                      ^ ","
-                      ^ string_of_aop aop
-                      ^ ","
-                      ^ pp_expr expr
-                      ^ ")"
-                    ] )
-               :: (region (b, ssend) NoCursor, [ "" ])
-               :: !acc
-          | `Bbox _ ->
-            let b, pos1 = pos_bbox (loc_of_expr lvalue) in
-            let pos2, e = pos_bbox (loc_of_expr expr) in
-            acc
-            := (point b, [ "CN_STORE_OP(" ])
-               :: (region (pos1, pos2) NoCursor, [ "," ^ string_of_aop aop ^ "," ])
-               :: (point e, [ ")" ])
-               :: !acc)
-       | Postfix { loc; op; lvalue } ->
-         let op_str = match op with `Incr -> "++" | `Decr -> "--" in
-         let b, e = pos_bbox loc in
-         let pos1, pos2 = pos_bbox (loc_of_expr lvalue) in
-         (* E++ *)
-         acc
-         := (region (b, pos1) NoCursor, [ "CN_POSTFIX(" ])
-            :: (region (pos2, e) NoCursor, [ ", " ^ op_str ^ ")" ])
-            :: !acc)
+              let pp_expr e = CF.Pp_utils.to_plain_string (Pp_ail.pp_expression e) in
+              let sstart, ssend = pos_bbox loc in
+              let b, _ = pos_bbox (loc_of_expr lvalue) in
+              acc
+              := (region (sstart, b) NoCursor, [ "" ])
+                 :: ( point b,
+                      [ "CN_STORE_OP("
+                        ^ pp_expr lvalue
+                        ^ ","
+                        ^ string_of_aop aop
+                        ^ ","
+                        ^ pp_expr expr
+                        ^ ")"
+                      ] )
+                 :: (region (b, ssend) NoCursor, [ "" ])
+                 :: !acc
+            | `Bbox _ ->
+              let b, pos1 = pos_bbox (loc_of_expr lvalue) in
+              let pos2, e = pos_bbox (loc_of_expr expr) in
+              acc
+              := (point b, [ "CN_STORE_OP(" ])
+                 :: (region (pos1, pos2) NoCursor, [ "," ^ string_of_aop aop ^ "," ])
+                 :: (point e, [ ")" ])
+                 :: !acc)
+         | Postfix { loc; op; lvalue } ->
+           let op_str = match op with `Incr -> "++" | `Decr -> "--" in
+           let b, e = pos_bbox loc in
+           let pos1, pos2 = pos_bbox (loc_of_expr lvalue) in
+           (* E++ *)
+           acc
+           := (region (b, pos1) NoCursor, [ "CN_POSTFIX(" ])
+              :: (region (pos2, e) NoCursor, [ ", " ^ op_str ^ ")" ])
+              :: !acc))
     xs;
   !acc
 
