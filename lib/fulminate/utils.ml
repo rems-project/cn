@@ -181,6 +181,8 @@ let find_ctype_from_bindings bindings sym =
   ctype
 
 
+let find_binding bindings sym = List.find (fun (sym', _) -> Sym.equal sym sym') bindings
+
 (* Decl_object of (storageDuration * bool) * maybe alignment * qualifiers * ctype*)
 let[@warning "-32" (* unused-value-declaration *)] create_decl_object ctype =
   A.(Decl_object ((Automatic, false), None, C.no_qualifiers, ctype))

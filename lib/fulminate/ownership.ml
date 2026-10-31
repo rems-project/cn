@@ -73,17 +73,30 @@ let generate_c_local_ownership_entry_fcall (local_sym, local_ctype) =
        (mk_expr (AilEident c_add_ownership_fn_sym), List.map mk_expr [ arg1; arg2; arg3 ]))
 
 
-let generate_c_local_ownership_entry sym_ctype_pair =
-  A.(AilSexpr (generate_c_local_ownership_entry_fcall sym_ctype_pair))
-
-
-let generate_c_local_ownership_entry_bs_and_ss ~contains_user_spec (sym, ctype) =
-  let entry_fcall_stat = generate_c_local_ownership_entry (sym, ctype) in
-  if contains_user_spec then (
-    let addr_cn_binding, addr_cn_decl = generate_c_local_cn_addr_var sym in
-    ([ addr_cn_binding ], [ entry_fcall_stat; addr_cn_decl ]))
+let generate_c_local_ownership_entry ~is_register sym_ctype_pair =
+  if not is_register then
+    Some A.(AilSexpr (generate_c_local_ownership_entry_fcall sym_ctype_pair))
   else
-    ([], [ entry_fcall_stat ])
+    None
+
+
+let generate_c_local_ownership_entry_bs_and_ss
+      ~contains_user_spec
+      ~is_register
+      (sym, ctype)
+  =
+  (* Don't instrument register variables -- taking their address is forbidden *)
+  if is_register then
+    ([], [])
+  else (
+    let entry_fcall_stat =
+      Option.get (generate_c_local_ownership_entry ~is_register:false (sym, ctype))
+    in
+    if contains_user_spec then (
+      let addr_cn_binding, addr_cn_decl = generate_c_local_cn_addr_var sym in
+      ([ addr_cn_binding ], [ entry_fcall_stat; addr_cn_decl ]))
+    else
+      ([], [ entry_fcall_stat ]))
 
 
 (* int x = 0, y = 5;
@@ -122,6 +135,7 @@ let rec gen_loop_ownership_entry_decls bindings = function
     (match expr_opt with
      | Some expr ->
        let ctype = find_ctype_from_bindings bindings sym in
+       (* TODO: check if register. Whole function buggy and to-be-fixed *)
        let entry_fcall = generate_c_local_ownership_entry_fcall (sym, ctype) in
        let new_rhs_expr = mk_expr A.(AilEbinary (entry_fcall, Comma, expr)) in
        (sym, Some new_rhs_expr) :: gen_loop_ownership_entry_decls bindings xs
@@ -135,7 +149,7 @@ let rec gen_loop_ownership_entry_decls bindings = function
        failwith error_msg)
 
 
-let ignore_registers (bindings, decls) =
+let _ignore_registers (bindings, decls) =
   let bindings = List.filter (fun b -> not (Utils.is_register b)) bindings in
   let decls =
     List.filter (fun (sym, _) -> List.mem Sym.equal sym (List.map fst bindings)) decls
@@ -150,17 +164,19 @@ let generate_c_local_ownership_entry_inj
       decls
       bindings
   =
-  (* Don't instrument register variables -- taking their address is forbidden *)
-  let bindings, decls = ignore_registers (bindings, decls) in
   if is_forloop then (
+    (* TODO: handle register-ness separately *)
     let new_decls = gen_loop_ownership_entry_decls bindings decls in
     [ (loc, bindings, [ A.AilSdeclaration new_decls ]) ])
   else (
     let ownership_bs_and_ss =
       List.map
         (fun (sym, _) ->
-           let ctype = find_ctype_from_bindings bindings sym in
-           generate_c_local_ownership_entry_bs_and_ss ~contains_user_spec (sym, ctype))
+           let _, ((_, _, is_register), _, _, ctype) = find_binding bindings sym in
+           generate_c_local_ownership_entry_bs_and_ss
+             ~contains_user_spec
+             ~is_register
+             (sym, ctype))
         decls
     in
     let bs, ss = List.split ownership_bs_and_ss in
@@ -169,27 +185,40 @@ let generate_c_local_ownership_entry_inj
 
 (* c_remove_local_footprint(&xs, cn_ownership_global_ghost_state,
    sizeof(struct node * )); *)
-let generate_c_local_ownership_exit (local_sym, local_ctype) =
-  let local_ident = mk_expr A.(AilEident local_sym) in
-  let arg1 = A.(AilEunary (Address, local_ident)) in
-  let arg2 = A.(AilEsizeof (C.no_qualifiers, local_ctype)) in
-  A.(
-    AilSexpr
-      (mk_expr
-         A.(
-           AilEcall
-             ( mk_expr (AilEident c_remove_ownership_fn_sym),
-               List.map mk_expr [ arg1; arg2 ] ))))
+let generate_c_local_ownership_exit ~is_register (local_sym, local_ctype) =
+  if not is_register then (
+    let local_ident = mk_expr A.(AilEident local_sym) in
+    let arg1 = A.(AilEunary (Address, local_ident)) in
+    let arg2 = A.(AilEsizeof (C.no_qualifiers, local_ctype)) in
+    Some
+      A.(
+        AilSexpr
+          (mk_expr
+             A.(
+               AilEcall
+                 ( mk_expr (AilEident c_remove_ownership_fn_sym),
+                   List.map mk_expr [ arg1; arg2 ] )))))
+  else
+    None
 
 
 let get_c_local_ownership_checking ~contains_user_spec params =
   let entry_ownership_bs_and_ss =
     List.map
-      (fun param -> generate_c_local_ownership_entry_bs_and_ss ~contains_user_spec param)
+      (fun (sym, (_, ctype, is_register)) ->
+         generate_c_local_ownership_entry_bs_and_ss
+           ~contains_user_spec
+           ~is_register
+           (sym, ctype))
       params
   in
   let entry_ownership_bs, entry_ownership_ss = List.split entry_ownership_bs_and_ss in
-  let exit_ownership_stats = List.map generate_c_local_ownership_exit params in
+  let exit_ownership_stats =
+    List.filter_map
+      (fun (sym, (_, ctype, is_register)) ->
+         generate_c_local_ownership_exit ~is_register (sym, ctype))
+      params
+  in
   ( (List.concat entry_ownership_bs, List.concat entry_ownership_ss),
     ([], exit_ownership_stats) )
 
@@ -198,7 +227,14 @@ let rec collect_visibles bindings = function
   | [] -> []
   | A.{ loc = _; desug_info = _; attrs = _; node = AilSdeclaration decls } :: ss ->
     let decl_syms_and_ctypes =
-      List.map (fun (sym, _) -> (sym, find_ctype_from_bindings bindings sym)) decls
+      List.filter_map
+        (fun (sym, _) ->
+           let _, ((_, _, is_register), _, _, ctype) = find_binding bindings sym in
+           if not is_register then
+             Some (sym, ctype)
+           else
+             None)
+        decls
     in
     decl_syms_and_ctypes @ collect_visibles bindings ss
   | _ :: ss -> collect_visibles bindings ss
@@ -228,6 +264,7 @@ let rec get_c_control_flow_ownership_injs_aux
       List.mapi
         (fun i s ->
            let ss_ = take (i + 1) ss in
+           (* Take care of register variables here so `is_register` is always set to false at injection points *)
            let visibles = collect_visibles (bs @ bindings) ss_ in
            get_c_control_flow_ownership_injs_aux
              (visibles @ break_vars)
@@ -276,7 +313,11 @@ let rec get_c_control_flow_ownership_injs_aux
         let offset = String.length (Sym.pp_string label_sym) + 1 in
         let loc_after_label = get_start_loc ~offset loc in
         [ { loc = loc_after_label;
-            bs_and_ss = ([], List.map generate_c_local_ownership_entry in_scope_vars);
+            bs_and_ss =
+              ( [],
+                List.filter_map
+                  (generate_c_local_ownership_entry ~is_register:false)
+                  in_scope_vars );
             injection_kind = NonReturnInj
           }
         ]
@@ -303,7 +344,11 @@ let rec get_c_control_flow_ownership_injs_aux
      | Some Desug_continue ->
        let loc_before_continue = get_start_loc loc in
        [ { loc = loc_before_continue;
-           bs_and_ss = ([], List.map generate_c_local_ownership_exit continue_vars);
+           bs_and_ss =
+             ( [],
+               List.filter_map
+                 (generate_c_local_ownership_exit ~is_register:false)
+                 continue_vars );
            injection_kind = NonReturnInj
          }
        ]
@@ -312,26 +357,42 @@ let rec get_c_control_flow_ownership_injs_aux
        (* Unmap addresses of all in-scope variables *)
        let loc_before_goto = get_start_loc loc in
        [ { loc = loc_before_goto;
-           bs_and_ss = ([], List.map generate_c_local_ownership_exit in_scope_vars);
+           bs_and_ss =
+             ( [],
+               List.filter_map
+                 (generate_c_local_ownership_exit ~is_register:false)
+                 in_scope_vars );
            injection_kind = NonReturnInj
          }
        ])
   | AilSreturnVoid ->
     [ { loc;
-        bs_and_ss = ([], List.map generate_c_local_ownership_exit in_scope_vars);
+        bs_and_ss =
+          ( [],
+            List.filter_map
+              (generate_c_local_ownership_exit ~is_register:false)
+              in_scope_vars );
         injection_kind = ReturnInj ReturnVoid
       }
     ]
   | AilSreturn e ->
     [ { loc;
-        bs_and_ss = ([], List.map generate_c_local_ownership_exit in_scope_vars);
+        bs_and_ss =
+          ( [],
+            List.filter_map
+              (generate_c_local_ownership_exit ~is_register:false)
+              in_scope_vars );
         injection_kind = ReturnInj (ReturnExpr e)
       }
     ]
   | AilSbreak ->
     let loc_before_break = get_start_loc loc in
     [ { loc = loc_before_break;
-        bs_and_ss = ([], List.map generate_c_local_ownership_exit break_vars);
+        bs_and_ss =
+          ( [],
+            List.filter_map
+              (generate_c_local_ownership_exit ~is_register:false)
+              break_vars );
         injection_kind = NonReturnInj
       }
     ]
@@ -373,17 +434,25 @@ let concat_block_local_injs injs =
 
 (* Ghost state tracking for stack-allocated variables in blocks *)
 let get_c_block_entry_exit_injs_aux ~contains_user_spec cerb_conf bindings s =
-  let gen_standard_block_injs (bs, ss) f_stmt_injs loc =
+  let get_exit_injs loc bs =
     let exit_injs =
-      List.map
-        (fun (b_sym, ((_, _, _), _, _, b_ctype)) ->
-           ( get_end_loc ~offset:(-1) loc,
-             [ generate_c_local_ownership_exit (b_sym, b_ctype) ] ))
+      List.filter_map
+        (fun (b_sym, ((_, _, is_register), _, _, b_ctype)) ->
+           if not is_register then
+             Some
+               ( get_end_loc ~offset:(-1) loc,
+                 Option.get
+                   (generate_c_local_ownership_exit ~is_register:false (b_sym, b_ctype))
+               )
+           else
+             None)
         bs
     in
-    let exit_injs' =
-      ret_standard_injs (List.map (fun (loc, stats) -> (loc, [], stats)) exit_injs)
-    in
+    List.map (fun (loc, stat) -> (loc, [], [ stat ])) exit_injs
+  in
+  let gen_standard_block_injs (bs, ss) f_stmt_injs loc =
+    let exit_injs = get_exit_injs loc bs in
+    let exit_injs' = ret_standard_injs exit_injs in
     let stat_injs = List.map (fun s -> f_stmt_injs bs s) ss in
     concat_block_local_injs [ concat_block_local_injs stat_injs; exit_injs' ]
   in
@@ -394,15 +463,7 @@ let get_c_block_entry_exit_injs_aux ~contains_user_spec cerb_conf bindings s =
       (match List.last ss with
        | Some A.{ loc = loc'; desug_info = _; attrs = _; node = _ } ->
          let injs = concat_block_local_injs (List.map (aux_stmt bs) ss) in
-         let exit_injs =
-           ret_standard_injs
-             (List.map
-                (fun (b_sym, ((_, _, _), _, _, b_ctype)) ->
-                   ( get_end_loc loc',
-                     [],
-                     [ generate_c_local_ownership_exit (b_sym, b_ctype) ] ))
-                bs)
-         in
+         let exit_injs = ret_standard_injs (get_exit_injs loc' bs) in
          let ret_injs =
            match gtc with
            | CF.GenTypes.GenLValueType (_, C.Ctype (_, C.Void), _) | GenRValueType GenVoid
@@ -646,7 +707,7 @@ let get_c_fn_local_ownership_checking_injs
   with
   | ( Some (_, _, _, param_syms, fn_body),
       Some (_, _, Decl_function (_, _, param_types, _, _, _)) ) ->
-    let param_types = List.map (fun (_, ctype, _) -> ctype) param_types in
+    (* let param_types = List.map (fun (_, ctype, _) -> ctype) param_types in *)
     let params = List.combine param_syms param_types in
     let ownership_stats_pair =
       get_c_local_ownership_checking ~contains_user_spec params
