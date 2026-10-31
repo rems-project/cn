@@ -24,21 +24,26 @@ let with_temp_dir f =
   Fun.protect ~finally:(fun () -> remove dir) (fun () -> f dir)
 
 
+let write_file path contents =
+  Out_channel.with_open_bin path (fun oc -> Out_channel.output_string oc contents)
+
+
 let copy_file ~src ~dst =
-  let contents = In_channel.with_open_bin src In_channel.input_all in
-  Out_channel.with_open_bin dst (fun oc -> Out_channel.output_string oc contents)
+  write_file dst (In_channel.with_open_bin src In_channel.input_all)
 
 
 (* A fake `austen` in [dir] that writes its NUL-terminated arguments to
    [args] and exits with [exit_code]. *)
-let install_fake_austen ~dir ~args ~exit_code =
+let install_fake_austen ?signal ~dir ~args ~exit_code () =
   let path = Filename.concat dir "austen" in
   Out_channel.with_open_bin path (fun oc ->
     Printf.fprintf
       oc
-      "#!/bin/sh\nfor arg in \"$@\"; do printf '%%s\\0' \"$arg\"; done > %s\nexit %d\n"
+      "#!/bin/sh\nfor arg in \"$@\"; do printf '%%s\\0' \"$arg\"; done > %s\n%s\n"
       (Filename.quote args)
-      exit_code);
+      (match signal with
+       | Some signal -> "kill -" ^ signal ^ " $$"
+       | None -> "exit " ^ string_of_int exit_code));
   Unix.chmod path 0o755
 
 
@@ -88,13 +93,13 @@ let assert_contains ~needle haystack =
 
 (* The fixture copied to [dir], the fake Austen's directory and recording,
    and the output directory, all below [dir]. *)
-let setup ?(exit_code = 0) dir =
+let setup ?signal ?(exit_code = 0) dir =
   let source = Filename.concat dir "scalar fixture.c" in
   copy_file ~src:(fixture ()) ~dst:source;
   let bin = Filename.concat dir "fake bin" in
   Sys.mkdir bin 0o755;
   let args = Filename.concat dir "austen args" in
-  install_fake_austen ~dir:bin ~args ~exit_code;
+  install_fake_austen ?signal ~dir:bin ~args ~exit_code ();
   (source, bin, args, Filename.concat dir "out dir")
 
 
@@ -201,6 +206,11 @@ let builds_a_static_function_by_its_exported_name _ =
     (List.mem (`String fn) names)
 
 
+let assert_no_build ~args ~out =
+  assert_bool "the output directory was created" (not (Sys.file_exists out));
+  assert_bool "the fake Austen ran" (not (Sys.file_exists args))
+
+
 let missing_austen_is_reported _ =
   with_temp_dir
   @@ fun dir ->
@@ -213,14 +223,13 @@ let missing_austen_is_reported _ =
   assert_status 2 result;
   assert_contains ~needle:"could not find 'austen' on PATH" stderr;
   assert_contains ~needle:"cargo install austen" stderr;
-  assert_bool "the output directory was created" (not (Sys.file_exists out));
-  assert_bool "a fake Austen ran" (not (Sys.file_exists args))
+  assert_no_build ~args ~out
 
 
-let austen_failure_is_reported _ =
+let austen_failure_is_reported exit_code _ =
   with_temp_dir
   @@ fun dir ->
-  let source, bin, args, out = setup ~exit_code:3 dir in
+  let source, bin, args, out = setup ~exit_code dir in
   let ((_, stderr) as result) =
     run_cn_test
       ~path_prefix:bin
@@ -230,23 +239,104 @@ let austen_failure_is_reported _ =
   assert_status 2 result;
   assert_bool "the fake Austen did not run" (Sys.file_exists args);
   assert_contains
-    ~needle:"exited with status 3 while building the harness for decrement"
+    ~needle:
+      (Printf.sprintf
+         "exited with status %d while building the harness for decrement"
+         exit_code)
     stderr
 
 
-let several_selected_functions_are_refused _ =
+let interrupted_austen_is_reported _ =
+  with_temp_dir
+  @@ fun dir ->
+  let source, bin, args, out = setup ~exit_code:130 dir in
+  run_cn_test
+    ~path_prefix:bin
+    ([ "darcy"; "--no-run"; "--only=decrement"; "--output-dir"; out ]
+     @ source_flags ~source)
+  |> assert_status 130;
+  assert_bool "the fake Austen did not run" (Sys.file_exists args)
+
+
+let signaled_austen_is_reported _ =
+  with_temp_dir
+  @@ fun dir ->
+  let source, bin, args, out = setup ~signal:"TERM" dir in
+  let ((_, stderr) as result) =
+    run_cn_test
+      ~path_prefix:bin
+      ([ "bennet"; "--no-run"; "--only=decrement"; "--output-dir"; out ]
+       @ source_flags ~source)
+  in
+  assert_status 2 result;
+  assert_bool "the fake Austen did not run" (Sys.file_exists args);
+  assert_contains ~needle:"was killed by signal" stderr
+
+
+let unspawnable_austen_is_reported _ =
+  with_temp_dir
+  @@ fun dir ->
+  let source, bin, args, out = setup dir in
+  (* Executable and discoverable, but its interpreter is absent. *)
+  write_file (Filename.concat bin "austen") "#!/cn-test-nonexistent-interpreter\n";
+  let ((_, stderr) as result) =
+    run_cn_test
+      ~path_prefix:bin
+      ([ "darcy"; "--no-run"; "--only=decrement"; "--output-dir"; out ]
+       @ source_flags ~source)
+  in
+  assert_status 2 result;
+  assert_contains ~needle:"could not run '" stderr;
+  assert_bool "the fake Austen ran" (not (Sys.file_exists args))
+
+
+let invalid_selection_is_refused ~status ~message selection _ =
   with_temp_dir
   @@ fun dir ->
   let source, bin, args, out = setup dir in
   let ((_, stderr) as result) =
     run_cn_test
       ~path_prefix:bin
-      ([ "bennet"; "--no-run"; "--output-dir"; out ] @ source_flags ~source)
+      ([ "bennet"; "--no-run"; "--output-dir"; out ] @ selection @ source_flags ~source)
   in
-  assert_status 2 result;
-  assert_contains ~needle:"3 were selected (increment, decrement, twice)" stderr;
-  assert_bool "the output directory was created" (not (Sys.file_exists out));
-  assert_bool "the fake Austen ran" (not (Sys.file_exists args))
+  assert_status status result;
+  assert_contains ~needle:message stderr;
+  assert_no_build ~args ~out
+
+
+let campaign_option_with_no_run_is_refused engine (flag, value) _ =
+  with_temp_dir
+  @@ fun dir ->
+  let source, bin, args, out = setup dir in
+  (* Invalid C proves option validation happens before the frontend. *)
+  write_file source "#error frontend must not run\n";
+  let ((_, stderr) as result) =
+    run_cn_test
+      ~path_prefix:bin
+      ([ engine; "--no-run"; "--only=decrement"; "--output-dir"; out; flag ]
+       @ value
+       @ source_flags ~source)
+  in
+  assert_status 124 result;
+  assert_contains ~needle:(flag ^ " cannot be used with --no-run") stderr;
+  assert_no_build ~args ~out
+
+
+let frontend_failure_does_not_run_austen _ =
+  with_temp_dir
+  @@ fun dir ->
+  let source, bin, args, out = setup dir in
+  write_file source "#error deliberate preprocessing failure\n";
+  let status, stderr =
+    run_cn_test
+      ~path_prefix:bin
+      ([ "bennet"; "--no-run"; "--only=decrement"; "--output-dir"; out ]
+       @ source_flags ~source)
+  in
+  assert_bool
+    ("frontend failure was reported as success: " ^ stderr)
+    (match status with Unix.WEXITED code -> code <> 0 | _ -> false);
+  assert_no_build ~args ~out
 
 
 let suite =
@@ -257,6 +347,40 @@ let suite =
          "builds a static function by its exported name"
          >:: builds_a_static_function_by_its_exported_name;
          "reports a missing austen" >:: missing_austen_is_reported;
-         "reports an austen failure" >:: austen_failure_is_reported;
-         "refuses several selected functions" >:: several_selected_functions_are_refused
+         "reports an austen finding status as a build failure"
+         >:: austen_failure_is_reported 1;
+         "reports an austen infrastructure failure" >:: austen_failure_is_reported 2;
+         "reports an unexpected austen failure" >:: austen_failure_is_reported 3;
+         "preserves an austen interruption" >:: interrupted_austen_is_reported;
+         "reports a signaled austen" >:: signaled_austen_is_reported;
+         "reports an unspawnable austen" >:: unspawnable_austen_is_reported;
+         "refuses an unmatched --only"
+         >:: invalid_selection_is_refused
+               ~status:1
+               ~message:"functions specified in --only not found: absent"
+               [ "--only=absent" ];
+         "refuses a selection emptied by --skip"
+         >:: invalid_selection_is_refused
+               ~status:2
+               ~message:"no functions were selected for testing"
+               [ "--only=decrement"; "--skip=decrement" ];
+         "does not build after a frontend failure"
+         >:: frontend_failure_does_not_run_austen;
+         "refuses several selected functions"
+         >:: invalid_selection_is_refused
+               ~status:2
+               ~message:"3 were selected (increment, decrement, twice)"
+               []
        ]
+       @ List.map
+           (fun engine ->
+              engine ^ " campaign options"
+              >::: List.map
+                     (fun ((flag, _) as option) ->
+                        flag >:: campaign_option_with_no_run_is_refused engine option)
+                     [ ("--until-timeout", [ "0" ]);
+                       ("--seed", [ "0" ]);
+                       ("--output-tyche", [ "tyche.jsonl" ]);
+                       ("--exit-fast", [])
+                     ])
+           [ "bennet"; "darcy" ]

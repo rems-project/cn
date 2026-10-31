@@ -423,7 +423,7 @@ def main():
     parser.add_argument('--only', type=str,
                         help='Comma-separated list of specific test files to run (e.g., "bst.pass.c,bst.fail.c")')
     parser.add_argument('--cache-file', type=str, default=None,
-                        help='Path to memory settings cache file (default: tests/.test-gen-cache.json)')
+                        help='Path to memory settings cache file (default: .test-gen-cache.json beside this script)')
     parser.add_argument('--no-cache', action='store_true',
                         help='Disable loading and saving memory settings cache')
     parser.add_argument('test_file', nargs='?',
@@ -459,8 +459,8 @@ def main():
     # Get the directory where this script is located
     script_dir = Path(__file__).parent.resolve()
 
-    # Change to the cn-test-gen directory
-    target_dir = script_dir / "cn-test-gen"
+    # The legacy corpus lives beside this runner.
+    target_dir = script_dir
 
     if not target_dir.exists():
         print(f"Error: Directory {target_dir} does not exist", file=sys.stderr)

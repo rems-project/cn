@@ -2,61 +2,153 @@
 name: Random Testing
 
 on:
+  workflow_dispatch:
   pull_request:
   push:
     branches:
       - main
 
-jobs:
-  ounit-tests:
+permissions:
+  contents: read
 
-    name: OUnit tests
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  regressions:
+    name: ${{ matrix.suite }} (OCaml ${{ matrix.version }})
 
     strategy:
+      fail-fast: false
       matrix:
-        version: [4.14.1]
-        compiler: [gcc]
+        include:
+          - suite: Unit tests
+            mode: unit
+            version: '4.14.1'
+            args: --unit-only
+          - suite: Austen builds
+            mode: austen
+            version: '4.14.1'
+            args: --builds-only
 
     runs-on: ubuntu-24.04
+    timeout-minutes: 60
+
+    env:
+      CC: gcc
+      AUSTEN_VERSION: 0.0.1
+      AUSTEN_FEATURES: bennet,darcy
+      RUSTUP_TOOLCHAIN: 1.99.1
+      Z3_OPAM_VERSION: 5.1.0
 
     steps:
       - name: Checkout CN
         uses: actions/checkout@v6
 
+      - name: Test the regression runner
+        if: matrix.mode == 'unit'
+        run: python3 -m unittest discover -s tests/random-testing -p 'test_*.py' -v
+
       - name: System dependencies (ubuntu)
         run: |
           sudo apt-get update
-          sudo apt-get install build-essential libgmp-dev z3 opam
+          sudo apt-get install --yes build-essential libgmp-dev opam binutils pkg-config z3
 
-      # Shares the OPAM cache of the General workflow's gcc build.
+      - name: Install Clang
+        if: matrix.mode == 'austen'
+        run: |
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc > /dev/null
+          sudo add-apt-repository --yes "deb https://apt.llvm.org/noble/ llvm-toolchain-noble-22 main"
+          sudo apt-get update
+          sudo apt-get install --yes clang-22
+          sudo ln -sf "$(command -v clang-22)" /usr/local/bin/clang
+
+      # The unit switch matches (and shares) General's gcc cache; the Austen
+      # switch pins OPAM's Z3 for Austen's native build.
       - name: Restore OPAM cache
         id: cache-opam-restore
         uses: actions/cache/restore@v5
         with:
           path: ~/.opam
-          key: ${{ matrix.version }}-${{ matrix.compiler }}-${{ hashFiles('cn.opam') }}
+          key: ${{ matrix.version }}-gcc-${{ matrix.mode == 'austen' && format('z3-{0}-', env.Z3_OPAM_VERSION) || '' }}${{ hashFiles('cn.opam') }}
 
       - name: Setup OPAM
         if: steps.cache-opam-restore.outputs.cache-hit != 'true'
-        env:
-          CC: ${{ matrix.compiler }}
         run: |
           opam init --yes --no-setup --shell=sh --compiler=${{ matrix.version }}
           eval $(opam env --switch=${{ matrix.version }})
           opam repo add --yes --this-switch coq-released https://coq.inria.fr/opam/released
-          opam install --deps-only --with-test --yes ./cn.opam z3
+          opam install --deps-only --with-test --yes ./cn.opam
+          # Separate install: `--deps-only` would skip Z3 itself.
+          if [ "${{ matrix.mode }}" = austen ]; then z3="z3.$Z3_OPAM_VERSION"; else z3=z3; fi
+          opam install --yes "$z3"
 
       - name: Save OPAM cache
         uses: actions/cache/save@v5
         if: steps.cache-opam-restore.outputs.cache-hit != 'true'
         with:
           path: ~/.opam
-          key: ${{ matrix.version }}-${{ matrix.compiler }}-${{ hashFiles('cn.opam') }}
+          key: ${{ steps.cache-opam-restore.outputs.cache-primary-key }}
 
-      - name: Run OUnit tests
+      - name: Setup Rust
+        if: matrix.mode == 'austen'
+        run: rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal
+
+      - name: Use OPAM's native Z3 for Austen
+        if: matrix.mode == 'austen'
+        run: |
+          eval $(opam env --switch=${{ matrix.version }})
+          z3_version="$(opam var z3:version)"
+          libdir="$(opam var lib)/stublibs"
+          test -f "$libdir/libz3.so"
+          # OPAM's libz3 has no pkg-config metadata.
+          echo "Z3_NO_PKG_CONFIG=1" >> "$GITHUB_ENV"
+          echo "Z3_LIBRARY_PATH_OVERRIDE=$libdir" >> "$GITHUB_ENV"
+          echo "Z3_SYS_Z3_VERSION=$z3_version" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$libdir${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" >> "$GITHUB_ENV"
+          echo "AUSTEN_FEATURES_KEY=${AUSTEN_FEATURES//,/-}" >> "$GITHUB_ENV"
+
+      - name: Restore Austen cache
+        if: matrix.mode == 'austen'
+        id: cache-austen-restore
+        uses: actions/cache/restore@v5
+        with:
+          path: |
+            ~/.cargo/bin/austen
+            ~/.local/lib/austen/runtime
+          key: ubuntu-24.04-${{ runner.arch }}-austen-${{ env.AUSTEN_VERSION }}-${{ env.AUSTEN_FEATURES_KEY }}-rust-${{ env.RUSTUP_TOOLCHAIN }}-clang-22-opam-${{ matrix.version }}-z3-${{ env.Z3_SYS_Z3_VERSION }}
+
+      - name: Install Austen
+        if: matrix.mode == 'austen' && steps.cache-austen-restore.outputs.cache-hit != 'true'
+        run: cargo install austen --version "$AUSTEN_VERSION" --locked --features "$AUSTEN_FEATURES"
+
+      - name: Save Austen cache
+        uses: actions/cache/save@v5
+        if: matrix.mode == 'austen' && steps.cache-austen-restore.outputs.cache-hit != 'true'
+        with:
+          path: |
+            ~/.cargo/bin/austen
+            ~/.local/lib/austen/runtime
+          key: ${{ steps.cache-austen-restore.outputs.cache-primary-key }}
+
+      - name: Run random-testing regressions
+        timeout-minutes: 15
         run: |
           opam switch ${{ matrix.version }}
           eval $(opam env --switch=${{ matrix.version }})
-          # IndexTerms, `cn test export` with Austen removed from PATH, and
-          # `cn test bennet|darcy --no-run` against a fake `austen`.
-          dune test tests/ounit --profile=dev
+          test "$(ocamlc -config-var c_compiler)" = "$CC"
+          python3 tests/random-testing/run.py ${{ matrix.args }} \
+            --output-dir "$RUNNER_TEMP/random-testing"
+
+      - name: Upload test diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: random-testing-${{ matrix.mode }}-ocaml-${{ matrix.version }}
+          path: |
+            ${{ runner.temp }}/random-testing/
+            _build/log
+            _build/**/oUnit-*.log
+          if-no-files-found: ignore
+          retention-days: 7

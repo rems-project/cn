@@ -2,6 +2,9 @@
 _build
 _opam
 
+# Python test runner bytecode
+__pycache__/
+
 # Dune temporary files
 *.install
 

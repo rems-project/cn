@@ -3,3 +3,4 @@ decorated/
 test/
 passing-*
 failing-*
+.test-gen-cache.json

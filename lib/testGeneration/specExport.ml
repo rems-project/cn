@@ -5,7 +5,7 @@
    `Request` / `Definition` / `Terms` / `BaseTypes` / `Sctypes` type for type
    and reads them as serde JSON. Until now those files were hand-written,
    which capped its corpus at four toy fixtures; this exports the real thing,
-   so `tests/cn-test-gen/src/*.c` can be driven through that pipeline.
+   so `tests/random-testing/legacy/src/*.c` can be driven through that pipeline.
 
    Why hand-written rather than [@@deriving yojson]: serde's encoding and the
    ppx's do not agree. serde renders an externally-tagged enum as an object

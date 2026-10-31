@@ -3,9 +3,7 @@
 open OUnit2
 
 (** Main test suite combining all test modules *)
-let all_tests =
-  "CN Test Suite" >::: [ IndexTerms.suite; SpecExport.suite; AustenBuild.suite ]
-
+let all_tests = "CN Test Suite" >::: [ IndexTerms.suite ]
 
 (** Run all tests with detailed output *)
 let () =
