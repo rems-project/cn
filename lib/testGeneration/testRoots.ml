@@ -75,6 +75,7 @@ let functions_under_test
   let selected_fsyms =
     Check.select_functions
       ~strict:true
+      ~error_exit_code:2
       skip_and_only
       (Sym.Set.of_list
          (List.map (fun (inst : FExtract.instrumentation) -> inst.fn) insts))

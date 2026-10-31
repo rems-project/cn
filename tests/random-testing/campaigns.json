@@ -1,0 +1,305 @@
+{
+  "version": 1,
+  "duration_seconds": 1,
+  "seed": 0,
+  "cases": [
+    {
+      "id": "abs.pass-abs",
+      "source": "fixtures/campaigns/abs.pass.c",
+      "function": "abs",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "blocked",
+          "stage": "generate",
+          "kind": "driver.unrunnable",
+          "blame": "spec",
+          "message": "the generator is structurally unrunnable: no scalar width for base type Integer",
+          "reason": "Austen 0.0.1 cannot generate the exported unbounded Integer scalar argument, despite the finite C bounds in the specification."
+        },
+        "darcy": {
+          "outcome": "blocked",
+          "stage": "generate",
+          "kind": "driver.unrunnable",
+          "blame": "spec",
+          "message": "the generator is structurally unrunnable: no scalar width for base type Integer",
+          "reason": "Austen 0.0.1 cannot generate the exported unbounded Integer scalar argument, despite the finite C bounds in the specification."
+        }
+      }
+    },
+    {
+      "id": "between.pass-between",
+      "source": "fixtures/campaigns/between.pass.c",
+      "function": "between",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "blocked",
+          "stage": "generate",
+          "kind": "driver.unrunnable",
+          "blame": "spec",
+          "message": "the generator is structurally unrunnable: no scalar width for base type Integer",
+          "reason": "Austen 0.0.1 cannot generate the exported unbounded Integer scalar argument, despite the finite C bounds in the specification."
+        },
+        "darcy": {
+          "outcome": "blocked",
+          "stage": "generate",
+          "kind": "driver.unrunnable",
+          "blame": "spec",
+          "message": "the generator is structurally unrunnable: no scalar width for base type Integer",
+          "reason": "Austen 0.0.1 cannot generate the exported unbounded Integer scalar argument, despite the finite C bounds in the specification."
+        }
+      }
+    },
+    {
+      "id": "disjunct_lifting.pass-f",
+      "source": "fixtures/campaigns/disjunct_lifting.pass.c",
+      "function": "f",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "blocked",
+          "stage": "generate",
+          "kind": "driver.unrunnable",
+          "blame": "spec",
+          "message": "the generator is structurally unrunnable: no scalar width for base type Integer",
+          "reason": "Austen 0.0.1 cannot generate the exported unbounded Integer scalar argument, despite the finite C bounds in the specification."
+        },
+        "darcy": {
+          "outcome": "blocked",
+          "stage": "generate",
+          "kind": "driver.unrunnable",
+          "blame": "spec",
+          "message": "the generator is structurally unrunnable: no scalar width for base type Integer",
+          "reason": "Austen 0.0.1 cannot generate the exported unbounded Integer scalar argument, despite the finite C bounds in the specification."
+        }
+      }
+    },
+    {
+      "id": "func_apply.pass-f",
+      "source": "fixtures/campaigns/func_apply.pass.c",
+      "function": "f",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "blocked",
+          "stage": "generate",
+          "kind": "driver.unrunnable",
+          "blame": "spec",
+          "message": "the generator is structurally unrunnable: no scalar width for base type Integer",
+          "reason": "Austen 0.0.1 cannot generate the exported unbounded Integer scalar argument, despite the finite C bounds in the specification."
+        },
+        "darcy": {
+          "outcome": "blocked",
+          "stage": "generate",
+          "kind": "driver.unrunnable",
+          "blame": "spec",
+          "message": "the generator is structurally unrunnable: no scalar width for base type Integer",
+          "reason": "Austen 0.0.1 cannot generate the exported unbounded Integer scalar argument, despite the finite C bounds in the specification."
+        }
+      }
+    },
+    {
+      "id": "learn_equality.pass-p",
+      "source": "fixtures/campaigns/learn_equality.pass.c",
+      "function": "p",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "blocked",
+          "stage": "generate",
+          "kind": "driver.unrunnable",
+          "blame": "spec",
+          "message": "the generator is structurally unrunnable: no scalar width for base type Integer",
+          "reason": "Austen 0.0.1 cannot generate the exported unbounded Integer scalar argument, despite the finite C bounds in the specification."
+        },
+        "darcy": {
+          "outcome": "blocked",
+          "stage": "generate",
+          "kind": "driver.unrunnable",
+          "blame": "spec",
+          "message": "the generator is structurally unrunnable: no scalar width for base type Integer",
+          "reason": "Austen 0.0.1 cannot generate the exported unbounded Integer scalar argument, despite the finite C bounds in the specification."
+        }
+      }
+    },
+    {
+      "id": "let.pass-f",
+      "source": "fixtures/campaigns/let.pass.c",
+      "function": "f",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "blocked",
+          "stage": "generate",
+          "kind": "driver.unrunnable",
+          "blame": "spec",
+          "message": "the generator is structurally unrunnable: no scalar width for base type Integer",
+          "reason": "Austen 0.0.1 cannot generate the exported unbounded Integer scalar argument, despite the finite C bounds in the specification."
+        },
+        "darcy": {
+          "outcome": "blocked",
+          "stage": "generate",
+          "kind": "driver.unrunnable",
+          "blame": "spec",
+          "message": "the generator is structurally unrunnable: no scalar width for base type Integer",
+          "reason": "Austen 0.0.1 cannot generate the exported unbounded Integer scalar argument, despite the finite C bounds in the specification."
+        }
+      }
+    },
+    {
+      "id": "neg100.pass-negative100",
+      "source": "fixtures/campaigns/neg100.pass.c",
+      "function": "negative100",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "blocked",
+          "stage": "generate",
+          "kind": "driver.unrunnable",
+          "blame": "spec",
+          "message": "the generator is structurally unrunnable: no scalar width for base type Integer",
+          "reason": "Austen 0.0.1 cannot generate the exported unbounded Integer scalar argument, despite the finite C bounds in the specification."
+        },
+        "darcy": {
+          "outcome": "blocked",
+          "stage": "generate",
+          "kind": "driver.unrunnable",
+          "blame": "spec",
+          "message": "the generator is structurally unrunnable: no scalar width for base type Integer",
+          "reason": "Austen 0.0.1 cannot generate the exported unbounded Integer scalar argument, despite the finite C bounds in the specification."
+        }
+      }
+    },
+    {
+      "id": "neq.pass-ret_17_except_good",
+      "source": "fixtures/campaigns/neq.pass.c",
+      "function": "ret_17_except_good",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "blocked",
+          "stage": "generate",
+          "kind": "driver.unrunnable",
+          "blame": "spec",
+          "message": "the generator is structurally unrunnable: no scalar width for base type Integer",
+          "reason": "Austen 0.0.1 cannot generate the exported unbounded Integer scalar argument, despite the finite C bounds in the specification."
+        },
+        "darcy": {
+          "outcome": "blocked",
+          "stage": "generate",
+          "kind": "driver.unrunnable",
+          "blame": "spec",
+          "message": "the generator is structurally unrunnable: no scalar width for base type Integer",
+          "reason": "Austen 0.0.1 cannot generate the exported unbounded Integer scalar argument, despite the finite C bounds in the specification."
+        }
+      }
+    },
+    {
+      "id": "no_args.pass-no_args",
+      "source": "fixtures/campaigns/no_args.pass.c",
+      "function": "no_args",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "blocked",
+          "stage": "generate",
+          "kind": "driver.unrunnable",
+          "blame": "spec",
+          "message": "the generator is structurally unrunnable: no scalar width for base type Integer",
+          "reason": "Austen 0.0.1 cannot generate the exported unbounded Integer scalar argument, despite the finite C bounds in the specification."
+        },
+        "darcy": {
+          "outcome": "blocked",
+          "stage": "generate",
+          "kind": "driver.unrunnable",
+          "blame": "spec",
+          "message": "the generator is structurally unrunnable: no scalar width for base type Integer",
+          "reason": "Austen 0.0.1 cannot generate the exported unbounded Integer scalar argument, despite the finite C bounds in the specification."
+        }
+      }
+    },
+    {
+      "id": "no_args.pass-pred_no_args",
+      "source": "fixtures/campaigns/no_args.pass.c",
+      "function": "pred_no_args",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "smt_pruning.pass-f",
+      "source": "fixtures/campaigns/smt_pruning.pass.c",
+      "function": "f",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "blocked",
+          "stage": "generate",
+          "kind": "driver.unrunnable",
+          "blame": "spec",
+          "message": "the generator is structurally unrunnable: no scalar width for base type Integer",
+          "reason": "Austen 0.0.1 cannot generate the exported unbounded Integer scalar argument, despite the finite C bounds in the specification."
+        },
+        "darcy": {
+          "outcome": "blocked",
+          "stage": "generate",
+          "kind": "driver.unrunnable",
+          "blame": "spec",
+          "message": "the generator is structurally unrunnable: no scalar width for base type Integer",
+          "reason": "Austen 0.0.1 cannot generate the exported unbounded Integer scalar argument, despite the finite C bounds in the specification."
+        }
+      }
+    },
+    {
+      "id": "test_macro.fail-always_fail",
+      "source": "fixtures/campaigns/test_macro.fail.c",
+      "function": "always_fail",
+      "intent": "finding",
+      "expected": {
+        "bennet": {
+          "outcome": "pass",
+          "reason": "The legacy failure relied on per-access ownership instrumentation. Austen checks entry/exit oracles; this fixture has no failing postcondition. Preserve and track that difference explicitly."
+        },
+        "darcy": {
+          "outcome": "pass",
+          "reason": "The legacy failure relied on per-access ownership instrumentation. Austen checks entry/exit oracles; this fixture has no failing postcondition. Preserve and track that difference explicitly."
+        }
+      }
+    },
+    {
+      "id": "smoke-oracle.pass-constant",
+      "source": "fixtures/campaigns/smoke/oracle.pass.c",
+      "function": "constant",
+      "intent": "pass",
+      "expected": {
+        "bennet": {
+          "outcome": "pass"
+        },
+        "darcy": {
+          "outcome": "pass"
+        }
+      }
+    },
+    {
+      "id": "smoke-oracle.fail-constant",
+      "source": "fixtures/campaigns/smoke/oracle.fail.c",
+      "function": "constant",
+      "intent": "finding",
+      "expected": {
+        "bennet": {
+          "outcome": "finding"
+        },
+        "darcy": {
+          "outcome": "finding"
+        }
+      }
+    }
+  ]
+}

@@ -31,6 +31,29 @@ class RunnerTests(unittest.TestCase):
     def run_python(self, code, timeout=5):
         runner.run_command([sys.executable, "-c", code], self.root / "command.log", timeout)
 
+    def kill_pid_file_on_cleanup(self, pid_file):
+        def cleanup():
+            if pid_file.exists():
+                try:
+                    os.kill(int(pid_file.read_text()), signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+
+        self.addCleanup(cleanup)
+
+    def wait_until_gone(self, pid, message):
+        state = Path(f"/proc/{pid}/stat")
+        # An orphan may briefly remain a zombie until the container's init reaps it.
+        deadline = time.monotonic() + 2
+        while state.exists():
+            try:
+                if state.read_text().split()[2] == "Z":
+                    break
+            except FileNotFoundError:
+                break
+            self.assertLess(time.monotonic(), deadline, message)
+            time.sleep(0.01)
+
     def test_combines_output_and_preserves_arguments_with_spaces(self):
         runner.run_command(
             [sys.executable, "-c", "import sys; print(sys.argv[1]); print('stderr', file=sys.stderr)",
@@ -64,16 +87,10 @@ class RunnerTests(unittest.TestCase):
     def test_timeout_stops_descendants_even_if_parent_exited(self):
         ready = self.root / "descendant ready"
 
-        def cleanup_child():
-            if ready.exists():
-                try:
-                    os.kill(int(ready.read_text()), signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
-
-        self.addCleanup(cleanup_child)
+        self.kill_pid_file_on_cleanup(ready)
         child = (
             "import os, signal, time; from pathlib import Path; "
+            "signal.signal(signal.SIGINT, signal.SIG_IGN); "
             "signal.signal(signal.SIGTERM, signal.SIG_IGN); "
             f"Path({str(ready)!r}).write_text(str(os.getpid())); "
             "print('child:' + str(os.getpid()), flush=True); time.sleep(60)"
@@ -86,17 +103,61 @@ class RunnerTests(unittest.TestCase):
         line = (self.root / "command.log").read_text().strip()
         self.assertTrue(line.startswith("child:"), line)
         pid = int(line.split(":")[1])
-        state = Path(f"/proc/{pid}/stat")
-        # An orphan may briefly remain a zombie until the container's init reaps it.
-        deadline = time.monotonic() + 2
-        while state.exists():
-            try:
-                if state.read_text().split()[2] == "Z":
-                    break
-            except FileNotFoundError:
-                break
-            self.assertLess(time.monotonic(), deadline, "descendant survived timeout cleanup")
-            time.sleep(0.01)
+        self.wait_until_gone(pid, "descendant survived timeout cleanup")
+
+    @unittest.skipUnless(sys.platform.startswith("linux"), "Linux process state inspection")
+    def test_timeout_allows_cn_to_interrupt_and_reap_detached_child(self):
+        ready = self.root / "detached child ready"
+        interrupted = self.root / "detached child interrupted"
+        child = (
+            "import os, signal, time; from pathlib import Path\n"
+            "def interrupt(signum, frame):\n"
+            f"    Path({str(interrupted)!r}).write_text('interrupted')\n"
+            "    raise SystemExit(0)\n"
+            "signal.signal(signal.SIGINT, interrupt)\n"
+            f"Path({str(ready)!r}).write_text(str(os.getpid()))\n"
+            "time.sleep(60)\n"
+        )
+        parent = (
+            "import signal, subprocess, sys, time\n"
+            f"child = subprocess.Popen([sys.executable, '-c', {child!r}], start_new_session=True)\n"
+            "def interrupt(signum, frame):\n"
+            "    child.send_signal(signal.SIGINT)\n"
+            "    child.wait()\n"
+            "    raise SystemExit(130)\n"
+            "signal.signal(signal.SIGINT, interrupt)\n"
+            "time.sleep(60)\n"
+        )
+        with self.assertRaisesRegex(RuntimeError, "timed out"):
+            self.run_python(parent, timeout=1)
+        self.assertEqual(interrupted.read_text(), "interrupted")
+        pid = int(ready.read_text())
+        self.assertFalse(Path(f"/proc/{pid}").exists(), "detached child was not reaped")
+
+    @unittest.skipUnless(sys.platform.startswith("linux"), "Linux process state inspection")
+    def test_timeout_kills_detached_child_that_ignores_interrupt_and_term(self):
+        ready = self.root / "ignoring detached child ready"
+        child = (
+            "import os, signal, time; from pathlib import Path; "
+            "signal.signal(signal.SIGINT, signal.SIG_IGN); "
+            "signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+            f"Path({str(ready)!r}).write_text(str(os.getpid())); "
+            "time.sleep(60)"
+        )
+        parent = (
+            "import signal, subprocess, sys, time; "
+            "signal.signal(signal.SIGINT, signal.SIG_IGN); "
+            f"subprocess.Popen([sys.executable, '-c', {child!r}], start_new_session=True); "
+            "time.sleep(60)"
+        )
+
+        self.kill_pid_file_on_cleanup(ready)
+        start = time.monotonic()
+        with self.assertRaisesRegex(RuntimeError, "timed out"):
+            self.run_python(parent, timeout=1)
+        self.assertLess(time.monotonic() - start, 6)
+        pid = int(ready.read_text())
+        self.wait_until_gone(pid, "detached child survived cleanup")
 
     @unittest.skipUnless(sys.platform.startswith("linux"), "Linux process state inspection")
     def test_keyboard_interrupt_stops_the_running_command(self):
@@ -151,6 +212,39 @@ class RunnerTests(unittest.TestCase):
             self.assertEqual(runner.main(["--builds-only"]), 0)
         command.assert_not_called()
         builds.assert_called_once()
+
+    def test_campaigns_only_uses_status_runner_and_skips_build_checks(self):
+        with mock.patch.object(runner, "run_command") as command, \
+             mock.patch.object(runner, "check_builds") as builds, \
+             mock.patch.object(runner, "check_campaigns") as campaigns:
+            self.assertEqual(runner.main(["--campaigns-only"]), 0)
+        command.assert_not_called()
+        builds.assert_not_called()
+        campaigns.assert_called_once()
+        self.assertIs(campaigns.call_args.args[2], runner.run_status)
+
+    def test_austen_only_runs_builds_and_campaigns_without_ounit(self):
+        with mock.patch.object(runner, "run_command") as command, \
+             mock.patch.object(runner, "check_builds") as builds, \
+             mock.patch.object(runner, "check_campaigns") as campaigns:
+            self.assertEqual(runner.main(["--austen-only"]), 0)
+        command.assert_not_called()
+        builds.assert_called_once()
+        campaigns.assert_called_once()
+
+    def test_status_runner_preserves_finding_and_error_exits(self):
+        for status in (1, 2):
+            with self.subTest(status=status):
+                actual = runner.run_status(
+                    [sys.executable, "-c", f"raise SystemExit({status})"],
+                    self.root / "status.log", 5,
+                )
+                self.assertEqual(actual, status)
+
+    def test_status_runner_does_not_convert_timeouts_to_campaign_errors(self):
+        with mock.patch.object(runner, "run_command", side_effect=RuntimeError("timed out")):
+            with self.assertRaisesRegex(RuntimeError, "timed out"):
+                runner.run_status(["cn"], self.root / "status.log", 5)
 
     def test_failure_retains_diagnostics_and_cannot_reuse_stale_output(self):
         output = self.root / "CI artifacts"

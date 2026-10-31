@@ -27,10 +27,10 @@ jobs:
             mode: unit
             version: '4.14.1'
             args: --unit-only
-          - suite: Austen builds
+          - suite: Austen builds and campaigns
             mode: austen
             version: '4.14.1'
-            args: --builds-only
+            args: --austen-only
 
     runs-on: ubuntu-24.04
     timeout-minutes: 60
@@ -152,3 +152,11 @@ jobs:
             _build/**/oUnit-*.log
           if-no-files-found: ignore
           retention-days: 7
+
+      - name: Summarize campaign outcomes
+        if: always() && matrix.mode == 'austen'
+        run: |
+          if [ -d "$RUNNER_TEMP/random-testing" ]; then
+            find "$RUNNER_TEMP/random-testing" -path '*/campaigns/summary.md' \
+              -type f -exec cat {} \; >> "$GITHUB_STEP_SUMMARY"
+          fi

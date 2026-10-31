@@ -115,26 +115,28 @@ let source_flags ~source =
 
 
 (* The arguments CN passes to Austen to build [fn] from [source]. *)
-let expected_argv ~engine ~fn ~out ~spec ~source =
+let expected_argv ?(ownership = true) ~engine ~fn ~out ~spec ~source () =
   [ "test";
-    "--build-only";
     "--engine=" ^ engine;
     "--function=" ^ fn;
     "--work=" ^ Filename.concat (Filename.concat out "work") fn;
-    "--cflag=-D";
-    "--cflag=__CN_TEST";
-    "--cflag=-D";
-    "--cflag=__AUSTEN_TEST";
-    "--cflag=-D";
-    "--cflag=STEP=1";
-    "--cflag=-I";
-    "--cflag=" ^ include_dir ();
-    "--cflag=-include";
-    "--cflag=" ^ Filename.concat (include_dir ()) "forced.h";
-    "--";
-    spec;
-    source
+    "--build-only"
   ]
+  @ (if ownership then [ "--check-heap-ownership" ] else [])
+  @ [ "--cflag=-D";
+      "--cflag=__CN_TEST";
+      "--cflag=-D";
+      "--cflag=__AUSTEN_TEST";
+      "--cflag=-D";
+      "--cflag=STEP=1";
+      "--cflag=-I";
+      "--cflag=" ^ include_dir ();
+      "--cflag=-include";
+      "--cflag=" ^ Filename.concat (include_dir ()) "forced.h";
+      "--";
+      spec;
+      source
+    ]
 
 
 let builds_one_function_with_engine engine _ =
@@ -149,7 +151,7 @@ let builds_one_function_with_engine engine _ =
   let spec = Filename.concat out "spec.json" in
   assert_equal
     ~printer:(String.concat "\n")
-    (expected_argv ~engine ~fn:"decrement" ~out ~spec ~source)
+    (expected_argv ~engine ~fn:"decrement" ~out ~spec ~source ())
     (recorded_args args);
   assert_bool "the specification was not exported" (Sys.file_exists spec)
 
@@ -174,7 +176,35 @@ let builds_with_exported_spec_path _ =
   assert_bool "the specification was not exported" (Sys.file_exists spec);
   assert_equal
     ~printer:(String.concat "\n")
-    (expected_argv ~engine:"bennet" ~fn:"increment" ~out ~spec ~source)
+    (expected_argv ~engine:"bennet" ~fn:"increment" ~out ~spec ~source ())
+    (recorded_args args)
+
+
+let builds_without_ownership_checking _ =
+  with_temp_dir
+  @@ fun dir ->
+  let source, bin, args, out = setup dir in
+  run_cn_test
+    ~path_prefix:bin
+    ([ "bennet";
+       "--no-run";
+       "--only=decrement";
+       "--without-ownership-checking";
+       "--output-dir";
+       out
+     ]
+     @ source_flags ~source)
+  |> assert_status 0;
+  assert_equal
+    ~printer:(String.concat "\n")
+    (expected_argv
+       ~ownership:false
+       ~engine:"bennet"
+       ~fn:"decrement"
+       ~out
+       ~spec:(Filename.concat out "spec.json")
+       ~source
+       ())
     (recorded_args args)
 
 
@@ -191,7 +221,7 @@ let builds_a_static_function_by_its_exported_name _ =
   let fn = "twice" in
   assert_equal
     ~printer:(String.concat "\n")
-    (expected_argv ~engine:"bennet" ~fn ~out ~spec ~source)
+    (expected_argv ~engine:"bennet" ~fn ~out ~spec ~source ())
     (recorded_args args);
   let names =
     match Yojson.Safe.from_file spec with
@@ -344,6 +374,7 @@ let suite =
   >::: [ "builds one function with bennet" >:: builds_one_function_with_engine "bennet";
          "builds one function with darcy" >:: builds_one_function_with_engine "darcy";
          "builds from --export-spec-json" >:: builds_with_exported_spec_path;
+         "builds without heap ownership checking" >:: builds_without_ownership_checking;
          "builds a static function by its exported name"
          >:: builds_a_static_function_by_its_exported_name;
          "reports a missing austen" >:: missing_austen_is_reported;
@@ -356,7 +387,7 @@ let suite =
          "reports an unspawnable austen" >:: unspawnable_austen_is_reported;
          "refuses an unmatched --only"
          >:: invalid_selection_is_refused
-               ~status:1
+               ~status:2
                ~message:"functions specified in --only not found: absent"
                [ "--only=absent" ];
          "refuses a selection emptied by --skip"

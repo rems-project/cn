@@ -83,11 +83,18 @@ let term : args Term.t =
 (* Set the global flags from [a], run the CN frontend on its single source
    file, and call [f] with that file's name and the checked program.
    Linemarkers are kept, so diagnostics cite original source lines. *)
-let with_checked_program (a : args) ~f =
+let with_checked_program ?error_exit_code (a : args) ~f =
   Cerb_debug.debug_level := a.debug_level;
   Pp.print_level := a.print_level;
   Sym.executable_spec_enabled := true;
-  let filename = Common.there_can_only_be_one a.files in
+  let filename = Common.there_can_only_be_one ?error_exit_code a.files in
+  let handle_error error =
+    match error_exit_code with
+    | None -> Common.print_type_error_and_exit error
+    | Some code ->
+      Common.report_type_error ~json:false error;
+      exit code
+  in
   Common.with_well_formedness_check (* CLI arguments *)
     ~filename
     ~cc:a.cc
@@ -107,7 +114,7 @@ let with_checked_program (a : args) ~f =
     ~allow_split_magic_comments:a.allow_split_magic_comments (* Callbacks *)
     ~save_cpp:None
     ~disable_linemarkers:false
-    ~handle_error:Common.print_type_error_and_exit
+    ~handle_error
     ~f:(f ~filename)
 
 

@@ -2,7 +2,8 @@
 void f(int x)
 /*@
     requires
-        x < 10i32 || x > 10i32;
-        x < 10i32 || x > 10i32;
+        MINi32() <= x; x <= MAXi32();
+        x < 10 || x > 10;
+        x < 10 || x > 10;
 @*/
 {}

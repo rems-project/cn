@@ -33,6 +33,6 @@ let of_instrumentation
     | Ok at' -> at' |> AT.map (fun rt -> (rt, snd (AT.get_return at)))
     | Error err ->
       TypeErrors.report_pretty TypeErrors.{ loc = err.loc; msg = WellTyped err.msg };
-      exit 1
+      exit 2
   in
   { fn = inst.fn; is_static = inst.is_static; internal }

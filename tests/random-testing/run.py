@@ -2,7 +2,6 @@
 """Run CN's random-testing regressions using the active OPAM environment."""
 
 import argparse
-import json
 import math
 import os
 from pathlib import Path
@@ -14,31 +13,81 @@ import sys
 import tempfile
 import threading
 
+from campaigns import REPO_ROOT, check_campaigns, read_json, require
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+
 FIXTURES = Path("tests/random-testing/fixtures/austen")
 
 
-def stop_process(process):
-    """Stop the whole command tree, including compiler children holding stdout."""
-    def send(sig):
-        try:
-            if os.name == "posix":
-                os.killpg(process.pid, sig)
-            elif process.poll() is None:
-                process.send_signal(sig)
-        except ProcessLookupError:
-            pass
+def command_process_groups(pid):
+    """Find descendant groups, including Austen's separate session."""
+    own_group = os.getpgrp()
+    groups = {pid} - {own_group}
+    try:
+        rows = subprocess.check_output(
+            ["ps", "-e", "-o", "pid=,ppid=,pgid="],
+            text=True, stderr=subprocess.DEVNULL, timeout=0.5,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return groups
+    processes = []
+    for row in rows.splitlines():
+        fields = row.split()
+        if len(fields) == 3 and all(field.isdigit() for field in fields):
+            processes.append(tuple(map(int, fields)))
+    descendants = {pid}
+    changed = True
+    while changed:
+        changed = False
+        for child, parent, group in processes:
+            # Group membership also finds children whose command parent exited.
+            if child not in descendants and (parent in descendants or group in groups):
+                descendants.add(child)
+                if group > 1 and group != own_group:
+                    groups.add(group)
+                changed = True
+    return groups
 
-    send(signal.SIGTERM)
+
+def stop_process(process):
+    """Interrupt CN gracefully, then stop every captured descendant group."""
+    groups = command_process_groups(process.pid) if os.name == "posix" else set()
+
+    def send(sig, targets):
+        if os.name != "posix":
+            if process.poll() is None:
+                process.send_signal(sig)
+            return
+        for group in targets:
+            try:
+                os.killpg(group, sig)
+            except ProcessLookupError:
+                pass
+
+    # CN forwards SIGINT to Austen and waits for it. Sending it only to CN's
+    # group avoids counting one interrupt twice in Austen's signal handler.
+    send(signal.SIGINT, {process.pid} - {os.getpgrp()} if os.name == "posix" else set())
+    try:
+        process.wait(timeout=2)
+    except subprocess.TimeoutExpired:
+        pass
+    if os.name == "posix":
+        groups.update(command_process_groups(process.pid))
+    send(signal.SIGTERM, groups)
     try:
         process.wait(timeout=1)
     except subprocess.TimeoutExpired:
         pass
     finally:
-        # The parent may exit before a child that ignored SIGTERM.
-        send(signal.SIGKILL)
+        # Saved groups still identify detached children after their parent exits.
+        send(signal.SIGKILL, groups)
         process.wait()
+
+
+class CommandFailed(RuntimeError):
+    def __init__(self, command, returncode, log_path):
+        self.returncode = returncode
+        super().__init__(f"{command[0]} exited with status {returncode}; see {log_path}")
 
 
 def run_command(command, log_path, timeout=600):
@@ -72,6 +121,8 @@ def run_command(command, log_path, timeout=600):
                     log.flush()
                 status = process.wait()
             except BaseException:
+                timer.cancel()
+                timer.join()
                 stop_process(process)
                 raise
             finally:
@@ -80,21 +131,16 @@ def run_command(command, log_path, timeout=600):
     if timed_out.is_set():
         raise RuntimeError(f"{command[0]} timed out after {timeout:g} seconds; see {log_path}")
     if status != 0:
-        raise RuntimeError(f"{command[0]} exited with status {status}; see {log_path}")
+        raise CommandFailed(command, status, log_path)
 
 
-def require(condition, message):
-    if not condition:
-        raise RuntimeError(message)
-
-
-def read_json_object(path):
+def run_status(command, log_path, timeout):
+    """Expose the child status without swallowing timeout or startup failures."""
     try:
-        contents = json.loads(path.read_text())
-    except (OSError, UnicodeError, ValueError) as error:
-        raise RuntimeError(f"Cannot read JSON artifact {path}: {error}") from error
-    require(isinstance(contents, dict), f"Expected a JSON object: {path}")
-    return contents
+        run_command(command, log_path, timeout)
+    except CommandFailed as error:
+        return error.returncode
+    return 0
 
 
 def check_builds(output_root, timeout=600):
@@ -118,14 +164,14 @@ def check_builds(output_root, timeout=600):
             timeout,
         )
         work = output / "work/decrement"
-        spec = read_json_object(output / "spec.json")
+        spec = read_json(output / "spec.json")
         functions = spec.get("functions")
         require(
             isinstance(functions, list)
             and any(isinstance(fn, dict) and fn.get("name") == "decrement" for fn in functions),
             f"{engine}: exported specification does not include decrement",
         )
-        prepared = read_json_object(work / "prepared-harness.json")
+        prepared = read_json(work / "prepared-harness.json")
         require(
             type(prepared.get("version")) is int
             and prepared["version"] == 1
@@ -196,6 +242,14 @@ def main(argv=None):
         "--builds-only", action="store_true",
         help="run only the real Austen harness builds",
     )
+    suites.add_argument(
+        "--campaigns-only", action="store_true",
+        help="run only the real campaign outcome baseline",
+    )
+    suites.add_argument(
+        "--austen-only", action="store_true",
+        help="run real Austen builds and campaigns without OUnit",
+    )
     parser.add_argument(
         "--timeout", type=positive_timeout, default=600,
         metavar="SECONDS", help="timeout for each external command (default: %(default)s)",
@@ -213,7 +267,7 @@ def main(argv=None):
             prefix="cn-random-testing-" if args.output_dir is None else "run-",
             dir=args.output_dir,
         )).resolve()
-        if not args.builds_only:
+        if not (args.builds_only or args.campaigns_only or args.austen_only):
             run_command(
                 [
                     "dune", "test", "tests/ounit", "tests/random-testing/ounit",
@@ -222,8 +276,10 @@ def main(argv=None):
                 output_root / "ounit.log",
                 args.timeout,
             )
-        if not args.unit_only:
+        if not (args.unit_only or args.campaigns_only):
             check_builds(output_root, args.timeout)
+        if not (args.unit_only or args.builds_only):
+            check_campaigns(output_root, args.timeout, run_status)
     except (OSError, RuntimeError) as error:
         print(f"Random testing failed: {error}", file=sys.stderr, flush=True)
         if output_root is not None:

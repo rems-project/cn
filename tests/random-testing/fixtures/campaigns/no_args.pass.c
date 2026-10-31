@@ -1,5 +1,6 @@
 int no_args(int unused)
-/*@ ensures return == 42i32;
+/*@ requires MINi32() <= unused; unused <= MAXi32();
+    ensures return == 42;
 @*/
 {
   return 42;
@@ -17,7 +18,7 @@ predicate (boolean) UnusedArg (pointer p)
 int pred_no_args(int *p)
 /*@ requires take P = UnusedArg(p);
     ensures take Q = UnusedArg(p);
-            return == 7i32;
+            return == 7;
 @*/
 {
   return 7;

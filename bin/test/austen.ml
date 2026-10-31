@@ -40,39 +40,147 @@ let cflags (frontend : Frontend.args) : string list =
   @ List.concat_map (fun file -> [ "-include"; file ]) frontend.incl_files
 
 
-(* `austen test --build-only` for one function. [--] ends Austen's options, so
-   the specification and source are positional whatever their names. *)
-let build_only_argv ~exe ~engine ~fn ~work ~cflags ~spec ~source : string list =
-  [ exe;
-    "test";
-    "--build-only";
-    "--engine=" ^ engine;
-    "--function=" ^ fn;
-    "--work=" ^ work
-  ]
+(* `austen test` for one function with the given mode options. [--] ends
+   Austen's options, so the specification and source are positional whatever
+   their names. *)
+let argv ~exe ~engine ~fn ~work ~check_heap_ownership ~cflags ~spec ~source mode_options
+  : string list
+  =
+  [ exe; "test"; "--engine=" ^ engine; "--function=" ^ fn; "--work=" ^ work ]
+  @ mode_options
+  @ (if check_heap_ownership then [ "--check-heap-ownership" ] else [])
   @ List.map (fun flag -> "--cflag=" ^ flag) cflags
   @ [ "--"; spec; source ]
 
 
-(* Run [argv] with the inherited standard streams and wait for it. *)
+let build_only_argv ~exe ~engine ~fn ~work ~check_heap_ownership ~cflags ~spec ~source =
+  argv
+    ~exe
+    ~engine
+    ~fn
+    ~work
+    ~check_heap_ownership
+    ~cflags
+    ~spec
+    ~source
+    [ "--build-only" ]
+
+
+(* Native, single-function campaigns are always bounded. Keep findings beside
+   the work directory instead of Austen's default [./crashes]. *)
+let campaign_argv
+      ~exe
+      ~engine
+      ~fn
+      ~work
+      ~duration
+      ~report
+      ~crashes
+      ~check_heap_ownership
+      ~seed
+      ~cflags
+      ~spec
+      ~source
+  =
+  argv
+    ~exe
+    ~engine
+    ~fn
+    ~work
+    ~check_heap_ownership
+    ~cflags
+    ~spec
+    ~source
+    ([ "--duration=" ^ string_of_int duration;
+       "--strict-duration";
+       "--fail-on-crash";
+       "--report=" ^ report;
+       "--crashes=" ^ crashes
+     ]
+     @ match seed with None -> [] | Some seed -> [ "--seed=" ^ seed ])
+
+
+(* Run Austen in its own session. CN forwards each interrupt to that process
+   group, including build tools and harness children, and reports any
+   interrupted run as exit status 130. The close-on-exec pipe
+   distinguishes a failed exec from an Austen process that exits unsuccessfully. *)
 let run (argv : string list) : (Unix.process_status, string) result =
   flush_all ();
-  match
-    Unix.create_process
-      (List.hd argv)
-      (Array.of_list argv)
-      Unix.stdin
-      Unix.stdout
-      Unix.stderr
-  with
-  | exception Unix.Unix_error (err, _, _) -> Error (Unix.error_message err)
-  | pid ->
-    let rec wait () =
-      match Unix.waitpid [] pid with
-      | _, status -> status
-      | exception Unix.Unix_error (EINTR, _, _) -> wait ()
-    in
-    Ok (wait ())
+  let child = ref None in
+  let interrupted = ref false in
+  let forward_interrupt pid =
+    try Unix.kill (-pid) Sys.sigint with Unix.Unix_error (ESRCH, _, _) -> ()
+  in
+  let previous =
+    Sys.signal
+      Sys.sigint
+      (Signal_handle
+         (fun _ ->
+           interrupted := true;
+           Option.iter forward_interrupt !child))
+  in
+  let rec wait pid =
+    match Unix.waitpid [] pid with
+    | _, status ->
+      child := None;
+      status
+    | exception Unix.Unix_error (EINTR, _, _) -> wait pid
+  in
+  Fun.protect
+    ~finally:(fun () -> Sys.set_signal Sys.sigint previous)
+    (fun () ->
+       try
+         let reader, writer = Unix.pipe ~cloexec:true () in
+         match Unix.fork () with
+         | exception exn ->
+           Unix.close reader;
+           Unix.close writer;
+           raise exn
+         | 0 ->
+           Unix.close reader;
+           (try
+              ignore (Unix.setsid ());
+              Sys.set_signal Sys.sigint Signal_default;
+              Unix.execv (List.hd argv) (Array.of_list argv)
+            with
+            | Unix.Unix_error (err, _, _) ->
+              let message = Unix.error_message err in
+              (try
+                 ignore (Unix.write_substring writer message 0 (String.length message))
+               with
+               | Unix.Unix_error _ -> ());
+              Unix._exit 127)
+         | pid ->
+           Unix.close writer;
+           let startup_error =
+             try
+               Fun.protect
+                 ~finally:(fun () -> Unix.close reader)
+                 (fun () -> In_channel.input_all (Unix.in_channel_of_descr reader))
+             with
+             | exn ->
+               (try Unix.kill pid Sys.sigkill with Unix.Unix_error (ESRCH, _, _) -> ());
+               ignore (wait pid);
+               raise exn
+           in
+           (* The pipe closes on exec, so the new process group exists before
+              forwarding. Block interrupts while transferring a pending one to
+              the child to avoid sending the same interrupt twice. *)
+           let mask = Unix.sigprocmask SIG_BLOCK [ Sys.sigint ] in
+           child := Some pid;
+           if !interrupted then forward_interrupt pid;
+           ignore (Unix.sigprocmask SIG_SETMASK mask);
+           let status = wait pid in
+           if not (String.equal startup_error "") then
+             Error startup_error
+           else
+             Ok
+               (match status with
+                | _ when !interrupted -> Unix.WEXITED 130
+                | WSIGNALED signal when signal = Sys.sigint -> WEXITED 130
+                | status -> status)
+       with
+       | Unix.Unix_error (err, _, _) -> Error (Unix.error_message err))
 
 
 let string_of_status = function

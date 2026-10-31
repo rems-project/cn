@@ -16,14 +16,16 @@ type invocation =
     only : string list;
     skip : string list;
     dont_run : bool;
-    export_spec_json : string option
+    export_spec_json : string option;
+    until_timeout : int option;
+    seed : string option;
+    without_ownership_checking : bool
   }
 
-(* `cn test bennet|darcy --no-run`: export the specifications and have Austen
-   build, without testing, the harness for the one selected testing root.
+(* Export the specifications, then build or test the one selected testing root.
    Austen is located before the frontend runs, so a missing Austen creates no
-   output. *)
-let build_only (inv : invocation) : unit =
+   output. Multi-function campaigns are a separate migration checkpoint. *)
+let prepare (inv : invocation) : unit =
   let name = TestGeneration.Config.cli_name inv.engine in
   let fail fmt =
     Printf.ksprintf
@@ -42,84 +44,136 @@ let build_only (inv : invocation) : unit =
         Austen.executable
         Austen.install_hint
   in
-  Frontend.with_checked_program
-    inv.frontend
-    ~f:(fun ~filename:source ~cerb_conf:_ ~prog5 ~ail_prog ~statement_locs:_ ~paused ->
-      let _, sigma = ail_prog in
-      let fn =
-        TestGeneration.functions_under_test
-          ~with_warning:true
-          ~skip_and_only:(inv.skip, inv.only)
-          sigma
-          prog5
-          paused
-        |> List.map TestGeneration.function_name
-        |> function
-        | [ fn ] -> fn
-        | [] -> fail "no functions were selected for testing."
-        | fns ->
-          fail
-            "--no-run builds one function, but %d were selected (%s).\n\
-             Select one with --only."
-            (List.length fns)
-            (String.concat ", " fns)
-      in
-      let output_dir =
-        Common.mk_dir_if_not_exist_maybe_tmp
-          ~mktemp:true
-          ~print_steps:inv.print_steps
-          (Common.Test inv.engine)
-          inv.output_dir
-      in
-      let spec =
-        Option.value
-          inv.export_spec_json
-          ~default:(Filename.concat output_dir "spec.json")
-      in
-      Frontend.export_specs ~path:spec ~filename:source sigma prog5 paused;
-      let work = Filename.concat (Filename.concat output_dir "work") fn in
-      let argv =
-        Austen.build_only_argv
-          ~exe
-          ~engine:name
-          ~fn
-          ~work
-          ~cflags:(Austen.cflags inv.frontend)
-          ~spec
-          ~source
-      in
-      if inv.print_steps then
-        print_endline ("Running: " ^ Filename.quote_command (List.hd argv) (List.tl argv));
-      (match Austen.run argv with
-       | Ok (WEXITED 0) -> Printf.printf "Built the harness for %s in %s\n" fn work
-       | Ok (WEXITED 130) -> exit 130
-       | Ok status ->
-         fail
-           "'%s' %s while building the harness for %s."
-           exe
-           (Austen.string_of_status status)
-           fn
-       | Error msg -> fail "could not run '%s': %s" exe msg);
-      Ok ())
+  try
+    Frontend.with_checked_program
+      ~error_exit_code:2
+      inv.frontend
+      ~f:(fun ~filename:source ~cerb_conf:_ ~prog5 ~ail_prog ~statement_locs:_ ~paused ->
+        let _, sigma = ail_prog in
+        let fn =
+          TestGeneration.functions_under_test
+            ~with_warning:true
+            ~skip_and_only:(inv.skip, inv.only)
+            sigma
+            prog5
+            paused
+          |> List.map TestGeneration.function_name
+          |> function
+          | [ fn ] -> fn
+          | [] -> fail "no functions were selected for testing."
+          | fns ->
+            fail
+              "%s one function, but %d were selected (%s).\nSelect one with --only."
+              (if inv.dont_run then "--no-run builds" else "testing currently runs")
+              (List.length fns)
+              (String.concat ", " fns)
+        in
+        let output_dir =
+          Common.mk_dir_if_not_exist_maybe_tmp
+            ~mktemp:true
+            ~print_steps:inv.print_steps
+            (Common.Test inv.engine)
+            inv.output_dir
+        in
+        let spec =
+          Option.value
+            inv.export_spec_json
+            ~default:(Filename.concat output_dir "spec.json")
+        in
+        TestGeneration.export_specs ~path:spec ~filename:source sigma prog5 paused;
+        let work = Filename.concat (Filename.concat output_dir "work") fn in
+        let report = Filename.concat output_dir "report.json" in
+        let duration = Option.value inv.until_timeout ~default:10 in
+        let check_heap_ownership = not inv.without_ownership_checking in
+        let argv =
+          let cflags = Austen.cflags inv.frontend in
+          if inv.dont_run then
+            Austen.build_only_argv
+              ~exe
+              ~engine:name
+              ~fn
+              ~work
+              ~check_heap_ownership
+              ~cflags
+              ~spec
+              ~source
+          else (
+            (* Never let a previous invocation's report establish this outcome.
+             Unlink before spawning, including a dangling symlink. *)
+            let report_is_spec =
+              try String.equal (Unix.realpath report) (Unix.realpath spec) with
+              | Unix.Unix_error (ENOENT, _, _) -> false
+            in
+            if report_is_spec then
+              fail "the specification path conflicts with the campaign report: %s" report;
+            (try Unix.unlink report with Unix.Unix_error (ENOENT, _, _) -> ());
+            Austen.campaign_argv
+              ~exe
+              ~engine:name
+              ~fn
+              ~work
+              ~duration
+              ~report
+              ~crashes:(Filename.concat (Filename.concat output_dir "findings") fn)
+              ~check_heap_ownership
+              ~seed:inv.seed
+              ~cflags
+              ~spec
+              ~source)
+        in
+        if inv.print_steps then
+          print_endline
+            ("Running: " ^ Filename.quote_command (List.hd argv) (List.tl argv));
+        let status =
+          match Austen.run argv with
+          | Ok status -> status
+          | Error msg -> fail "could not run '%s': %s" exe msg
+        in
+        if inv.dont_run then (
+          match status with
+          | WEXITED 0 -> Printf.printf "Built the harness for %s in %s\n" fn work
+          | WEXITED 130 -> exit 130
+          | status ->
+            fail
+              "'%s' %s while building the harness for %s."
+              exe
+              (Austen.string_of_status status)
+              fn)
+        else (
+          match
+            AustenReport.validate
+              ~path:report
+              ~engine:name
+              ~fn
+              ~duration
+              ~seed:inv.seed
+              ~check_heap_ownership
+              status
+          with
+          | Ok 0 ->
+            Printf.printf "Completed testing %s without findings. Report: %s\n" fn report
+          | Ok 1 ->
+            Printf.printf "Confirmed findings while testing %s. Report: %s\n" fn report;
+            exit 1
+          | Ok code -> exit code
+          | Error msg -> fail "%s (report: %s)" msg report);
+        Ok ())
+  with
+  | Sys.Break -> exit 130
+  | exn -> fail "could not prepare or run tests: %s" (Printexc.to_string exn)
 
 
-(* Lucas is unsupported. Bennet and Darcy build through Austen with
-   [--no-run]; their campaigns are temporarily unavailable, and fail after
-   argument parsing and before preprocessing or creating any output. *)
+(* Lucas is unsupported. Bennet and Darcy use Austen for both builds and
+   bounded campaigns. *)
 let run (inv : invocation) : unit =
   let name = TestGeneration.Config.cli_name inv.engine in
   match inv.engine with
   | Lucas ->
     Printf.eprintf "cn test %s: the Lucas engine is not supported.\n" name;
     exit 2
-  | (Bennet | Darcy) when inv.dont_run -> build_only inv
   | Bennet | Darcy ->
-    Printf.eprintf
-      "cn test %s: running tests is temporarily unavailable.\n\
-       Use --no-run to build tests without running them, or 'cn test export FILE -o \
-       PATH' to export the specifications.\n"
-      name;
-    exit 2
+    Sys.catch_break true;
+    prepare inv
 
 
 open Cmdliner
@@ -298,7 +352,20 @@ module Flags = struct
 
   let seed =
     let doc = "Set the seed for random testing" in
-    Arg.(value & opt (some string) None & info ~docs:s_generation [ "seed" ] ~doc)
+    let parse value =
+      if
+        (not (String.equal value ""))
+        && String.for_all
+             (fun c -> Char.code c >= Char.code '0' && Char.code c <= Char.code '9')
+             value
+        && Z.numbits (Z.of_string value) <= 64
+      then
+        Ok value
+      else
+        Error (`Msg "seed must be an unsigned 64-bit decimal integer")
+    in
+    let converter = Arg.conv (parse, Format.pp_print_string) in
+    Arg.(value & opt (some converter) None & info ~docs:s_generation [ "seed" ] ~doc)
 
 
   let logging_level =
@@ -332,7 +399,9 @@ module Flags = struct
 
 
   let until_timeout =
-    let doc = "Run tests until the given timeout (in seconds) has been reached" in
+    let doc =
+      "Test each selected function for this many seconds (positive; default: 10)"
+    in
     Arg.(value & opt (some int) None & info ~docs:s_generation [ "until-timeout" ] ~doc)
 
 
@@ -550,10 +619,10 @@ end
    unsupported whatever its flags, so it is not checked. Their CLI defaults
    are unset, so a set value was given explicitly. *)
 let reject_campaign_options_with_no_run (inv : invocation Term.t) : invocation Term.t =
-  let check (inv : invocation) until_timeout seed output_tyche exit_fast =
+  let check (inv : invocation) output_tyche exit_fast =
     let given =
-      [ ("--until-timeout", Option.is_some until_timeout);
-        ("--seed", Option.is_some seed);
+      [ ("--until-timeout", Option.is_some inv.until_timeout);
+        ("--seed", Option.is_some inv.seed);
         ("--output-tyche", Option.is_some output_tyche);
         ("--exit-fast", exit_fast)
       ]
@@ -569,15 +638,16 @@ let reject_campaign_options_with_no_run (inv : invocation Term.t) : invocation T
          name;
        exit Cmd.Exit.cli_error
      | _ -> ());
+    (match (inv.engine, inv.until_timeout) with
+     | (TestGeneration.Bennet | Darcy), Some duration when duration <= 0 ->
+       Printf.eprintf
+         "cn test %s: --until-timeout must be a positive number of seconds.\n"
+         (TestGeneration.Config.cli_name inv.engine);
+       exit Cmd.Exit.cli_error
+     | _ -> ());
     inv
   in
-  Term.(
-    const check
-    $ inv
-    $ Flags.until_timeout
-    $ Flags.seed
-    $ Flags.output_tyche
-    $ Flags.exit_fast)
+  Term.(const check $ inv $ Flags.output_tyche $ Flags.exit_fast)
 
 
 (* Compose two engine flag updaters *)
@@ -642,7 +712,19 @@ let mk_term
   let open Term in
   let ( $- ) t arg = const (fun x _ -> x) $ t $ arg in
   let invocation =
-    let make engine frontend print_steps output_dir only skip dont_run export_spec_json =
+    let make
+          engine
+          frontend
+          print_steps
+          output_dir
+          only
+          skip
+          dont_run
+          export_spec_json
+          until_timeout
+          seed
+          without_ownership_checking
+      =
       { engine;
         frontend;
         print_steps;
@@ -650,7 +732,10 @@ let mk_term
         only;
         skip;
         dont_run;
-        export_spec_json
+        export_spec_json;
+        until_timeout;
+        seed;
+        without_ownership_checking
       }
     in
     const make
@@ -662,10 +747,12 @@ let mk_term
     $ Flags.skip
     $ Flags.dont_run
     $ Flags.export_spec_json
+    $ Flags.until_timeout
+    $ Flags.seed
+    $ Instrument.Flags.without_ownership_checking
   in
   const run
   $ (invocation
-     $- Instrument.Flags.without_ownership_checking
      $- Instrument.Flags.source_locs_mode
      $- Instrument.Flags.correct_missing_ownership_mode
      $- Instrument.Flags.remove_uninterp
