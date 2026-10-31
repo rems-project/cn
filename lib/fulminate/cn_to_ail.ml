@@ -3644,7 +3644,7 @@ let cn_to_ail_function
     let param_types = List.map (fun t -> (C.no_qualifiers, t, false)) param_types in
     let matched_cn_functions =
       List.filter
-        (fun (cn_fun : (A.ail_identifier, C.ctype) CF.Cn.cn_function) ->
+        (fun (cn_fun : (CF.Symbol.sym, C.ctype) CF.Cn.cn_function) ->
            Sym.equal cn_fun.cn_func_name fn_sym)
         cn_functions
     in
@@ -3907,7 +3907,7 @@ let cn_to_ail_predicate
   in
   let matched_cn_preds =
     List.filter
-      (fun (cn_pred : (A.ail_identifier, C.ctype) CF.Cn.cn_predicate) ->
+      (fun (cn_pred : (CF.Symbol.sym, C.ctype) CF.Cn.cn_predicate) ->
          Sym.equal cn_pred.cn_pred_name pred_sym)
       cn_preds
   in

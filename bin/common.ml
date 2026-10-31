@@ -28,6 +28,10 @@ let frontend
       ~cc
       ~macros
       ~permissive
+      ~lexicon
+      ~asm_keyword
+      ~cerb_keywords
+      ~cerb_builtins
       ~incl_dirs
       ~incl_files
       ~astprints
@@ -50,6 +54,10 @@ let frontend
       ~backend_name:"Cn"
       ~agnostic:false
       ~permissive
+      ~lexicon
+      ~asm_keyword
+      ~cerb_keywords
+      ~cerb_builtins
       ~ignore_bitfields:false
       ~allow_distinct_ptr_types_comparison:true
       ~allow_void_ptr_arithmetic:true
@@ -146,6 +154,10 @@ let with_well_formedness_check
       ~filename
       ~macros
       ~permissive
+      ~lexicon
+      ~asm_keyword
+      ~cerb_keywords
+      ~cerb_builtins
       ~incl_dirs
       ~incl_files
       ~coq_export_file
@@ -176,6 +188,10 @@ let with_well_formedness_check
          ~cc
          ~macros
          ~permissive
+         ~lexicon
+         ~asm_keyword
+         ~cerb_keywords
+         ~cerb_builtins
          ~incl_dirs
          ~incl_files
          ~astprints
@@ -397,6 +413,32 @@ module Flags = struct
   let permissive =
     let doc = "Enable permissive mode in Cerberus frontend" in
     Arg.(value & flag & info ~docs:s_cn [ "permissive" ] ~doc)
+
+
+  let lexicon =
+    let doc = "TODO" in
+    Arg.(
+      value
+      & opt
+          (enum
+             [ ("c11", CF.Config.C11); ("gnu11", GNU11); ("c23", C23); ("gnu23", GNU23) ])
+          GNU11
+      & info ~docs:s_cn [ "lexicon" ] ~doc)
+
+
+  let asm_keyword =
+    let doc = "TODO" in
+    Arg.(value & flag & info ~docs:s_cn [ "asm-keyword" ] ~doc)
+
+
+  let cerb_keywords =
+    let doc = "TODO" in
+    Arg.(value & flag & info ~docs:s_cn [ "cerb-keywords" ] ~doc)
+
+
+  let cerb_builtins =
+    let doc = "TODO" in
+    Arg.(value & flag & info ~docs:s_cn [ "cerb-builtins" ] ~doc)
 
 
   let incl_dirs =
