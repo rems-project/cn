@@ -1,0 +1,451 @@
+(* The legacy generator/harness pipeline behind `cn test bennet/darcy/lucas`:
+   generates generators, the test harness, and build scripts. Root selection
+   and specification export live in [TestRoots] and [SpecExport]. *)
+
+module CF = Cerb_frontend
+module A = CF.AilSyntax
+module C = CF.Ctype
+module CtA = Fulminate.Cn_to_ail
+module ESpecInternal = Fulminate.Internal
+module Records = Fulminate.Records
+module FExtract = Fulminate.Extract
+module Config = TestGenConfig
+module Cn_to_ail = Fulminate.Cn_to_ail
+
+type kind =
+  | Constant (* Run function without arguments nor `accesses` once *)
+  | RandomGenerator (* Run function with random inputs satisfying the precondition *)
+  | SymbolicGenerator (* Run function with symbolic inputs satisfying the precondition *)
+[@@deriving eq]
+
+let kind_of (test : Test.t) : kind =
+  if not test.has_inputs then
+    Constant
+  else if Config.is_symbolic_enabled () then
+    SymbolicGenerator
+  else
+    RandomGenerator
+
+
+let filename_base fn = fn |> Filename.basename |> Filename.remove_extension
+
+let compile_assumes
+      ~(without_ownership_checking : bool)
+      filename
+      (sigma : CF.GenTypes.genTypeCategory A.sigma)
+      (prog5 : unit Mucore.file)
+      (insts : (bool * FExtract.instrumentation) list)
+  : Pp.document
+  =
+  let declarations, function_definitions =
+    List.split
+      (List.map
+         (CtA.generate_assume_ownership_function ~without_ownership_checking)
+         (let module CtypeSet =
+            Set.Make (struct
+              type t = C.ctype
+
+              let compare a b = compare (Hashtbl.hash a) (Hashtbl.hash b)
+            end)
+          in
+         !CtA.ownership_ctypes |> CtypeSet.of_list |> CtypeSet.to_seq |> List.of_seq)
+       @ CtA.cn_to_ail_assume_predicates
+           filename
+           prog5.resource_predicates
+           sigma.cn_datatypes
+           (CtA.extract_global_variables prog5)
+           prog5.resource_predicates
+           without_ownership_checking
+       @ ESpecInternal.generate_c_assume_pres_internal
+           filename
+           without_ownership_checking
+           insts
+           sigma
+           prog5)
+  in
+  let open Pp in
+  CF.Pp_ail.(
+    with_executable_spec
+      (separate_map (twice hardline) (fun (tag, (_, _, decl)) ->
+         pp_function_prototype tag decl))
+      declarations)
+  ^^ twice hardline
+  ^^ CF.Pp_ail.(
+       with_executable_spec
+         (pp_program ~show_include:true)
+         (None, { A.empty_sigma with declarations; function_definitions }))
+  ^^ hardline
+
+
+let compile_shape_analyzers
+      filename
+      (sigma : CF.GenTypes.genTypeCategory A.sigma)
+      (prog5 : unit Mucore.file)
+      (insts : (bool * Fulminate.Extract.instrumentation) list)
+  : Pp.document
+  =
+  let declarations, function_definitions =
+    BugExplanation.synthesize_shape_analyzers filename sigma prog5 insts |> List.split
+  in
+  let open Pp in
+  CF.Pp_ail.(
+    with_executable_spec
+      (separate_map (twice hardline) (fun (tag, (_, _, decl)) ->
+         pp_function_prototype tag decl))
+      declarations)
+  ^^ twice hardline
+  ^^ CF.Pp_ail.(
+       with_executable_spec
+         (pp_program ~show_include:true)
+         (None, { A.empty_sigma with declarations; function_definitions }))
+  ^^ hardline
+
+
+let compile_replicators
+      filename
+      (sigma : CF.GenTypes.genTypeCategory A.sigma)
+      (prog5 : unit Mucore.file)
+      (insts : (bool * Fulminate.Extract.instrumentation) list)
+  : Pp.document
+  =
+  let declarations, function_definitions =
+    BugExplanation.synthesize_replicators filename sigma prog5 insts |> List.split
+  in
+  let open Pp in
+  CF.Pp_ail.(
+    with_executable_spec
+      (separate_map (twice hardline) (fun (tag, (_, _, decl)) ->
+         pp_function_prototype tag decl))
+      declarations)
+  ^^ twice hardline
+  ^^ CF.Pp_ail.(
+       with_executable_spec
+         (pp_program ~show_include:true)
+         (None, { A.empty_sigma with declarations; function_definitions }))
+  ^^ hardline
+
+
+let pp_label ?(width : int = 30) (label : string) (doc : Pp.document) : Pp.document =
+  let padding = max 2 ((width - (String.length label + 2)) / 2) in
+  let width = max width (String.length label + 6) in
+  let open Pp in
+  if PPrint.requirement doc = 0 then
+    empty
+  else
+    repeat width slash
+    ^^ hardline
+    ^^ repeat
+         (if String.length label mod 2 = 1 then
+            padding + 1
+          else
+            padding)
+         slash
+    ^^^ !^label
+    ^^^ repeat padding slash
+    ^^ hardline
+    ^^ repeat width slash
+    ^^ twice hardline
+    ^^ doc
+
+
+let compile_includes ~filename ~generators =
+  let open Pp in
+  (* With `--no-replicas`, shape analyzers and replicators are not emitted, so
+     tell <cn-testing/test.h> to compile out its calls to them. *)
+  (if Config.has_no_replicas () then
+     !^"#define CN_TEST_NO_REPLICAS" ^^ hardline
+   else
+     empty)
+  ^^ !^"#include "
+  ^^ angles !^"bennet/prelude.h"
+  ^^ hardline
+  ^^ !^"#include "
+  ^^ angles !^"cn-testing/prelude.h"
+  ^^ hardline
+  ^^ !^"#include "
+  ^^ angles !^"cn-replicate/shape.h"
+  ^^ hardline
+  ^^ !^"#include "
+  ^^ angles !^"cn-replicate/lines.h"
+  ^^ hardline
+  ^^
+  if generators then
+    !^"#include " ^^ dquotes (string (filename_base filename ^ ".gen.h")) ^^ hardline
+  else (
+    let record_defs = Records.generate_all_record_strs () in
+    let open Pp in
+    hardline ^^ !^"/* TAG DEFINITIONS */" ^^ hardline ^^ !^record_defs ^^ twice hardline)
+
+
+let compile_test (test : Test.t) =
+  let open Pp in
+  (match kind_of test with
+   | Constant ->
+     if test.is_static then
+       !^"CN_REGISTER_STATIC_UNIT_TEST_CASE"
+     else
+       !^"CN_REGISTER_EXTERN_UNIT_TEST_CASE"
+   | RandomGenerator ->
+     if test.is_static then
+       !^"CN_REGISTER_STATIC_RANDOM_TEST_CASE"
+     else
+       !^"CN_REGISTER_EXTERN_RANDOM_TEST_CASE"
+   | SymbolicGenerator ->
+     if test.is_static then
+       !^"CN_REGISTER_STATIC_SYMBOLIC_TEST_CASE"
+     else
+       !^"CN_REGISTER_EXTERN_SYMBOLIC_TEST_CASE")
+  ^^ parens
+       (string test.suite
+        ^^ comma
+        ^^^ !^(test.test)
+        ^^
+        if test.is_static then
+          comma ^^^ !^(Fulminate.Utils.static_prefix test.filename)
+        else
+          empty)
+  ^^ semi
+
+
+let compile_test_file
+      ~(without_ownership_checking : bool)
+      ~(remove_uninterp : bool)
+      ~(filename : string)
+      (sigma : CF.GenTypes.genTypeCategory A.sigma)
+      (prog5 : unit Mucore.file)
+      (tests : Test.t list)
+  =
+  let constant_tests, generator_tests =
+    List.partition (fun (test : Test.t) -> equal_kind (kind_of test) Constant) tests
+  in
+  let constant_tests, constant_tests_defs =
+    SpecTests.compile_constant_tests filename sigma constant_tests
+  in
+  let generator_tests, generator_tests_defs =
+    SpecTests.compile_generator_tests filename sigma prog5 generator_tests
+  in
+  let all_tests = constant_tests @ generator_tests in
+  (* Convert tests to (bool * instrumentation) format for remaining functions *)
+  let insts =
+    List.map (fun (test : Test.t) -> (test.is_static, Test.to_instrumentation test)) tests
+  in
+  (* TODO copied from fulminate.ml, put somewhere shared *)
+  let open ESpecInternal in
+  let c_datatype_defs = generate_c_datatypes sigma in
+  let c_function_defs, c_function_decls, _c_function_locs =
+    generate_c_functions filename remove_uninterp prog5 sigma
+  in
+  let c_predicate_defs, c_predicate_decls, _c_predicate_locs =
+    generate_c_predicates filename without_ownership_checking remove_uninterp prog5 sigma
+  in
+  let conversion_function_defs, conversion_function_decls =
+    generate_conversion_and_equality_functions filename sigma
+  in
+  let ownership_function_defs, ownership_function_decls =
+    generate_ownership_functions without_ownership_checking !Cn_to_ail.ownership_ctypes
+  in
+  let ordered_ail_tag_defs = order_ail_tag_definitions sigma.tag_definitions in
+  let c_struct_decls = generate_c_tag_def_strs ordered_ail_tag_defs in
+  let cn_converted_struct_defs = generate_cn_versions_of_structs ordered_ail_tag_defs in
+  let record_fun_defs, record_fun_decls = Records.generate_c_record_funs sigma in
+  (* let record_defs = Records.generate_all_record_strs () in *)
+  let cn_header_decls_list =
+    List.concat
+      [ [ "#ifndef NULL\n";
+          "#include <stdlib.h>\n";
+          "#endif\n";
+          "#include <stdint.h>\n";
+          "#include <cn-executable/utils.h>\n";
+          "#include <cn-executable/cerb_types.h>\n"
+        ];
+        [ c_struct_decls ];
+        [ (* (if not (String.equal record_defs "") then "\n/* CN RECORDS */\n\n" else ""); *)
+          (*  record_defs; *)
+          cn_converted_struct_defs
+        ];
+        (if List.is_empty c_datatype_defs then [] else [ "/* CN DATATYPES */" ]);
+        List.map snd c_datatype_defs;
+        [ "\n\n/* OWNERSHIP FUNCTIONS */\n\n";
+          ownership_function_decls;
+          conversion_function_decls;
+          record_fun_decls;
+          c_function_decls;
+          "\n";
+          c_predicate_decls
+        ]
+      ]
+  in
+  let static_wrappers_defs =
+    tests
+    |> List.filter (fun (test : Test.t) -> test.is_static)
+    |> List.map (fun (test : Test.t) ->
+      let fsym =
+        Sym.fresh (Fulminate.Utils.static_prefix filename ^ "_" ^ Sym.pp_string test.fn)
+      in
+      let declarations =
+        [ ( fsym,
+            match List.assoc Sym.equal test.fn sigma.A.declarations with
+            | _, _, A.Decl_function (_, ret_ct, args_ct, _, _, _) ->
+              ( Locations.other __LOC__,
+                CF.Annot.Attrs [],
+                A.Decl_function (false, ret_ct, args_ct, false, false, false) )
+            | _ -> failwith __LOC__ )
+        ]
+      in
+      CF.Pp_ail.pp_program
+        ~show_include:true
+        (None, { CF.AilSyntax.empty_sigma with declarations }))
+    |> Pp.(separate hardline)
+  in
+  let open Pp in
+  !^(String.concat " " cn_header_decls_list)
+  ^^ compile_includes ~filename ~generators:(List.non_empty generator_tests)
+  ^^ twice hardline
+  ^^ pp_label
+       "Assume Ownership Functions"
+       (compile_assumes ~without_ownership_checking filename sigma prog5 insts)
+  ^^ (if Config.has_no_replicas () then
+        empty
+      else
+        pp_label "Shape Analyzers" (compile_shape_analyzers filename sigma prog5 insts)
+        ^^ pp_label "Replicators" (compile_replicators filename sigma prog5 insts))
+  ^^ pp_label "Static Wrappers" static_wrappers_defs
+  ^^ pp_label "Constant function tests" constant_tests_defs
+  ^^ pp_label "Generator-based tests" generator_tests_defs
+  ^^ (!^"int main"
+      ^^ parens !^"int argc, char* argv[]"
+      ^/^ braces
+            (nest
+               2
+               (hardline
+                ^^ pp_label
+                     "Allocator Configuration"
+                     (!^"fulm_default_alloc.malloc = std_malloc;"
+                      ^/^ !^"fulm_default_alloc.calloc = std_calloc;"
+                      ^/^ !^"fulm_default_alloc.free = std_free;")
+                ^^ hardline
+                ^/^ pp_label
+                      "Test Registration"
+                      (separate_map hardline compile_test all_tests
+                       ^^ twice hardline
+                       ^^ !^"return cn_test_main(argc, argv);"))
+             ^^ hardline))
+  ^^ hardline
+  ^^ !^(String.concat
+          " "
+          [ "/* RECORD */\n";
+            record_fun_defs;
+            "/* CONVERSION */\n";
+            conversion_function_defs;
+            ownership_function_defs;
+            "/* CN FUNCTIONS */\n";
+            c_function_defs;
+            "\n";
+            c_predicate_defs
+          ])
+
+
+let save ?(perm = 0o666) (output_dir : string) (filename : string) (doc : Pp.document)
+  : unit
+  =
+  let oc =
+    Stdlib.open_out_gen
+      [ Open_wronly; Open_creat; Open_trunc; Open_text ]
+      perm
+      (Filename.concat output_dir filename)
+  in
+  output_string oc (Pp.plain ~width:80 doc);
+  close_out oc
+
+
+let save_generators
+      ~output_dir
+      ~filename
+      (sigma : CF.GenTypes.genTypeCategory A.sigma)
+      (prog5 : unit Mucore.file)
+      (paused : _ Typing.pause)
+      (tests : Test.t list)
+  : unit
+  =
+  let filename_base = filename |> Filename.basename |> Filename.remove_extension in
+  let tests_for_generators =
+    List.filter
+      (fun (test : Test.t) ->
+         equal_kind (kind_of test) RandomGenerator
+         || equal_kind (kind_of test) SymbolicGenerator)
+      tests
+  in
+  if List.non_empty tests_for_generators then (
+    let generators_doc =
+      Pp.(
+        separate
+          hardline
+          ([ string (Fulminate.Globals.accessors_prototypes filename prog5) ]
+           @ [ Bennet.synthesize filename sigma prog5 paused tests_for_generators ]))
+    in
+    let generators_fn = filename_base ^ ".gen.h" in
+    save output_dir generators_fn generators_doc)
+
+
+let save_tests
+      ~output_dir
+      ~filename
+      ~without_ownership_checking
+      ~remove_uninterp
+      (sigma : CF.GenTypes.genTypeCategory A.sigma)
+      (prog5 : unit Mucore.file)
+      (tests : Test.t list)
+  : unit
+  =
+  let tests_doc =
+    let open Pp in
+    Bennet.test_setup ()
+    ^/^ hardline
+    ^^ compile_test_file
+         ~without_ownership_checking
+         ~remove_uninterp
+         ~filename
+         sigma
+         prog5
+         tests
+  in
+  save output_dir (filename_base filename ^ ".test.c") tests_doc
+
+
+let run
+      ~output_dir
+      ~filename
+      ~without_ownership_checking
+      ~remove_uninterp
+      (build_tool : TestGenConfig.build_tool)
+      (sigma : CF.GenTypes.genTypeCategory A.sigma)
+      (prog5 : unit Mucore.file)
+      (paused : _ Typing.pause)
+  : unit
+  =
+  Cerb_debug.begin_csv_timing ();
+  let insts =
+    TestRoots.functions_under_test
+      ~with_warning:false
+      ~skip_and_only:(Config.get_skip_and_only ())
+      sigma
+      prog5
+      paused
+  in
+  (* Before the generators, so `--export-spec-json` still produces a file for
+     a specification the generator pipeline itself chokes on — the export is
+     of the IR, not of anything downstream of it. *)
+  Option.iter
+    (fun path -> SpecExport.export ~path ~filename sigma prog5 paused)
+    (TestGenConfig.get_export_spec_json ());
+  save_generators ~output_dir ~filename sigma prog5 paused insts;
+  save_tests
+    ~output_dir
+    ~filename
+    ~without_ownership_checking
+    ~remove_uninterp
+    sigma
+    prog5
+    insts;
+  BuildScripts.generate_and_save ~output_dir ~filename build_tool;
+  Cerb_debug.end_csv_timing "specification test generation"

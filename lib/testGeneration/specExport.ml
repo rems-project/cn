@@ -1015,3 +1015,9 @@ let save ~path ~filename sigma prog5 (tests : Test.t list) : unit =
                 ^ Filename.basename filename
                 ^ ": AustenTest cannot represent "
                 ^ what))))
+
+
+(* Export every function definition in the translation unit (see
+   [TestRoots.functions_for_export]). *)
+let export ~path ~filename sigma prog5 paused : unit =
+  save ~path ~filename sigma prog5 (TestRoots.functions_for_export sigma prog5 paused)

@@ -8,10 +8,6 @@ open Cn
    from the common flags, so unset engine flags keep their defaults. *)
 type engine_flags = TestGeneration.config -> TestGeneration.config
 
-(* Preprocessor macros defined for every `cn test` subcommand, so exported
-   specifications come from the same source that test generation sees. *)
-let test_macros = [ ("__CN_TEST", None); ("__CN_INSTRUMENT", None) ]
-
 let run
       (* Engine *)
         (engine : TestGeneration.engine)
@@ -84,10 +80,7 @@ let run
       (* Engine-specific *)
         (engine_flags : engine_flags)
   =
-  (* flags *)
-  Cerb_debug.debug_level := debug_level;
-  Pp.print_level := print_level;
-  Sym.executable_spec_enabled := true;
+  Frontend.set_flags ~debug_level ~print_level;
   let filename = Common.there_can_only_be_one filename in
   let output_dir =
     Common.mk_dir_if_not_exist_maybe_tmp ~mktemp:true (Test engine) output_dir
@@ -95,26 +88,21 @@ let run
   let basefile = Filename.basename filename in
   let pp_file = Filename.temp_file "cn_" basefile in
   let out_file = Fulminate.get_instrumented_filename basefile in
-  Common.with_well_formedness_check (* CLI arguments *)
+  Frontend.with_checked_program
     ~filename
     ~cc
-    ~macros:(test_macros @ macros)
+    ~macros
     ~permissive
     ~incl_dirs
     ~incl_files
     ~csv_times
     ~stdout_times
-    ~coq_export_file:None
-    ~coq_mucore:false
-    ~coq_proof_log:false
-    ~coq_check_proof_log:false
     ~astprints
     ~no_inherit_loc
     ~magic_comment_char_dollar
-    ~allow_split_magic_comments (* Callbacks *)
+    ~allow_split_magic_comments
     ~save_cpp:(Some pp_file)
     ~disable_linemarkers:true
-    ~handle_error:Common.print_type_error_and_exit
     ~f:(fun ~cerb_conf ~prog5 ~ail_prog ~statement_locs:_ ~paused ->
       let config : TestGeneration.config =
         { TestGeneration.default_cfg with
@@ -184,7 +172,12 @@ let run
       in
       if
         List.is_empty
-          (TestGeneration.functions_under_test ~with_warning:true sigma prog5 paused)
+          (TestGeneration.functions_under_test
+             ~with_warning:true
+             ~skip_and_only:(skip, only)
+             sigma
+             prog5
+             paused)
       then (
         (try
            Option.iter

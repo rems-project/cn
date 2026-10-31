@@ -4,15 +4,9 @@ module FExtract = Fulminate.Extract
 module LAT = LogicalArgumentTypes
 module AT = ArgumentTypes
 
-type kind =
-  | Constant (* Run function without arguments nor `accesses` once *)
-  | RandomGenerator (* Run function with random inputs satisfying the precondition *)
-  | SymbolicGenerator (* Run function with symbolic inputs satisfying the precondition *)
-[@@deriving eq]
-
 type t =
   { filename : string;
-    kind : kind;
+    has_inputs : bool; (* Takes C arguments or has free logical variables *)
     suite : string;
     test : string;
     is_static : bool;
@@ -30,18 +24,16 @@ let of_instrumentation
   : t
   =
   let filename = inst.fn_loc |> Cerb_location.get_filename |> Option.get in
-  let kind =
+  let has_inputs =
     let _, _, decl = List.assoc Sym.equal inst.fn sigma.declarations in
     match decl with
-    | Decl_function (_, _, args, _, _, _)
-      when List.is_empty args
-           && Sym.Set.is_empty
-                (LAT.free_vars
-                   (fun _ -> Sym.Set.empty)
-                   (AT.get_lat (Option.get inst.internal))) ->
-      Constant
-    | Decl_function _ ->
-      if TestGenConfig.is_symbolic_enabled () then SymbolicGenerator else RandomGenerator
+    | Decl_function (_, _, args, _, _, _) ->
+      not
+        (List.is_empty args
+         && Sym.Set.is_empty
+              (LAT.free_vars
+                 (fun _ -> Sym.Set.empty)
+                 (AT.get_lat (Option.get inst.internal))))
     | Decl_object _ -> failwith __LOC__
   in
   let suite = filename |> Filename.basename |> String.split_on_char '.' |> List.hd in
@@ -72,7 +64,7 @@ let of_instrumentation
       exit 1
   in
   { filename;
-    kind;
+    has_inputs;
     suite;
     test;
     is_static;

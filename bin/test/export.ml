@@ -21,35 +21,25 @@ let run
       allow_split_magic_comments
       output
   =
-  Cerb_debug.debug_level := debug_level;
-  Pp.print_level := print_level;
-  Sym.executable_spec_enabled := true;
+  Frontend.set_flags ~debug_level ~print_level;
   let filename = Common.there_can_only_be_one filename in
-  Common.with_well_formedness_check (* CLI arguments *)
+  Frontend.with_checked_program
     ~filename
     ~cc
-    ~macros:(Shared.test_macros @ macros)
+    ~macros
     ~permissive
     ~incl_dirs
     ~incl_files
     ~csv_times
     ~stdout_times
-    ~coq_export_file:None
-    ~coq_mucore:false
-    ~coq_proof_log:false
-    ~coq_check_proof_log:false
     ~astprints
     ~no_inherit_loc
     ~magic_comment_char_dollar
-    ~allow_split_magic_comments (* Callbacks *)
+    ~allow_split_magic_comments
     ~save_cpp:None
     ~disable_linemarkers:false
-    ~handle_error:Common.print_type_error_and_exit
     ~f:(fun ~cerb_conf:_ ~prog5 ~ail_prog ~statement_locs:_ ~paused ->
       let _, sigma = ail_prog in
-      (* Function metadata consults the test-generation config only to choose a
-         generator kind, which the export does not use. *)
-      TestGeneration.set_config TestGeneration.default_cfg;
       (try TestGeneration.export_specs ~path:output ~filename sigma prog5 paused with
        | e -> Common.handle_error_with_user_guidance ~label:"CN-Export" e);
       Result.ok ())
