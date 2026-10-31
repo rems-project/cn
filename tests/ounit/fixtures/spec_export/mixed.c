@@ -8,7 +8,7 @@ static int helper(void);
 int helper(void) { return 0; }
 
 int specified(int x)
-/*@ requires x == 1i32; @*/
+/*@ requires x == 1; @*/
 {
   return x;
 }

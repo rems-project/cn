@@ -47,13 +47,14 @@ let doc =
   \    Engines: bennet (random backtracking search, the default), darcy \
    (symbolic/SMT-based), lucas (randomized refinement of abstract elements).\n\
   \    Paper-release subcommands (e.g. darcy-pldi26) run an engine with frozen settings.\n\
+  \    The export subcommand writes the specification JSON without testing.\n\
   \    A script [run_tests.sh] for building and running the tests will be placed in \
    [output-dir]."
 
 
-let cmd =
-  Cmd.group (Cmd.info "test" ~doc) ([ Bennet.cmd; Darcy.cmd; Lucas.cmd ] @ Releases.all)
+let subcommands = [ Bennet.cmd; Darcy.cmd; Lucas.cmd ] @ Releases.all @ [ Export.cmd ]
 
+let cmd = Cmd.group (Cmd.info "test" ~doc) subcommands
 
 let legacy_cmd =
   Cmd.v (Cmd.info "test" ~doc ~man:(Shared.man_sections ~extra:[ Darcy.s_smt ])) legacy_t
@@ -68,38 +69,35 @@ let test_arg (argv : string array) : string option =
   | _ -> None
 
 
-(* The full engine and paper-release subcommand names. *)
-let engine_names =
-  List.map TestGeneration.Config.cli_name TestGeneration.Config.all_of_engine
-  @ Releases.names
+(* The full subcommand names. *)
+let subcommand_names = List.map Cmd.name subcommands
 
-
-(* Engine subcommands must be spelled in full. Cmdliner would otherwise resolve
+(* Subcommands must be spelled in full. Cmdliner would otherwise resolve
    an unambiguous command-name prefix (`cn test b` -> bennet), so reject a token
-   that is a proper prefix of an engine name but not exactly one, before the
-   command tree is evaluated. A token that is not a prefix of any engine name
+   that is a proper prefix of a subcommand name but not exactly one, before the
+   command tree is evaluated. A token that is not a prefix of any subcommand name
    (e.g. a file name) is left to the deprecated flat interface. *)
-let reject_engine_prefix (argv : string array) : unit =
+let reject_subcommand_prefix (argv : string array) : unit =
   match test_arg argv with
   | Some arg
-    when (not (List.mem String.equal arg engine_names))
-         && List.exists (is_prefix_of arg) engine_names ->
+    when (not (List.mem String.equal arg subcommand_names))
+         && List.exists (is_prefix_of arg) subcommand_names ->
     Printf.eprintf
-      "cn test: `%s` is not a recognized engine; use a full name (%s).\n\
+      "cn test: `%s` is not a recognized subcommand; use a full name (%s).\n\
        Try 'cn test --help' for more information.\n"
       arg
-      (String.concat ", " engine_names);
+      (String.concat ", " subcommand_names);
     Stdlib.exit Cmd.Exit.cli_error
   | _ -> ()
 
 
 (* Whether argv is a legacy flat invocation: `cn test ARG ...` where ARG is
-   neither an engine name nor a help/version request. Partial engine names are
-   already rejected by [reject_engine_prefix], so an exact-name check suffices. *)
+   neither a subcommand name nor a help/version request. Partial subcommand names
+   are already rejected by [reject_subcommand_prefix], so an exact-name check suffices. *)
 let wants_legacy (argv : string array) : bool =
   match test_arg argv with
   | Some arg ->
-    (not (List.mem String.equal arg engine_names))
+    (not (List.mem String.equal arg subcommand_names))
     && (not (String.starts_with ~prefix:"--help" arg))
     && not (String.equal arg "--version")
   | None -> false

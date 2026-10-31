@@ -29,7 +29,3 @@ let darcy_pldi26 =
 
 
 let all = [ darcy_pldi26 ]
-
-(* Subcommand names, derived from [all] so a release is named in exactly one
-   place (its [mk ~name]); kept in sync with the command tree automatically. *)
-let names = List.map Cmd.name all

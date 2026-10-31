@@ -89,28 +89,65 @@ let string_of_process_status = function
   | Unix.WSTOPPED signal -> "stopped " ^ string_of_int signal
 
 
-let run_export_process
-      ?(stdout_fd = Unix.stdout)
-      ?(stderr_fd = Unix.stderr)
-      fixture_env
-      path
-  =
-  let cn = Sys.getenv "CN_TEST_EXE" in
-  let source = Sys.getenv fixture_env in
-  let argv =
-    [| cn; "test"; "bennet"; "--no-run"; "--export-spec-json=" ^ path; source |]
+(* The environment with every `PATH` entry that provides `austen` removed, so
+   the export is shown not to depend on Austen being installed. *)
+let environment_without_austen () =
+  let without_austen path =
+    String.split_on_char ':' path
+    |> List.filter (fun dir ->
+      (not (String.equal dir "")) && not (Sys.file_exists (Filename.concat dir "austen")))
+    |> String.concat ":"
   in
-  let pid = Unix.create_process cn argv Unix.stdin stdout_fd stderr_fd in
+  let prefix = "PATH=" in
+  Array.map
+    (fun binding ->
+       let n = String.length prefix in
+       if String.starts_with ~prefix binding then
+         prefix ^ without_austen (String.sub binding n (String.length binding - n))
+       else
+         binding)
+    (Unix.environment ())
+
+
+let run_cn_test_export ?(stdout_fd = Unix.stdout) ?(stderr_fd = Unix.stderr) args =
+  let cn = Sys.getenv "CN_TEST_EXE" in
+  let argv = Array.of_list ([ cn; "test"; "export" ] @ args) in
+  let pid =
+    Unix.create_process_env
+      cn
+      argv
+      (environment_without_austen ())
+      Unix.stdin
+      stdout_fd
+      stderr_fd
+  in
   let _, status = Unix.waitpid [] pid in
   status
 
 
-let run_export fixture_env =
+let with_null_fd f =
+  let null_fd = Unix.openfile Filename.null [ Unix.O_WRONLY ] 0 in
+  Fun.protect ~finally:(fun () -> Unix.close null_fd) (fun () -> f null_fd)
+
+
+let short_output path = [ "-o"; path ]
+
+let run_export_process
+      ?stdout_fd
+      ?stderr_fd
+      ?(output_args = short_output)
+      fixture_env
+      path
+  =
+  run_cn_test_export ?stdout_fd ?stderr_fd (Sys.getenv fixture_env :: output_args path)
+
+
+let run_export ?output_args fixture_env =
   let path = Filename.temp_file "cn-spec-export" ".json" in
   Sys.remove path;
   let cleanup () = if Sys.file_exists path then Sys.remove path in
   Fun.protect ~finally:cleanup (fun () ->
-    let status = run_export_process fixture_env path in
+    let status = run_export_process ?output_args fixture_env path in
     assert_equal ~printer:string_of_process_status (Unix.WEXITED 0) status;
     assert_bool "the exporter did not write its JSON file" (Sys.file_exists path);
     Yojson.Safe.from_file path)
@@ -121,8 +158,8 @@ let json_field name = function
   | json -> assert_failure ("expected an object, got " ^ Yojson.Safe.to_string json)
 
 
-let exported_functions fixture_env =
-  match json_field "functions" (run_export fixture_env) with
+let exported_functions ?output_args fixture_env =
+  match json_field "functions" (run_export ?output_args fixture_env) with
   | `List functions -> functions
   | json ->
     assert_failure ("expected exported functions, got " ^ Yojson.Safe.to_string json)
@@ -157,7 +194,11 @@ let enum_return_function_is_exported _ =
 
 
 let untestable_functions_join_testable_ones _ =
-  let functions = exported_functions "CN_MIXED_EXPORT_FIXTURE" in
+  let functions =
+    exported_functions
+      ~output_args:(fun path -> [ "--output=" ^ path ])
+      "CN_MIXED_EXPORT_FIXTURE"
+  in
   let names = List.map (fun fn -> json_field "name" fn) functions in
   assert_equal
     [ `String "helper"; `String "specified"; `String "identity"; `String "main" ]
@@ -174,14 +215,12 @@ let untestable_functions_join_testable_ones _ =
     (json_field "linkage" main)
 
 
-let early_export_failure_uses_test_error_handler _ =
+let early_export_failure_uses_export_error_handler _ =
   let invalid_parent = Filename.temp_file "cn-spec-export-parent" "" in
-  let null_fd = Unix.openfile Filename.null [ Unix.O_WRONLY ] 0 in
-  let cleanup () =
-    Unix.close null_fd;
-    if Sys.file_exists invalid_parent then Sys.remove invalid_parent
-  in
+  let cleanup () = if Sys.file_exists invalid_parent then Sys.remove invalid_parent in
   Fun.protect ~finally:cleanup (fun () ->
+    with_null_fd
+    @@ fun null_fd ->
     let status =
       run_export_process
         ~stdout_fd:null_fd
@@ -190,6 +229,18 @@ let early_export_failure_uses_test_error_handler _ =
         (Filename.concat invalid_parent "spec.json")
     in
     assert_equal ~printer:string_of_process_status (Unix.WEXITED 1) status)
+
+
+let output_path_is_required _ =
+  with_null_fd
+  @@ fun null_fd ->
+  let status =
+    run_cn_test_export
+      ~stdout_fd:null_fd
+      ~stderr_fd:null_fd
+      [ Sys.getenv "CN_MIXED_EXPORT_FIXTURE" ]
+  in
+  assert_equal ~printer:string_of_process_status (Unix.WEXITED 124) status
 
 
 let suite =
@@ -204,6 +255,7 @@ let suite =
          "exports a spec-less enum-return function" >:: enum_return_function_is_exported;
          "exports untestable functions beside testable functions"
          >:: untestable_functions_join_testable_ones;
-         "reports early export failures through the test driver"
-         >:: early_export_failure_uses_test_error_handler
+         "reports early export failures through the export command"
+         >:: early_export_failure_uses_export_error_handler;
+         "requires an output path" >:: output_path_is_required
        ]

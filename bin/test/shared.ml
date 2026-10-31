@@ -8,6 +8,16 @@ open Cn
    from the common flags, so unset engine flags keep their defaults. *)
 type engine_flags = TestGeneration.config -> TestGeneration.config
 
+let handle_type_error (e : TypeErrors.t) =
+  let report = TypeErrors.pp_message e.msg in
+  Pp.error e.loc report.short (Option.to_list report.descr);
+  match e.msg with TypeErrors.Unsupported _ -> exit 2 | _ -> exit 1
+
+
+(* Preprocessor macros defined for every `cn test` subcommand, so exported
+   specifications come from the same source that test generation sees. *)
+let test_macros = [ ("__CN_TEST", None); ("__CN_INSTRUMENT", None) ]
+
 let run
       (* Engine *)
         (engine : TestGeneration.engine)
@@ -84,11 +94,6 @@ let run
   Cerb_debug.debug_level := debug_level;
   Pp.print_level := print_level;
   Sym.executable_spec_enabled := true;
-  let handle_error (e : TypeErrors.t) =
-    let report = TypeErrors.pp_message e.msg in
-    Pp.error e.loc report.short (Option.to_list report.descr);
-    match e.msg with TypeErrors.Unsupported _ -> exit 2 | _ -> exit 1
-  in
   let filename = Common.there_can_only_be_one filename in
   let output_dir =
     Common.mk_dir_if_not_exist_maybe_tmp ~mktemp:true (Test engine) output_dir
@@ -99,7 +104,7 @@ let run
   Common.with_well_formedness_check (* CLI arguments *)
     ~filename
     ~cc
-    ~macros:(("__CN_TEST", None) :: ("__CN_INSTRUMENT", None) :: macros)
+    ~macros:(test_macros @ macros)
     ~permissive
     ~incl_dirs
     ~incl_files
@@ -115,7 +120,7 @@ let run
     ~allow_split_magic_comments (* Callbacks *)
     ~save_cpp:(Some pp_file)
     ~disable_linemarkers:true
-    ~handle_error
+    ~handle_error:handle_type_error
     ~f:(fun ~cerb_conf ~prog5 ~ail_prog ~statement_locs:_ ~paused ->
       let config : TestGeneration.config =
         { TestGeneration.default_cfg with
