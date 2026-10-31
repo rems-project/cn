@@ -1,23 +1,13 @@
-type build_tool =
-  | Bash
-  | Make
-
 type engine =
   | Bennet (* Backtracking random search *)
   | Darcy (* Symbolic constraint-based generation *)
   | Lucas (* Randomized refinement of abstract elements *)
-
-val all_of_engine : engine list
 
 val string_of_engine : engine -> string
 
 val cli_name : engine -> string
 
 val is_experimental : engine -> bool
-
-val stable_engine_names : string list
-
-val experimental_message : engine -> string
 
 type logging_level =
   | None
@@ -63,9 +53,7 @@ type t =
     skip_and_only : string list * string list;
     cc : string;
     print_steps : bool;
-    num_samples : int;
     max_backtracks : int;
-    build_tool : build_tool;
     sanitizers : string option * string option;
     inline : inline_mode;
     experimental_struct_asgn_destruction : bool;
@@ -142,8 +130,6 @@ type t =
 val default : t
 
 module Options : sig
-  val build_tool : (string * build_tool) list
-
   val logging_level : (string * logging_level) list
 
   val trace_granularity : (string * trace_granularity) list
@@ -160,167 +146,3 @@ module Options : sig
 
   val dynamic_absint_assign_mode : (string * dynamic_absint_assign_mode) list
 end
-
-val initialize : t -> unit
-
-val get_skip_and_only : unit -> string list * string list
-
-val get_cc : unit -> string
-
-val is_print_steps : unit -> bool
-
-val is_print_seed : unit -> bool
-
-val get_num_samples : unit -> int
-
-val get_max_backtracks : unit -> int
-
-val get_build_tool : unit -> build_tool
-
-val has_sanitizers : unit -> string option * string option
-
-val get_inline_mode : unit -> inline_mode
-
-val is_experimental_struct_asgn_destruction : unit -> bool
-
-val is_experimental_product_arg_destruction : unit -> bool
-
-val is_experimental_arg_pruning : unit -> bool
-
-val is_experimental_return_pruning : unit -> bool
-
-val is_ad_pruning : unit -> bool
-
-val has_static_absint : unit -> bool
-
-val get_domains : unit -> string list
-
-val get_local_iterations : unit -> int
-
-val has_smt_pruning_before_absint : unit -> [ `None | `Fast | `Slow ]
-
-val has_smt_pruning_after_absint : unit -> [ `None | `Fast | `Slow ]
-
-val is_smt_pruning_remove_redundant_assertions : unit -> bool
-
-val is_smt_pruning_at_runtime : unit -> bool
-
-val is_runtime_assert_domain : unit -> bool
-
-val has_input_timeout : unit -> int option
-
-val has_null_in_every : unit -> int option
-
-val has_seed : unit -> string option
-
-val has_logging_level : unit -> logging_level option
-
-val has_logging_level_str : unit -> string option
-
-val has_trace_granularity : unit -> trace_granularity option
-
-val has_trace_granularity_str : unit -> string option
-
-val has_progress_level : unit -> progress_level option
-
-val has_progress_level_str : unit -> string option
-
-val is_until_timeout : unit -> int option
-
-val is_exit_fast : unit -> bool
-
-val has_max_stack_depth : unit -> int option
-
-val has_max_depth_failures : unit -> int option
-
-val has_max_generator_size : unit -> int option
-
-val has_sizing_strategy : unit -> sizing_strategy option
-
-val has_sizing_strategy_str : unit -> string option
-
-val is_random_size_splits : unit -> bool
-
-val has_allowed_size_split_backtracks : unit -> int option
-
-val is_coverage : unit -> bool
-
-val has_pass : string -> bool
-
-val is_trap : unit -> bool
-
-val has_no_replays : unit -> bool
-
-val has_no_replicas : unit -> bool
-
-val get_output_tyche : unit -> string option
-
-val get_export_spec_json : unit -> string option
-
-val will_print_size_info : unit -> bool
-
-val will_print_backtrack_info : unit -> bool
-
-val will_print_satisfaction_info : unit -> bool
-
-val will_print_discard_info : unit -> bool
-
-val will_print_timing_info : unit -> bool
-
-val is_progress_backtracks : unit -> bool
-
-val get_engine : unit -> engine
-
-val is_symbolic_enabled : unit -> bool
-
-val has_symbolic_timeout : unit -> int option
-
-val get_max_unfolds : unit -> int option
-
-val get_max_array_length : unit -> int
-
-val is_use_solver_eval : unit -> bool
-
-val get_smt_solver : unit -> smt_solver
-
-val is_just_reset_solver : unit -> bool
-
-val get_smt_skewing_mode : unit -> smt_skewing_mode
-
-val get_smt_logging : unit -> string option
-
-val get_smt_log_unsat_cores : unit -> string option
-
-val has_max_bump_blocks : unit -> int option
-
-val has_bump_block_size : unit -> int option
-
-val has_max_input_alloc : unit -> int option
-
-val is_smt_skew_pointer_order : unit -> bool
-
-val get_dsl_log_dir : unit -> string option
-
-val is_specialization_disabled : unit -> bool
-
-val is_only_top_level_ite_lifting : unit -> bool
-
-val is_extrema_skew_disabled : unit -> bool
-
-val get_discard_factor : unit -> int
-
-val has_dynamic_arbitrary_domain : unit -> bool
-
-val has_dynamic_arbitrary_propagation : unit -> bool
-
-val has_dynamic_assert_domain : unit -> bool
-
-val has_dynamic_return_propagation : unit -> bool
-
-val is_old_style_alloc : unit -> bool
-
-val string_of_dynamic_absint_assign_mode : dynamic_absint_assign_mode -> string
-
-val get_dynamic_absint_assign : unit -> dynamic_absint_assign_mode option
-
-val get_dynamic_local_iterations : unit -> int

@@ -1,6 +1,6 @@
 [![Style](https://github.com/rems-project/cn/actions/workflows/style.yml/badge.svg)](https://github.com/rems-project/cn/actions/workflows/style.yml)
 [![Proof](https://github.com/rems-project/cn/actions/workflows/proof.yml/badge.svg)](https://github.com/rems-project/cn/actions/workflows/proof.yml)
-[![Spec Testing](https://github.com/rems-project/cn/actions/workflows/spec-testing.yml/badge.svg)](https://github.com/rems-project/cn/actions/workflows/spec-testing.yml)
+[![Random Testing](https://github.com/rems-project/cn/actions/workflows/random-testing.yml/badge.svg)](https://github.com/rems-project/cn/actions/workflows/random-testing.yml)
 [![Rocq](https://github.com/rems-project/cn/actions/workflows/rocq.yml/badge.svg)](https://github.com/rems-project/cn/actions/workflows/rocq.yml)
 
 
@@ -193,6 +193,24 @@ configuration in [`.devcontainer/`](.devcontainer/).
    step above.)
 
    CN needs clang >= 13.0.0 or gcc >= 8.1 for development.
+
+## Development tests
+
+Install the test dependencies in your active OPAM switch:
+
+```sh
+opam install --deps-only --with-test --yes ./cn.opam
+```
+
+Run the random-testing regressions with the same Python entry point used by CI:
+
+```sh
+python3 tests/random-testing/run.py
+```
+
+For the OUnit suites without a real Austen installation, use `--unit-only`.
+See [the random-testing README](tests/random-testing/README.md) for dependencies,
+coverage, diagnostics, CI configuration, and the status of the legacy corpus.
 
 ## Contributing
 

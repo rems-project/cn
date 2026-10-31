@@ -1,52 +1,16 @@
-module CF = Cerb_frontend
-module A = CF.AilSyntax
-module FExtract = Fulminate.Extract
-module LAT = LogicalArgumentTypes
 module AT = ArgumentTypes
 
-type kind =
-  | Constant (* Run function without arguments nor `accesses` once *)
-  | RandomGenerator (* Run function with random inputs satisfying the precondition *)
-  | SymbolicGenerator (* Run function with symbolic inputs satisfying the precondition *)
-[@@deriving eq]
-
 type t =
-  { filename : string;
-    kind : kind;
-    suite : string;
-    test : string;
+  { fn : Sym.t;
     is_static : bool;
-    is_trusted : bool;
-    contains_function_level_spec : bool;
-    fn : Sym.t;
-    fn_loc : Locations.t;
     internal : Fulminate.Extract.fn_args_and_body
   }
 
 let of_instrumentation
-      (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (paused : _ Typing.pause)
       (inst : Fulminate.Extract.instrumentation)
   : t
   =
-  let filename = inst.fn_loc |> Cerb_location.get_filename |> Option.get in
-  let kind =
-    let _, _, decl = List.assoc Sym.equal inst.fn sigma.declarations in
-    match decl with
-    | Decl_function (_, _, args, _, _, _)
-      when List.is_empty args
-           && Sym.Set.is_empty
-                (LAT.free_vars
-                   (fun _ -> Sym.Set.empty)
-                   (AT.get_lat (Option.get inst.internal))) ->
-      Constant
-    | Decl_function _ ->
-      if TestGenConfig.is_symbolic_enabled () then SymbolicGenerator else RandomGenerator
-    | Decl_object _ -> failwith __LOC__
-  in
-  let suite = filename |> Filename.basename |> String.split_on_char '.' |> List.hd in
-  let test = Sym.pp_string inst.fn in
-  let is_static = inst.is_static in
   let context =
     Result.get_ok (Typing.run_from_pause (fun _ -> Typing.get_typing_context ()) paused)
   in
@@ -69,27 +33,6 @@ let of_instrumentation
     | Ok at' -> at' |> AT.map (fun rt -> (rt, snd (AT.get_return at)))
     | Error err ->
       TypeErrors.report_pretty TypeErrors.{ loc = err.loc; msg = WellTyped err.msg };
-      exit 1
+      exit 2
   in
-  { filename;
-    kind;
-    suite;
-    test;
-    is_static;
-    is_trusted = inst.trusted;
-    contains_function_level_spec = inst.contains_function_level_spec;
-    fn = inst.fn;
-    fn_loc = inst.fn_loc;
-    internal
-  }
-
-
-let to_instrumentation (test : t) : FExtract.instrumentation =
-  FExtract.
-    { fn = test.fn;
-      fn_loc = test.fn_loc;
-      internal = Some test.internal;
-      trusted = test.is_trusted;
-      contains_function_level_spec = test.contains_function_level_spec;
-      is_static = test.is_static
-    }
+  { fn = inst.fn; is_static = inst.is_static; internal }

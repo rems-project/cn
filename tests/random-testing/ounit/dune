@@ -1,0 +1,31 @@
+(test
+ (name test_runner)
+ (deps
+  (package cn))
+ (libraries cn ounit2 unix zarith)
+ (action
+  (setenv
+   CN_TEST_EXE
+   %{exe:../../../bin/main.exe}
+   (setenv
+    CN_ENUM_ARGUMENT_FIXTURE
+    %{dep:../fixtures/spec_export/enum_argument.c}
+    (setenv
+     CN_ENUM_RETURN_FIXTURE
+     %{dep:../fixtures/spec_export/enum_return.c}
+     (setenv
+      CN_MIXED_EXPORT_FIXTURE
+      %{dep:../fixtures/spec_export/mixed.c}
+      (setenv
+       CN_AUSTEN_SCALAR_FIXTURE
+       %{dep:../fixtures/austen/scalar.c}
+       (setenv
+        CN_AUSTEN_FORCED_INCLUDE
+        %{dep:../fixtures/austen/include/forced.h}
+        (setenv
+         CN_EXPORT_WIDTHS_FIXTURE
+         %{dep:../fixtures/campaigns/export_widths.pass.c}
+         (setenv
+          CN_UNINIT_VALUE_FIXTURE
+          %{dep:../fixtures/spec_export/uninit_value.c}
+          (run ./test_runner.exe)))))))))))
