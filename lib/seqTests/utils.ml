@@ -133,8 +133,10 @@ let test_to_doc
     separate space [ CF.Pp_ail.pp_ctype T.no_qs ret_ty; Sym.pp name; equals ]
     ^^ f_call
     ^^ stmt_to_doc
-         (A.AilSexpr
-            (Fulminate.Ownership.generate_c_local_ownership_entry_fcall (name, ret_ty)))
+         (Option.get
+            (Fulminate.Ownership.generate_c_local_ownership_entry (* TODO *)
+               ~is_register:false
+               (name, ret_ty)))
     ^^ hardline
   | None -> f_call
 

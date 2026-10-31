@@ -232,7 +232,11 @@ let rec gen_sequence
                (fun (name, _, ret, _, _) ->
                   match name with
                   | Some name ->
-                    Some (Fulminate.Ownership.generate_c_local_ownership_exit (name, ret))
+                    Some
+                      (Option.get
+                         (Fulminate.Ownership.generate_c_local_ownership_exit (* TODO *)
+                            ~is_register:false
+                            (name, ret)))
                   | None -> None)
                (SUtils.extract_actual_ctx ctx)
            in

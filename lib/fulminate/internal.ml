@@ -768,8 +768,11 @@ let generate_global_assignments
   | [] -> []
   | (main_sym, _) :: _ ->
     let globals = Cn_to_ail.extract_global_variables prog5 in
-    let global_map_fcalls = List.map OE.generate_c_local_ownership_entry_fcall globals in
-    let global_map_stmts_ = List.map (fun e -> A.AilSexpr e) global_map_fcalls in
+    let global_map_stmts_ =
+      List.filter_map
+        (OE.generate_c_local_ownership_entry (* TODO *) ~is_register:false)
+        globals
+    in
     let fulm_init_fcall =
       get_global_init_stats
         ?max_bump_blocks
@@ -781,7 +784,11 @@ let generate_global_assignments
     in
     let init_str = generate_ail_stat_strs ([], [ fulm_init_fcall ]) in
     let global_mapping_str = generate_ail_stat_strs ([], global_map_stmts_) in
-    let global_unmapping_stmts_ = List.map OE.generate_c_local_ownership_exit globals in
+    let global_unmapping_stmts_ =
+      List.filter_map
+        (OE.generate_c_local_ownership_exit (* TODO *) ~is_register:false)
+        globals
+    in
     let global_unmapping_str = generate_ail_stat_strs ([], global_unmapping_stmts_) in
     [ (main_sym, (init_str @ global_mapping_str, global_unmapping_str)) ]
 

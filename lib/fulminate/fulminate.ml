@@ -183,63 +183,79 @@ let memory_accesses_injections ail_prog =
   in
   let acc = ref [] in
   let xs = collect_memory_accesses ail_prog in
+  let is_register (A.AnnotatedExpression (genType, _, _, _)) =
+    match genType with
+    | CF.GenTypes.GenLValueType (_, _, is_register) -> is_register
+    | _ -> false
+  in
+  let is_access_register = function
+    | Load { lvalue; _ }
+    | Store { lvalue; _ }
+    | StoreOp { lvalue; _ }
+    | Postfix { lvalue; _ } ->
+      is_register lvalue
+  in
   List.iter
     (* HK: Currently, `env` is ignored. It will be used in future patches. *)
     (fun (access, _env) ->
-       match access with
-       | Load { loc; _ } ->
-         let b, e = pos_bbox loc in
-         acc := (point b, [ "CN_LOAD(" ]) :: (point e, [ ")" ]) :: !acc
-       | Store { lvalue; expr; _ } ->
-         (* NOTE: we are not using the location of the access (the AilEassign), because if
+       (* Don't instrument *)
+       if is_access_register access then
+         ()
+       else (
+         match access with
+         | Load { loc; _ } ->
+           let b, e = pos_bbox loc in
+           acc := (point b, [ "CN_LOAD(" ]) :: (point e, [ ")" ]) :: !acc
+         | Store { lvalue; expr; _ } ->
+           (* NOTE: we are not using the location of the access (the AilEassign), because if
            in the source the assignment was surrounded by parens its location will contain
            the parens, which will break the CN_STORE macro call *)
-         let b, pos1 = pos_bbox (loc_of_expr lvalue) in
-         let pos2, e = pos_bbox (loc_of_expr expr) in
-         acc
-         := (point b, [ "CN_STORE(" ])
-            :: (region (pos1, pos2) NoCursor, [ ", " ])
-            :: (point e, [ ")" ])
-            :: !acc
-       | StoreOp { lvalue; aop; expr; loc } ->
-         (match bbox [ loc_of_expr expr ] with
-          | `Other _ ->
-            (* This prettyprinter doesn not produce valid C, but it's
+           let b, pos1 = pos_bbox (loc_of_expr lvalue) in
+           let pos2, e = pos_bbox (loc_of_expr expr) in
+           acc
+           := (point b, [ "CN_STORE(" ])
+              :: (region (pos1, pos2) NoCursor, [ ", " ])
+              :: (point e, [ ")" ])
+              :: !acc
+         | StoreOp { lvalue; aop; expr; loc } ->
+           (match bbox [ loc_of_expr expr ] with
+            | `Other _ ->
+              (* This prettyprinter doesn not produce valid C, but it's
                      correct for simple expressions and we use it here for
                      simple literals *)
-            let pp_expr e = CF.Pp_utils.to_plain_string (Pp_ail.pp_expression e) in
-            let sstart, ssend = pos_bbox loc in
-            let b, _ = pos_bbox (loc_of_expr lvalue) in
-            acc
-            := (region (sstart, b) NoCursor, [ "" ])
-               :: ( point b,
-                    [ "CN_STORE_OP("
-                      ^ pp_expr lvalue
-                      ^ ","
-                      ^ string_of_aop aop
-                      ^ ","
-                      ^ pp_expr expr
-                      ^ ")"
-                    ] )
-               :: (region (b, ssend) NoCursor, [ "" ])
-               :: !acc
-          | `Bbox _ ->
-            let b, pos1 = pos_bbox (loc_of_expr lvalue) in
-            let pos2, e = pos_bbox (loc_of_expr expr) in
-            acc
-            := (point b, [ "CN_STORE_OP(" ])
-               :: (region (pos1, pos2) NoCursor, [ "," ^ string_of_aop aop ^ "," ])
-               :: (point e, [ ")" ])
-               :: !acc)
-       | Postfix { loc; op; lvalue } ->
-         let op_str = match op with `Incr -> "++" | `Decr -> "--" in
-         let b, e = pos_bbox loc in
-         let pos1, pos2 = pos_bbox (loc_of_expr lvalue) in
-         (* E++ *)
-         acc
-         := (region (b, pos1) NoCursor, [ "CN_POSTFIX(" ])
-            :: (region (pos2, e) NoCursor, [ ", " ^ op_str ^ ")" ])
-            :: !acc)
+              let pp_expr e = CF.Pp_utils.to_plain_string (Pp_ail.pp_expression e) in
+              let sstart, ssend = pos_bbox loc in
+              let b, _ = pos_bbox (loc_of_expr lvalue) in
+              acc
+              := (region (sstart, b) NoCursor, [ "" ])
+                 :: ( point b,
+                      [ "CN_STORE_OP("
+                        ^ pp_expr lvalue
+                        ^ ","
+                        ^ string_of_aop aop
+                        ^ ","
+                        ^ pp_expr expr
+                        ^ ")"
+                      ] )
+                 :: (region (b, ssend) NoCursor, [ "" ])
+                 :: !acc
+            | `Bbox _ ->
+              let b, pos1 = pos_bbox (loc_of_expr lvalue) in
+              let pos2, e = pos_bbox (loc_of_expr expr) in
+              acc
+              := (point b, [ "CN_STORE_OP(" ])
+                 :: (region (pos1, pos2) NoCursor, [ "," ^ string_of_aop aop ^ "," ])
+                 :: (point e, [ ")" ])
+                 :: !acc)
+         | Postfix { loc; op; lvalue } ->
+           let op_str = match op with `Incr -> "++" | `Decr -> "--" in
+           let b, e = pos_bbox loc in
+           let pos1, pos2 = pos_bbox (loc_of_expr lvalue) in
+           (* E++ *)
+           acc
+           := (region (b, pos1) NoCursor, [ "CN_POSTFIX(" ])
+              :: (region (pos2, e) NoCursor, [ ", " ^ op_str ^ ")" ])
+              :: !acc))
     xs;
   !acc
 
