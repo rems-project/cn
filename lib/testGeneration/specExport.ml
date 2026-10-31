@@ -853,8 +853,12 @@ let json_of_function_linkage (test : Test.t) : json =
     `String "external"
 
 
+(* The name a function is exported under, by which AustenTest's --function
+   selects it. *)
+let exported_name (test : Test.t) : string = Sym.pp_string test.fn
+
 let json_of_test sigma (test : Test.t) : json =
-  let name = Sym.pp_string test.fn in
+  let name = exported_name test in
   let params, ret = c_signature sigma test.fn in
   let post, _fn_body = AT.get_return test.internal in
   obj

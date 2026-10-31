@@ -90,8 +90,9 @@ let string_of_process_status = function
 
 
 (* The environment with every `PATH` entry that provides `austen` removed, so
-   the export is shown not to depend on Austen being installed. *)
-let environment_without_austen () =
+   the export is shown not to depend on Austen being installed, and with
+   [path_prefix] (if any) put first on `PATH`. *)
+let environment_without_austen ?path_prefix () =
   let without_austen path =
     String.split_on_char ':' path
     |> List.filter (fun dir ->
@@ -103,26 +104,33 @@ let environment_without_austen () =
     (fun binding ->
        let n = String.length prefix in
        if String.starts_with ~prefix binding then
-         prefix ^ without_austen (String.sub binding n (String.length binding - n))
+         prefix
+         ^ Option.fold ~none:"" ~some:(fun dir -> dir ^ ":") path_prefix
+         ^ without_austen (String.sub binding n (String.length binding - n))
        else
          binding)
     (Unix.environment ())
 
 
-let run_cn_test_export ?(stdout_fd = Unix.stdout) ?(stderr_fd = Unix.stderr) args =
+(* Run `cn ARGS` in [env] (by default, without Austen) and wait for it. *)
+let run_cn ?env ?(stdout_fd = Unix.stdout) ?(stderr_fd = Unix.stderr) args =
   let cn = Sys.getenv "CN_TEST_EXE" in
-  let argv = Array.of_list ([ cn; "test"; "export" ] @ args) in
+  let env = match env with Some env -> env | None -> environment_without_austen () in
   let pid =
     Unix.create_process_env
       cn
-      argv
-      (environment_without_austen ())
+      (Array.of_list (cn :: args))
+      env
       Unix.stdin
       stdout_fd
       stderr_fd
   in
   let _, status = Unix.waitpid [] pid in
   status
+
+
+let run_cn_test_export ?stdout_fd ?stderr_fd args =
+  run_cn ?stdout_fd ?stderr_fd ("test" :: "export" :: args)
 
 
 let with_null_fd f =

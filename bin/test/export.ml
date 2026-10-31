@@ -1,48 +1,14 @@
 (* `cn test export`: write the JSON specification module for every function
    definition in [FILE], without generating, building, or running tests. *)
 
-open Cn
 open Cmdliner
 
-let run
-      filename
-      cc
-      macros
-      permissive
-      incl_dirs
-      incl_files
-      debug_level
-      print_level
-      csv_times
-      stdout_times
-      astprints
-      no_inherit_loc
-      magic_comment_char_dollar
-      allow_split_magic_comments
-      output
-  =
-  Frontend.set_flags ~debug_level ~print_level;
-  let filename = Common.there_can_only_be_one filename in
+let run (frontend : Frontend.args) output =
   Frontend.with_checked_program
-    ~filename
-    ~cc
-    ~macros
-    ~permissive
-    ~incl_dirs
-    ~incl_files
-    ~csv_times
-    ~stdout_times
-    ~astprints
-    ~no_inherit_loc
-    ~magic_comment_char_dollar
-    ~allow_split_magic_comments
-    ~save_cpp:None
-    ~disable_linemarkers:false
-    ~f:(fun ~cerb_conf:_ ~prog5 ~ail_prog ~statement_locs:_ ~paused ->
-      let _, sigma = ail_prog in
-      (try TestGeneration.export_specs ~path:output ~filename sigma prog5 paused with
-       | e -> Common.handle_error_with_user_guidance ~label:"CN-Export" e);
-      Result.ok ())
+    frontend
+    ~f:(fun ~filename ~cerb_conf:_ ~prog5 ~ail_prog ~statement_locs:_ ~paused ->
+      Frontend.export_specs ~path:output ~filename (snd ail_prog) prog5 paused;
+      Ok ())
 
 
 let output =
@@ -53,25 +19,7 @@ let output =
     & info ~docs:Shared.s_output [ "o"; "output" ] ~docv:"PATH" ~doc)
 
 
-let term : unit Term.t =
-  let open Term in
-  const run
-  $ Common.Flags.file
-  $ Common.Flags.cc
-  $ Common.Flags.macros
-  $ Common.Flags.permissive
-  $ Common.Flags.incl_dirs
-  $ Common.Flags.incl_files
-  $ Common.Flags.debug_level
-  $ Common.Flags.print_level
-  $ Common.Flags.csv_times
-  $ Common.Flags.stdout_times
-  $ Common.Flags.astprints
-  $ Common.Flags.no_inherit_loc
-  $ Common.Flags.magic_comment_char_dollar
-  $ Common.Flags.allow_split_magic_comments
-  $ output
-
+let term : unit Term.t = Term.(const run $ Frontend.term $ output)
 
 let doc =
   "Exports the CN specifications of every function definition in [FILE] as JSON, without \

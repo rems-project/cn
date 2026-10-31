@@ -1,0 +1,62 @@
+# Random testing (`cn test`)
+name: Random Testing
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  ounit-tests:
+
+    name: OUnit tests
+
+    strategy:
+      matrix:
+        version: [4.14.1]
+        compiler: [gcc]
+
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout CN
+        uses: actions/checkout@v6
+
+      - name: System dependencies (ubuntu)
+        run: |
+          sudo apt-get update
+          sudo apt-get install build-essential libgmp-dev z3 opam
+
+      # Shares the OPAM cache of the General workflow's gcc build.
+      - name: Restore OPAM cache
+        id: cache-opam-restore
+        uses: actions/cache/restore@v5
+        with:
+          path: ~/.opam
+          key: ${{ matrix.version }}-${{ matrix.compiler }}-${{ hashFiles('cn.opam') }}
+
+      - name: Setup OPAM
+        if: steps.cache-opam-restore.outputs.cache-hit != 'true'
+        env:
+          CC: ${{ matrix.compiler }}
+        run: |
+          opam init --yes --no-setup --shell=sh --compiler=${{ matrix.version }}
+          eval $(opam env --switch=${{ matrix.version }})
+          opam repo add --yes --this-switch coq-released https://coq.inria.fr/opam/released
+          opam install --deps-only --with-test --yes ./cn.opam z3
+
+      - name: Save OPAM cache
+        uses: actions/cache/save@v5
+        if: steps.cache-opam-restore.outputs.cache-hit != 'true'
+        with:
+          path: ~/.opam
+          key: ${{ matrix.version }}-${{ matrix.compiler }}-${{ hashFiles('cn.opam') }}
+
+      - name: Run OUnit tests
+        run: |
+          opam switch ${{ matrix.version }}
+          eval $(opam env --switch=${{ matrix.version }})
+          # IndexTerms, `cn test export` with Austen removed from PATH, and
+          # `cn test bennet|darcy --no-run` against a fake `austen`.
+          dune test tests/ounit --profile=dev

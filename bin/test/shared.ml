@@ -6,19 +6,120 @@ open Cn
    common flags. *)
 type engine_flags = TestGeneration.config -> TestGeneration.config
 
-(* Temporary: the previous generator pipeline is disconnected and the Austen
-   backend is not yet connected, so every testing command fails here, after
+(* The flags a testing command forwards. The rest are parsed but not yet
+   forwarded (see [mk_term]). *)
+type invocation =
+  { engine : TestGeneration.engine;
+    frontend : Frontend.args;
+    print_steps : bool;
+    output_dir : string option;
+    only : string list;
+    skip : string list;
+    dont_run : bool;
+    export_spec_json : string option
+  }
+
+(* `cn test bennet|darcy --no-run`: export the specifications and have Austen
+   build, without testing, the harness for the one selected testing root.
+   Austen is located before the frontend runs, so a missing Austen creates no
+   output. *)
+let build_only (inv : invocation) : unit =
+  let name = TestGeneration.Config.cli_name inv.engine in
+  let fail fmt =
+    Printf.ksprintf
+      (fun msg ->
+         Printf.eprintf "cn test %s: %s\n" name msg;
+         exit 2)
+      fmt
+  in
+  let exe =
+    match Austen.find_executable () with
+    | Some exe -> exe
+    | None ->
+      fail
+        "could not find '%s' on PATH, which is required to build tests.\n\
+         Install it with '%s'."
+        Austen.executable
+        Austen.install_hint
+  in
+  Frontend.with_checked_program
+    inv.frontend
+    ~f:(fun ~filename:source ~cerb_conf:_ ~prog5 ~ail_prog ~statement_locs:_ ~paused ->
+      let _, sigma = ail_prog in
+      let fn =
+        TestGeneration.functions_under_test
+          ~with_warning:true
+          ~skip_and_only:(inv.skip, inv.only)
+          sigma
+          prog5
+          paused
+        |> List.map TestGeneration.function_name
+        |> function
+        | [ fn ] -> fn
+        | [] -> fail "no functions were selected for testing."
+        | fns ->
+          fail
+            "--no-run builds one function, but %d were selected (%s).\n\
+             Select one with --only."
+            (List.length fns)
+            (String.concat ", " fns)
+      in
+      let output_dir =
+        Common.mk_dir_if_not_exist_maybe_tmp
+          ~mktemp:true
+          ~print_steps:inv.print_steps
+          (Common.Test inv.engine)
+          inv.output_dir
+      in
+      let spec =
+        Option.value
+          inv.export_spec_json
+          ~default:(Filename.concat output_dir "spec.json")
+      in
+      Frontend.export_specs ~path:spec ~filename:source sigma prog5 paused;
+      let work = Filename.concat (Filename.concat output_dir "work") fn in
+      let argv =
+        Austen.build_only_argv
+          ~exe
+          ~engine:name
+          ~fn
+          ~work
+          ~cflags:(Austen.cflags inv.frontend)
+          ~spec
+          ~source
+      in
+      if inv.print_steps then
+        print_endline ("Running: " ^ Filename.quote_command (List.hd argv) (List.tl argv));
+      (match Austen.run argv with
+       | Ok (WEXITED 0) -> Printf.printf "Built the harness for %s in %s\n" fn work
+       | Ok (WEXITED 130) -> exit 130
+       | Ok status ->
+         fail
+           "'%s' %s while building the harness for %s."
+           exe
+           (Austen.string_of_status status)
+           fn
+       | Error msg -> fail "could not run '%s': %s" exe msg);
+      Ok ())
+
+
+(* Lucas is unsupported. Bennet and Darcy build through Austen with
+   [--no-run]; their campaigns are temporarily unavailable, and fail after
    argument parsing and before preprocessing or creating any output. *)
-let run (engine : TestGeneration.engine) : unit =
-  let name = TestGeneration.Config.cli_name engine in
-  (match engine with
-   | Lucas -> Printf.eprintf "cn test %s: the Lucas engine is not supported.\n" name
-   | Bennet | Darcy ->
-     Printf.eprintf
-       "cn test %s: the testing backend is temporarily unavailable.\n\
-        Use 'cn test export FILE -o PATH' to export the specifications.\n"
-       name);
-  exit 2
+let run (inv : invocation) : unit =
+  let name = TestGeneration.Config.cli_name inv.engine in
+  match inv.engine with
+  | Lucas ->
+    Printf.eprintf "cn test %s: the Lucas engine is not supported.\n" name;
+    exit 2
+  | (Bennet | Darcy) when inv.dont_run -> build_only inv
+  | Bennet | Darcy ->
+    Printf.eprintf
+      "cn test %s: running tests is temporarily unavailable.\n\
+       Use --no-run to build tests without running them, or 'cn test export FILE -o \
+       PATH' to export the specifications.\n"
+      name;
+    exit 2
 
 
 open Cmdliner
@@ -448,10 +549,8 @@ end
    campaign-only flags as a usage error, naming the first one given. Lucas is
    unsupported whatever its flags, so it is not checked. Their CLI defaults
    are unset, so a set value was given explicitly. *)
-let reject_campaign_options_with_no_run (engine : TestGeneration.engine Term.t)
-  : TestGeneration.engine Term.t
-  =
-  let check engine dont_run until_timeout seed output_tyche exit_fast =
+let reject_campaign_options_with_no_run (inv : invocation Term.t) : invocation Term.t =
+  let check (inv : invocation) until_timeout seed output_tyche exit_fast =
     let given =
       [ ("--until-timeout", Option.is_some until_timeout);
         ("--seed", Option.is_some seed);
@@ -459,9 +558,9 @@ let reject_campaign_options_with_no_run (engine : TestGeneration.engine Term.t)
         ("--exit-fast", exit_fast)
       ]
     in
-    (match (engine, List.find_opt snd given) with
-     | (TestGeneration.Bennet | Darcy), Some (flag, _) when dont_run ->
-       let name = TestGeneration.Config.cli_name engine in
+    (match (inv.engine, List.find_opt snd given) with
+     | (TestGeneration.Bennet | Darcy), Some (flag, _) when inv.dont_run ->
+       let name = TestGeneration.Config.cli_name inv.engine in
        Printf.eprintf
          "cn test %s: %s cannot be used with --no-run, which runs no campaign.\n\
           Try 'cn test %s --help' for more information.\n"
@@ -470,12 +569,11 @@ let reject_campaign_options_with_no_run (engine : TestGeneration.engine Term.t)
          name;
        exit Cmd.Exit.cli_error
      | _ -> ());
-    engine
+    inv
   in
   Term.(
     const check
-    $ engine
-    $ Flags.dont_run
+    $ inv
     $ Flags.until_timeout
     $ Flags.seed
     $ Flags.output_tyche
@@ -530,11 +628,11 @@ let gen_term : engine_flags Term.t =
 
 (* The common flag chain, shared by all engine subcommands. [engine] decides
    which engine runs; [engine_flags] is the engine's config updater, so
-   wrong-engine flags are rejected as unknown options. Until a backend is
-   connected, [$-] parses each other flag but discards its value. Cmdliner
-   evaluates a function term before its argument, so the [--no-run] check
-   wraps the chain, and it and [run] apply only after every flag has been
-   converted. *)
+   wrong-engine flags are rejected as unknown options. The flags [run] uses
+   are collected into an [invocation]; until they are forwarded to Austen,
+   [$-] parses each other flag but discards its value. Cmdliner evaluates a
+   function term before its argument, so the [--no-run] check wraps the
+   chain, and it and [run] apply only after every flag has been converted. *)
 let mk_term
       ~(engine : TestGeneration.engine Term.t)
       ~(experimental_section : string -> string)
@@ -543,32 +641,36 @@ let mk_term
   =
   let open Term in
   let ( $- ) t arg = const (fun x _ -> x) $ t $ arg in
+  let invocation =
+    let make engine frontend print_steps output_dir only skip dont_run export_spec_json =
+      { engine;
+        frontend;
+        print_steps;
+        output_dir;
+        only;
+        skip;
+        dont_run;
+        export_spec_json
+      }
+    in
+    const make
+    $ engine
+    $ Frontend.term
+    $ Flags.print_steps
+    $ Flags.output_dir
+    $ Flags.only
+    $ Flags.skip
+    $ Flags.dont_run
+    $ Flags.export_spec_json
+  in
   const run
-  $ (engine
-     $- Common.Flags.file
-     $- Common.Flags.cc
-     $- Common.Flags.macros
-     $- Common.Flags.permissive
-     $- Common.Flags.incl_dirs
-     $- Common.Flags.incl_files
-     $- Common.Flags.debug_level
-     $- Common.Flags.print_level
-     $- Common.Flags.csv_times
-     $- Common.Flags.stdout_times
-     $- Common.Flags.astprints
-     $- Common.Flags.no_inherit_loc
-     $- Common.Flags.magic_comment_char_dollar
-     $- Common.Flags.allow_split_magic_comments
+  $ (invocation
      $- Instrument.Flags.without_ownership_checking
      $- Instrument.Flags.source_locs_mode
      $- Instrument.Flags.correct_missing_ownership_mode
      $- Instrument.Flags.remove_uninterp
      $- Instrument.Flags.experimental_ownership_stack_mode
           ~docs:(experimental_section s_compilation)
-     $- Flags.print_steps
-     $- Flags.output_dir
-     $- Flags.only
-     $- Flags.skip
      $- Flags.only_fulminate
      $- Flags.skip_fulminate
      $- Flags.gen_max_unfolds
@@ -584,7 +686,6 @@ let mk_term
      $- Flags.trap
      $- Flags.no_replays
      $- Flags.no_replicas
-     $- Flags.export_spec_json
      $- Flags.inline
      $- Flags.experimental_struct_asgn_destruction
           ~docs:(experimental_section s_generation)

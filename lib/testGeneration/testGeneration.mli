@@ -25,6 +25,9 @@ val functions_under_test
   _ Typing.pause ->
   Test.t list
 
+(** The name a testing root is exported under, by which Austen selects it. *)
+val function_name : Test.t -> string
+
 (** Write the specification JSON for every function definition, in source order,
     whether or not it is a testing root. *)
 val export_specs

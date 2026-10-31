@@ -17,3 +17,5 @@ let default_cfg : config = Config.default
 let functions_under_test = TestRoots.functions_under_test
 
 let export_specs = SpecExport.export
+
+let function_name = SpecExport.exported_name
