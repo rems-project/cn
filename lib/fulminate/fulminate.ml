@@ -198,6 +198,7 @@ let memory_accesses_injections ail_prog =
   List.iter
     (* HK: Currently, `env` is ignored. It will be used in future patches. *)
     (fun (access, _env) ->
+       (* Don't instrument *)
        if is_access_register access then
          ()
        else (
