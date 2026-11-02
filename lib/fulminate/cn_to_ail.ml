@@ -5136,6 +5136,7 @@ let cn_to_ail_pre_post
     let ail_executable_spec' =
       append_to_postcondition ail_executable_spec' ([], [ bump_alloc_end_stat_ ])
     in
+    (* TODO: separate bump alloc statements, always include those regardless of mode *)
     wrap_spec_with_fulm_on_checks ail_executable_spec'
   | None -> empty_ail_executable_spec
 
