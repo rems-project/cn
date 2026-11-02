@@ -71,9 +71,6 @@ let generate_executable_specs
       macros
       permissive
       lexicon
-      asm_keyword
-      cerb_keywords
-      cerb_builtins
       incl_dirs
       incl_files
       loc_pp
@@ -139,9 +136,6 @@ let generate_executable_specs
     ~macros:(("__CN_INSTRUMENT", None) :: macros)
     ~permissive
     ~lexicon
-    ~asm_keyword
-    ~cerb_keywords
-    ~cerb_builtins
     ~incl_dirs
     ~incl_files
     ~coq_export_file:None
@@ -414,9 +408,6 @@ let cmd =
     $ Common.Flags.macros
     $ Common.Flags.permissive
     $ Common.Flags.lexicon
-    $ Common.Flags.asm_keyword
-    $ Common.Flags.cerb_keywords
-    $ Common.Flags.cerb_builtins
     $ Common.Flags.incl_dirs
     $ Common.Flags.incl_files
     $ Common.Flags.loc_pp

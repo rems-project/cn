@@ -8,9 +8,6 @@ let verify
       macros
       permissive
       lexicon
-      asm_keyword
-      cerb_keywords
-      cerb_builtins
       incl_dirs
       incl_files
       loc_pp
@@ -91,9 +88,6 @@ let verify
     ~macros:(("__CN_VERIFY", None) :: macros)
     ~permissive
     ~lexicon
-    ~asm_keyword
-    ~cerb_keywords
-    ~cerb_builtins
     ~incl_dirs
     ~incl_files
     ~coq_export_file
@@ -331,9 +325,6 @@ let verify_t : unit Term.t =
   $ Common.Flags.macros
   $ Common.Flags.permissive
   $ Common.Flags.lexicon
-  $ Common.Flags.asm_keyword
-  $ Common.Flags.cerb_keywords
-  $ Common.Flags.cerb_builtins
   $ Common.Flags.incl_dirs
   $ Common.Flags.incl_files
   $ Common.Flags.loc_pp

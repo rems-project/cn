@@ -29,9 +29,6 @@ let frontend
       ~macros
       ~permissive
       ~lexicon
-      ~asm_keyword
-      ~cerb_keywords
-      ~cerb_builtins
       ~incl_dirs
       ~incl_files
       ~astprints
@@ -55,9 +52,9 @@ let frontend
       ~agnostic:false
       ~permissive
       ~lexicon
-      ~asm_keyword
-      ~cerb_keywords
-      ~cerb_builtins
+      ~asm_keyword:true
+      ~cerb_keywords:true
+      ~cerb_builtins:true
       ~ignore_bitfields:false
       ~allow_distinct_ptr_types_comparison:true
       ~allow_void_ptr_arithmetic:true
@@ -155,9 +152,6 @@ let with_well_formedness_check
       ~macros
       ~permissive
       ~lexicon
-      ~asm_keyword
-      ~cerb_keywords
-      ~cerb_builtins
       ~incl_dirs
       ~incl_files
       ~coq_export_file
@@ -189,9 +183,6 @@ let with_well_formedness_check
          ~macros
          ~permissive
          ~lexicon
-         ~asm_keyword
-         ~cerb_keywords
-         ~cerb_builtins
          ~incl_dirs
          ~incl_files
          ~astprints
@@ -416,7 +407,7 @@ module Flags = struct
 
 
   let lexicon =
-    let doc = "TODO" in
+    let doc = "Select C lexicon (c11 | gnu11 | c23 | gnu23)." in
     Arg.(
       value
       & opt
@@ -424,21 +415,6 @@ module Flags = struct
              [ ("c11", CF.Config.C11); ("gnu11", GNU11); ("c23", C23); ("gnu23", GNU23) ])
           GNU11
       & info ~docs:s_cn [ "lexicon" ] ~doc)
-
-
-  let asm_keyword =
-    let doc = "TODO" in
-    Arg.(value & flag & info ~docs:s_cn [ "asm-keyword" ] ~doc)
-
-
-  let cerb_keywords =
-    let doc = "TODO" in
-    Arg.(value & flag & info ~docs:s_cn [ "cerb-keywords" ] ~doc)
-
-
-  let cerb_builtins =
-    let doc = "TODO" in
-    Arg.(value & flag & info ~docs:s_cn [ "cerb-builtins" ] ~doc)
 
 
   let incl_dirs =
