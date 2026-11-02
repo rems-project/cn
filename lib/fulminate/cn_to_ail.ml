@@ -521,20 +521,23 @@ let wrap_with_fulm_on_check (bs, ss) =
     ] )
 
 
+let wrap_loop_with_fulm_on_check (loop : loop_info) =
+  { loop with
+    cond = (fst loop.cond, wrap_with_fulm_on_check (snd loop.cond));
+    loop_entry = wrap_with_fulm_on_check loop.loop_entry;
+    loop_exit = wrap_with_fulm_on_check loop.loop_exit
+  }
+
+
+let wrap_in_stmt_with_fulm_on_check in_stmt =
+  List.map (fun (loc, (bs, ss)) -> (loc, wrap_with_fulm_on_check (bs, ss))) in_stmt
+
+
 let wrap_spec_with_fulm_on_checks (ail_executable_spec : ail_executable_spec) =
-  let wrapped_pre = wrap_with_fulm_on_check ail_executable_spec.pre in
-  let wrapped_post = wrap_with_fulm_on_check ail_executable_spec.post in
-  let wrapped_in_stmt =
-    List.map
-      (fun (loc, (bs, ss)) -> (loc, wrap_with_fulm_on_check (bs, ss)))
-      ail_executable_spec.in_stmt
-  in
-  let wrapped_loops = ail_executable_spec.loops in
-  (* TODO *)
-  { pre = wrapped_pre;
-    post = wrapped_post;
-    in_stmt = wrapped_in_stmt;
-    loops = wrapped_loops
+  { pre = wrap_with_fulm_on_check ail_executable_spec.pre;
+    post = wrap_with_fulm_on_check ail_executable_spec.post;
+    in_stmt = wrap_in_stmt_with_fulm_on_check ail_executable_spec.in_stmt;
+    loops = List.map wrap_loop_with_fulm_on_check ail_executable_spec.loops
   }
 
 
