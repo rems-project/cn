@@ -15,6 +15,38 @@ module AT = ArgumentTypes
 module OE = Ownership
 open Terms
 
+type ail_bindings_and_statements =
+  A.bindings * CF.GenTypes.genTypeCategory A.statement_ list
+
+type loop_info =
+  { cond : Locations.t * ail_bindings_and_statements;
+    loop_loc : Locations.t;
+    loop_entry : ail_bindings_and_statements;
+    loop_exit : ail_bindings_and_statements
+  }
+
+type ail_executable_spec =
+  { pre : ail_bindings_and_statements;
+    post : ail_bindings_and_statements;
+    in_stmt : (Locations.t * ail_bindings_and_statements) list;
+    loops : loop_info list
+  }
+
+let empty_ail_executable_spec =
+  { pre = ([], []); post = ([], []); in_stmt = []; loops = [] }
+
+
+(* GADT for destination passing - keeps track of the final 'destination' of a translated CN expression *)
+type 'a dest =
+  | Assert : Cerb_location.t -> ail_bindings_and_statements dest
+  | Return : ail_bindings_and_statements dest
+  | AssignVar : C.union_tag -> ail_bindings_and_statements dest
+  | PassBack :
+      (A.bindings
+      * CF.GenTypes.genTypeCategory A.statement_ list
+      * CF.GenTypes.genTypeCategory A.expression)
+        dest
+
 let getter_str filename sym =
   "cn_test_get_" ^ Utils.static_prefix filename ^ "_" ^ Sym.pp_string sym
 
@@ -477,6 +509,35 @@ let wrap_with_convert_to ?sct ail_expr_ bt =
   wrap_with_convert ?sct ~convert_from:false ail_expr_ bt
 
 
+let wrap_with_fulm_on_check (bs, ss) =
+  let fulm_on_sym = Sym.fresh "is_fulminate_on" in
+  let fulm_on_call = A.(AilEcall (mk_expr (AilEident fulm_on_sym), [])) in
+  ( [],
+    [ A.(
+        AilSif
+          ( mk_expr fulm_on_call,
+            mk_stmt (AilSblock (bs, List.map mk_stmt ss)),
+            mk_stmt (AilSblock ([], [])) ))
+    ] )
+
+
+let wrap_spec_with_fulm_on_checks (ail_executable_spec : ail_executable_spec) =
+  let wrapped_pre = wrap_with_fulm_on_check ail_executable_spec.pre in
+  let wrapped_post = wrap_with_fulm_on_check ail_executable_spec.post in
+  let wrapped_in_stmt =
+    List.map
+      (fun (loc, (bs, ss)) -> (loc, wrap_with_fulm_on_check (bs, ss)))
+      ail_executable_spec.in_stmt
+  in
+  let wrapped_loops = ail_executable_spec.loops in
+  (* TODO *)
+  { pre = wrapped_pre;
+    post = wrapped_post;
+    in_stmt = wrapped_in_stmt;
+    loops = wrapped_loops
+  }
+
+
 let get_equality_fn_call bt e1 e2 =
   match bt with
   | BT.Map (_, val_bt) ->
@@ -676,38 +737,6 @@ let cn_to_ail_const const basetype =
   let is_unit = const == Unit in
   (ail_const, is_unit)
 
-
-type ail_bindings_and_statements =
-  A.bindings * CF.GenTypes.genTypeCategory A.statement_ list
-
-type loop_info =
-  { cond : Locations.t * ail_bindings_and_statements;
-    loop_loc : Locations.t;
-    loop_entry : ail_bindings_and_statements;
-    loop_exit : ail_bindings_and_statements
-  }
-
-type ail_executable_spec =
-  { pre : ail_bindings_and_statements;
-    post : ail_bindings_and_statements;
-    in_stmt : (Locations.t * ail_bindings_and_statements) list;
-    loops : loop_info list
-  }
-
-let empty_ail_executable_spec =
-  { pre = ([], []); post = ([], []); in_stmt = []; loops = [] }
-
-
-(* GADT for destination passing - keeps track of the final 'destination' of a translated CN expression *)
-type 'a dest =
-  | Assert : Cerb_location.t -> ail_bindings_and_statements dest
-  | Return : ail_bindings_and_statements dest
-  | AssignVar : C.union_tag -> ail_bindings_and_statements dest
-  | PassBack :
-      (A.bindings
-      * CF.GenTypes.genTypeCategory A.statement_ list
-      * CF.GenTypes.genTypeCategory A.expression)
-        dest
 
 (* bool flag for checking if expression is unit - needs special treatment *)
 let dest_with_unit_check
@@ -5101,7 +5130,10 @@ let cn_to_ail_pre_post
         ail_executable_spec
         ([ bump_alloc_binding ], bump_alloc_start_stat_ :: ownership_stats_)
     in
-    append_to_postcondition ail_executable_spec' ([], [ bump_alloc_end_stat_ ])
+    let ail_executable_spec' =
+      append_to_postcondition ail_executable_spec' ([], [ bump_alloc_end_stat_ ])
+    in
+    wrap_spec_with_fulm_on_checks ail_executable_spec'
   | None -> empty_ail_executable_spec
 
 
