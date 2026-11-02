@@ -1,3 +1,5 @@
+#include <stddef.h>
+
 typedef struct a {
     int b;
     int c;
