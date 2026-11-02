@@ -2,15 +2,7 @@ module CF = Cerb_frontend
 module CB = Cerb_backend
 open Cn
 
-let run_instrumented_file
-      ~filename
-      ~cc
-      ~no_debug_info
-      ~output
-      ~output_dir
-      ~print_steps
-      ~accept_uninterp
-  =
+let run_instrumented_file ~filename ~cc ~no_debug_info ~output ~output_dir ~print_steps =
   let instrumented_filename =
     Option.value ~default:(Fulminate.get_instrumented_filename filename) output
   in
@@ -19,10 +11,6 @@ let run_instrumented_file
       output_dir
       (match ext with Some ext' -> Filename.remove_extension fn ^ ext' | None -> fn)
   in
-  (* --accept-uninterp: the stubs of the uninterpreted CN functions and predicates
-     (Fulminate.main), compiled and linked with the instrumented file *)
-  let uninterp_filename = Fulminate.get_uninterp_filename filename in
-  let with_uninterp = accept_uninterp && Sys.file_exists (in_folder uninterp_filename) in
   let opam_switch_prefix = Sys.getenv "OPAM_SWITCH_PREFIX" in
   let runtime_prefix = opam_switch_prefix ^ "/lib/cn/runtime" in
   let includes = "-I" ^ runtime_prefix ^ "/include/" in
@@ -54,25 +42,6 @@ let run_instrumented_file
   else (
     print_endline ("Failed to compile '" ^ instrumented_filename ^ "'");
     exit 1);
-  if with_uninterp then
-    if
-      Sys.command
-        (cc
-         ^ " -c "
-         ^ flags
-         ^ " "
-         ^ includes
-         ^ " -o "
-         ^ in_folder ~ext:".o" uninterp_filename
-         ^ " "
-         ^ in_folder uninterp_filename)
-      == 0
-    then (
-      if print_steps then
-        print_endline ("Compiled '" ^ uninterp_filename ^ "'"))
-    else (
-      print_endline ("Failed to compile '" ^ uninterp_filename ^ "'");
-      exit 1);
   if
     Sys.command
       (cc
@@ -84,7 +53,6 @@ let run_instrumented_file
        ^ in_folder ~ext:".out" instrumented_filename
        ^ " "
        ^ in_folder ~ext:".o" instrumented_filename
-       ^ (if with_uninterp then " " ^ in_folder ~ext:".o" uninterp_filename else "")
        ^ " "
        ^ Filename.concat runtime_prefix "libcn_exec.a")
     == 0
@@ -268,8 +236,7 @@ let generate_executable_specs
              ~no_debug_info
              ~output
              ~output_dir
-             ~print_steps
-             ~accept_uninterp))
+             ~print_steps))
 
 
 open Cmdliner
@@ -469,15 +436,14 @@ module Flags = struct
 
   let accept_uninterp =
     let doc =
-      "Support uninterpreted CN functions and predicates at runtime by linking in their \
-       definitions: the instrumented file declares them and calls them like any other, \
-       and their stubs (a definition with an empty body per uninterpreted function or \
-       predicate, its CN signature in a comment) are written to <input>.uninterp.c in \
-       the output directory, to be filled in and compiled and linked with the \
-       instrumented file (--run does). The generated helpers (CN functions, predicates, \
-       struct conversions, record functions, ...) are then external instead of static, \
-       so a stub can call them. An existing <input>.uninterp.c is left as it is. \
-       Excludes --remove-uninterp."
+      "Support uninterpreted CN functions and predicates at runtime: the instrumented \
+       file declares them (static, like its other helpers) and calls them like any \
+       other, and their stubs (a definition with an empty body per uninterpreted \
+       function or predicate, its CN signature in a comment) are written to \
+       <input>.uninterp.c in the output directory, which the instrumented file includes \
+       at its end: fill in the bodies, which see every helper of the instrumented file, \
+       and compile that file alone (--run does). An existing <input>.uninterp.c is left \
+       as it is. Excludes --remove-uninterp."
     in
     Arg.(value & flag & info ~docs:s_fulminate [ "accept-uninterp" ] ~doc)
 end

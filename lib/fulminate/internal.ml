@@ -487,34 +487,29 @@ let generate_cn_versions_of_structs c_structs =
 
 
 (* [funs]: each CN function or predicate with its definition, or without one when it is
-   uninterpreted and accepted (--accept-uninterp): then its declaration is printed without
-   `static`, since its definition is the stub in <input>.uninterp.c, another translation unit. With
-   that flag every helper is external (Sym.fulminate_extern_helpers), so that the stubs can
-   call them. *)
+   uninterpreted and accepted (--accept-uninterp): then only its declaration is printed here,
+   `static` like everything else, and its definition is the stub in <input>.uninterp.c, which the
+   instrumented file includes at its end, so the two are one translation unit. *)
 let generate_fun_def_and_decl_docs_opt funs =
   let one_def_prog (decl, def) =
     { A.empty_sigma with declarations = [ decl ]; function_definitions = [ def ] }
   in
   let one_decl_prog decl = { A.empty_sigma with declarations = [ decl ] } in
-  let pp_it ~static x =
-    (if static && not !Sym.fulminate_extern_helpers then !^"static " else empty)
+  let pp_it x =
+    !^"static "
     ^^ CF.Pp_ail.(with_executable_spec (pp_program ~show_include:true) (None, x))
   in
   let defs_doc =
     List.fold_left
       (fun d (decl, def_opt) ->
          match def_opt with
-         | Some def -> pp_it ~static:true (one_def_prog (decl, def)) ^^ d
+         | Some def -> pp_it (one_def_prog (decl, def)) ^^ d
          | None -> d)
       empty
       funs
   in
   let decls_doc =
-    List.fold_left
-      (fun d (decl, def_opt) ->
-         pp_it ~static:(Option.is_some def_opt) (one_decl_prog decl) ^^ d)
-      empty
-      funs
+    List.fold_left (fun d (decl, _) -> pp_it (one_decl_prog decl) ^^ d) empty funs
   in
   (defs_doc, decls_doc)
 
@@ -525,15 +520,13 @@ let generate_fun_def_and_decl_docs funs =
 
 (* --accept-uninterp: the stubs of the uninterpreted CN functions and predicates, for
    <input>.uninterp.c: a definition with an empty body per declaration (Cn_to_ail.uninterp_stub_def),
-   printed without `static` since the instrumented file calls them through its extern
-   declarations, each preceded by a comment giving the CN signature. *)
+   `static` like the instrumented file's own helpers, since that file includes the stubs at its
+   end and has already declared them (static) at its top; each stub is preceded by a comment
+   giving the CN signature. *)
 let generate_uninterp_stub_defs (stubs : (A.sigma_declaration * string) list) =
   let pp prog =
     doc_to_pretty_string
       CF.Pp_ail.(with_executable_spec (pp_program ~show_include:true) (None, prog))
-  in
-  let prototypes =
-    List.map (fun (decl, _) -> pp { A.empty_sigma with declarations = [ decl ] }) stubs
   in
   let defs =
     List.filter_map
@@ -542,7 +535,7 @@ let generate_uninterp_stub_defs (stubs : (A.sigma_declaration * string) list) =
            (fun def ->
               "/* "
               ^ comment
-              ^ " */\n"
+              ^ " */\nstatic "
               ^ pp
                   { A.empty_sigma with
                     declarations = [ decl ];
@@ -551,10 +544,7 @@ let generate_uninterp_stub_defs (stubs : (A.sigma_declaration * string) list) =
            (Cn_to_ail.uninterp_stub_def decl))
       stubs
   in
-  "/* PROTOTYPES */\n\n"
-  ^ String.concat "" prototypes
-  ^ "\n/* STUBS */\n\n"
-  ^ String.concat "\n" defs
+  "/* STUBS */\n\n" ^ String.concat "\n" defs
 
 
 (* The fourth component: the declarations of the uninterpreted functions, accepted by
