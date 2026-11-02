@@ -54,8 +54,8 @@ struct fulm_init_config {
 void fulminate_destroy(bool with_ghost_args);
 void fulminate_init(struct fulm_init_config flags);
 
-void set_fulminate_on(void);
-void set_fulminate_off(void);
+void enable_fulminate(void);
+void disable_fulminate(void);
 bool is_fulminate_on(void);
 
 /* Error handlers */

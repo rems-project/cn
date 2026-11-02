@@ -84,11 +84,11 @@ void fulminate_init(struct fulm_init_config config) {
   fulminate_on = true;
 }
 
-void set_fulminate_on(void) {
+void enable_fulminate(void) {
   fulminate_on = true;
 }
 
-void set_fulminate_off(void) {
+void disable_fulminate(void) {
   fulminate_on = false;
 }
 
