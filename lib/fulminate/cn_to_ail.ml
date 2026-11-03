@@ -5117,6 +5117,8 @@ let cn_to_ail_pre_post
     let bump_alloc_binding, bump_alloc_start_stat_, bump_alloc_end_stat_ =
       gen_bump_alloc_bs_and_ss ()
     in
+    let ail_executable_spec = wrap_spec_with_fulm_on_checks ail_executable_spec in
+    (* Add auxilliary statements: bump allocator, stack depth incr and decr, postcondition leak check *)
     let ail_executable_spec' =
       prepend_to_precondition
         ail_executable_spec
@@ -5127,8 +5129,7 @@ let cn_to_ail_pre_post
         ail_executable_spec'
         ([], stack_depth_decr_and_leak_check @ [ bump_alloc_end_stat_ ])
     in
-    (* TODO: separate bump alloc statements, always include those regardless of mode *)
-    wrap_spec_with_fulm_on_checks ail_executable_spec'
+    ail_executable_spec'
   | None -> empty_ail_executable_spec
 
 
