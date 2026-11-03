@@ -4884,28 +4884,7 @@ let rec cn_to_ail_lat_2
     let post_bs, post_ss =
       cn_to_ail_post filename dts globals preds without_ownership_checking post
     in
-    let ownership_stats_ =
-      if without_ownership_checking then
-        []
-      else (
-        let sym_to_fcall_stat_ =
-          fun fn_sym -> A.AilSexpr (mk_expr (AilEcall (mk_expr (AilEident fn_sym), [])))
-        in
-        let stack_depth_decr_stat_ = sym_to_fcall_stat_ OE.cn_stack_depth_decr_sym in
-        let postcondition_leak_check_stat_ =
-          sym_to_fcall_stat_ OE.cn_postcondition_leak_check_sym
-        in
-        let upd_s = generate_error_msg_info_update_stats () in
-        let pop_s = generate_cn_pop_msg_info () in
-        List.map
-          mk_stmt
-          ((stack_depth_decr_stat_ :: upd_s) @ (postcondition_leak_check_stat_ :: pop_s)))
-    in
-    let block =
-      A.(
-        AilSblock
-          (return_cn_binding @ post_bs, return_cn_decl @ post_ss @ ownership_stats_))
-    in
+    let block = A.(AilSblock (return_cn_binding @ post_bs, return_cn_decl @ post_ss)) in
     { pre = ([], []);
       post = ([], [ block ]);
       in_stmt = ail_statements;
@@ -5115,15 +5094,25 @@ let cn_to_ail_pre_post
           ail_executable_spec
           ([ ghost_spec_binding ], [ ghost_spec_decl ]))
     in
-    let ownership_stats_ =
+    let stack_depth_incr, stack_depth_decr_and_leak_check =
       if without_ownership_checking then
-        []
+        ([], [])
       else (
         let cn_stack_depth_incr_stat_ =
           A.AilSexpr
             (mk_expr (AilEcall (mk_expr (AilEident OE.cn_stack_depth_incr_sym), [])))
         in
-        [ cn_stack_depth_incr_stat_ ])
+        let sym_to_fcall_stat_ =
+          fun fn_sym -> A.AilSexpr (mk_expr (AilEcall (mk_expr (AilEident fn_sym), [])))
+        in
+        let stack_depth_decr_stat_ = sym_to_fcall_stat_ OE.cn_stack_depth_decr_sym in
+        let postcondition_leak_check_stat_ =
+          sym_to_fcall_stat_ OE.cn_postcondition_leak_check_sym
+        in
+        let upd_s = generate_error_msg_info_update_stats () in
+        let pop_s = generate_cn_pop_msg_info () in
+        ( [ cn_stack_depth_incr_stat_ ],
+          (stack_depth_decr_stat_ :: upd_s) @ (postcondition_leak_check_stat_ :: pop_s) ))
     in
     let bump_alloc_binding, bump_alloc_start_stat_, bump_alloc_end_stat_ =
       gen_bump_alloc_bs_and_ss ()
@@ -5131,10 +5120,12 @@ let cn_to_ail_pre_post
     let ail_executable_spec' =
       prepend_to_precondition
         ail_executable_spec
-        ([ bump_alloc_binding ], bump_alloc_start_stat_ :: ownership_stats_)
+        ([ bump_alloc_binding ], bump_alloc_start_stat_ :: stack_depth_incr)
     in
     let ail_executable_spec' =
-      append_to_postcondition ail_executable_spec' ([], [ bump_alloc_end_stat_ ])
+      append_to_postcondition
+        ail_executable_spec'
+        ([], stack_depth_decr_and_leak_check @ [ bump_alloc_end_stat_ ])
     in
     (* TODO: separate bump alloc statements, always include those regardless of mode *)
     wrap_spec_with_fulm_on_checks ail_executable_spec'
