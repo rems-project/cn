@@ -206,7 +206,8 @@ val cn_to_ail_function
     option
 
 val uninterp_stub_def
-  :  AilSyntax.sigma_declaration ->
+  :  return_bt:BaseTypes.t ->
+  AilSyntax.sigma_declaration ->
   GenTypes.genTypeCategory AilSyntax.sigma_function_definition option
 
 val cn_to_ail_predicates

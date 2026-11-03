@@ -3693,9 +3693,14 @@ let cn_to_ail_function
 
 
 (* --accept-uninterp: the stub of an uninterpreted CN function or predicate, from its
-   declaration: a definition with an empty body, for <input>.uninterp.c. The parameter names are
-   fresh, the body being empty. *)
-let uninterp_stub_def ((sym, (loc, attrs, decl)) : A.sigma_declaration)
+   declaration, for <input>.uninterp.c: a definition whose body returns the default value of
+   the result type [return_bt] (the runtime's default_cn_* for the base types, the generated
+   default_struct_* for structs, records and datatypes), so that the instrumented program
+   compiles and runs before any stub is filled in; an empty body when the type has no default.
+   The parameter names are fresh, since the body does not use them. *)
+let uninterp_stub_def
+      ~(return_bt : BT.t)
+      ((sym, (loc, attrs, decl)) : A.sigma_declaration)
   : CF.GenTypes.genTypeCategory A.sigma_function_definition option
   =
   match decl with
@@ -3703,7 +3708,12 @@ let uninterp_stub_def ((sym, (loc, attrs, decl)) : A.sigma_declaration)
     let param_syms =
       List.mapi (fun i _ -> Sym.fresh ("arg" ^ string_of_int i)) param_types
     in
-    Some (sym, (loc, 0, attrs, param_syms, mk_stmt A.(AilSblock ([], []))))
+    let body =
+      match cn_to_ail_default return_bt with
+      | default_call -> [ mk_stmt A.(AilSreturn (mk_expr default_call)) ]
+      | exception Failure _ -> []
+    in
+    Some (sym, (loc, 0, attrs, param_syms, mk_stmt A.(AilSblock ([], body))))
   | A.Decl_object _ -> None
 
 

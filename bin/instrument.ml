@@ -438,12 +438,13 @@ module Flags = struct
     let doc =
       "Support uninterpreted CN functions and predicates at runtime: the instrumented \
        file declares them (static, like its other helpers) and calls them like any \
-       other, and their stubs (a definition with an empty body per uninterpreted \
-       function or predicate, its CN signature in a comment) are written to \
-       <input>.uninterp.c in the output directory, which the instrumented file includes \
-       at its end: fill in the bodies, which see every helper of the instrumented file, \
-       and compile that file alone (--run does). An existing <input>.uninterp.c is left \
-       as it is. Excludes --remove-uninterp."
+       other, and their stubs (one per uninterpreted function or predicate, returning \
+       the default value of its result type until filled in, its CN signature in a \
+       comment) are written to <input>.uninterp.c in the output directory, which the \
+       instrumented file includes at its end, so that the program compiles and runs as \
+       generated; the bodies see every helper of the instrumented file. Compile that \
+       file alone (--run does). An existing <input>.uninterp.c is left as it is. \
+       Excludes --remove-uninterp."
     in
     Arg.(value & flag & info ~docs:s_fulminate [ "accept-uninterp" ] ~doc)
 end

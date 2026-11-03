@@ -519,18 +519,20 @@ let generate_fun_def_and_decl_docs funs =
 
 
 (* --accept-uninterp: the stubs of the uninterpreted CN functions and predicates, for
-   <input>.uninterp.c: a definition with an empty body per declaration (Cn_to_ail.uninterp_stub_def),
-   `static` like the instrumented file's own helpers, since that file includes the stubs at its
-   end and has already declared them (static) at its top; each stub is preceded by a comment
-   giving the CN signature. *)
-let generate_uninterp_stub_defs (stubs : (A.sigma_declaration * string) list) =
+   <input>.uninterp.c: per declaration a definition that returns the default value of its
+   result type (Cn_to_ail.uninterp_stub_def), `static` like the instrumented file's own helpers,
+   since that file includes the stubs at its end and has already declared them (static) at its
+   top; each stub is preceded by a comment giving the CN signature. *)
+let generate_uninterp_stub_defs
+      (stubs : (A.sigma_declaration * BaseTypes.t * string) list)
+  =
   let pp prog =
     doc_to_pretty_string
       CF.Pp_ail.(with_executable_spec (pp_program ~show_include:true) (None, prog))
   in
   let defs =
     List.filter_map
-      (fun (decl, comment) ->
+      (fun (decl, return_bt, comment) ->
          Option.map
            (fun def ->
               "/* "
@@ -541,7 +543,7 @@ let generate_uninterp_stub_defs (stubs : (A.sigma_declaration * string) list) =
                     declarations = [ decl ];
                     function_definitions = [ def ]
                   })
-           (Cn_to_ail.uninterp_stub_def decl))
+           (Cn_to_ail.uninterp_stub_def ~return_bt decl))
       stubs
   in
   "/* STUBS */\n\n" ^ String.concat "\n" defs
@@ -590,6 +592,7 @@ let generate_c_functions
          | None ->
            Some
              ( decl,
+               lf_def.return_bt,
                "uninterpreted CN function "
                ^ Pp.plain (Definition.Function.pp_sig (Sym.pp fn_sym) lf_def)
                ^ ", declared at "
@@ -650,6 +653,7 @@ let generate_c_predicates
          | None ->
            Some
              ( decl,
+               snd rp_def.oarg,
                "uninterpreted CN predicate "
                ^ Pp.plain (Definition.Predicate.pp_sig (Sym.pp pred_sym) rp_def)
                ^ ", declared at "

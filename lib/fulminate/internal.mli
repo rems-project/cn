@@ -65,7 +65,10 @@ val generate_c_functions
   bool ->
   _ Mucore.file ->
   GenTypes.genTypeCategory AilSyntax.sigma ->
-  string * string * Cerb_location.t list * (AilSyntax.sigma_declaration * string) list
+  string
+  * string
+  * Cerb_location.t list
+  * (AilSyntax.sigma_declaration * BaseTypes.t * string) list
 
 val generate_c_predicates
   :  accept_uninterp:bool ->
@@ -74,9 +77,14 @@ val generate_c_predicates
   bool ->
   _ Mucore.file ->
   GenTypes.genTypeCategory AilSyntax.sigma ->
-  string * string * Cerb_location.t list * (AilSyntax.sigma_declaration * string) list
+  string
+  * string
+  * Cerb_location.t list
+  * (AilSyntax.sigma_declaration * BaseTypes.t * string) list
 
-val generate_uninterp_stub_defs : (AilSyntax.sigma_declaration * string) list -> string
+val generate_uninterp_stub_defs
+  :  (AilSyntax.sigma_declaration * BaseTypes.t * string) list ->
+  string
 
 val generate_c_lemmas
   :  string ->
