@@ -68,7 +68,7 @@ val generate_c_functions
   string
   * string
   * Cerb_location.t list
-  * (AilSyntax.sigma_declaration * BaseTypes.t * string) list
+  * (AilSyntax.sigma_declaration * BaseTypes.t * Sym.t list * string) list
 
 val generate_c_predicates
   :  accept_uninterp:bool ->
@@ -80,10 +80,10 @@ val generate_c_predicates
   string
   * string
   * Cerb_location.t list
-  * (AilSyntax.sigma_declaration * BaseTypes.t * string) list
+  * (AilSyntax.sigma_declaration * BaseTypes.t * Sym.t list * string) list
 
 val generate_uninterp_stub_defs
-  :  (AilSyntax.sigma_declaration * BaseTypes.t * string) list ->
+  :  (AilSyntax.sigma_declaration * BaseTypes.t * Sym.t list * string) list ->
   string
 
 val generate_c_lemmas

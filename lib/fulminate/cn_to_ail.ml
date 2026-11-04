@@ -3697,17 +3697,18 @@ let cn_to_ail_function
    the result type [return_bt] (the runtime's default_cn_* for the base types, the generated
    default_struct_* for structs, records and datatypes), so that the instrumented program
    compiles and runs before any stub is filled in; an empty body when the type has no default.
-   The parameter names are fresh, since the body does not use them. *)
+   [param_syms] are the CN declaration's own parameter names (and, for a predicate, the
+   spec_mode and loop_ownership parameters every predicate function takes), so that the stub
+   reads like the declaration it stands for. *)
 let uninterp_stub_def
       ~(return_bt : BT.t)
+      ~(param_syms : Sym.t list)
       ((sym, (loc, attrs, decl)) : A.sigma_declaration)
   : CF.GenTypes.genTypeCategory A.sigma_function_definition option
   =
   match decl with
   | A.Decl_function (_, _, param_types, _, _, _) ->
-    let param_syms =
-      List.mapi (fun i _ -> Sym.fresh ("arg" ^ string_of_int i)) param_types
-    in
+    assert (List.length param_syms = List.length param_types);
     let body =
       match cn_to_ail_default return_bt with
       | default_call -> [ mk_stmt A.(AilSreturn (mk_expr default_call)) ]

@@ -520,11 +520,12 @@ let generate_fun_def_and_decl_docs funs =
 
 (* --accept-uninterp: the stubs of the uninterpreted CN functions and predicates, for
    <input>.uninterp.c: per declaration a definition that returns the default value of its
-   result type (Cn_to_ail.uninterp_stub_def), `static` like the instrumented file's own helpers,
+   result type, with the declaration's own parameter names (Cn_to_ail.uninterp_stub_def),
+   `static` like the instrumented file's own helpers,
    since that file includes the stubs at its end and has already declared them (static) at its
    top; each stub is preceded by a comment giving the CN signature. *)
 let generate_uninterp_stub_defs
-      (stubs : (A.sigma_declaration * BaseTypes.t * string) list)
+      (stubs : (A.sigma_declaration * BaseTypes.t * Sym.t list * string) list)
   =
   let pp prog =
     doc_to_pretty_string
@@ -532,7 +533,7 @@ let generate_uninterp_stub_defs
   in
   let defs =
     List.filter_map
-      (fun (decl, return_bt, comment) ->
+      (fun (decl, return_bt, param_syms, comment) ->
          Option.map
            (fun def ->
               "/* "
@@ -543,7 +544,7 @@ let generate_uninterp_stub_defs
                     declarations = [ decl ];
                     function_definitions = [ def ]
                   })
-           (Cn_to_ail.uninterp_stub_def ~return_bt decl))
+           (Cn_to_ail.uninterp_stub_def ~return_bt ~param_syms decl))
       stubs
   in
   "/* STUBS */\n\n" ^ String.concat "\n" defs
@@ -593,6 +594,7 @@ let generate_c_functions
            Some
              ( decl,
                lf_def.return_bt,
+               List.map fst lf_def.args,
                "uninterpreted CN function "
                ^ Pp.plain (Definition.Function.pp_sig (Sym.pp fn_sym) lf_def)
                ^ ", declared at "
@@ -654,6 +656,8 @@ let generate_c_predicates
            Some
              ( decl,
                snd rp_def.oarg,
+               (rp_def.pointer :: List.map fst rp_def.iargs)
+               @ [ Cn_to_ail.spec_mode_sym; Cn_to_ail.loop_ownership_sym ],
                "uninterpreted CN predicate "
                ^ Pp.plain (Definition.Predicate.pp_sig (Sym.pp pred_sym) rp_def)
                ^ ", declared at "

@@ -719,7 +719,7 @@ let main
     let names =
       String.concat
         ", "
-        (List.map (fun ((sym, _), _, _) -> Sym.pp_string sym) uninterp_stubs)
+        (List.map (fun ((sym, _), _, _, _) -> Sym.pp_string sym) uninterp_stubs)
     in
     if Sys.file_exists uninterp_filename then
       print_endline
