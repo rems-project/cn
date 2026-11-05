@@ -65,7 +65,7 @@ let init tagDefs fetch_enum_expr fetch_typedef =
 let pointer_eq_warned = ref false
 
 (* FIXME: this is an ugly hack used by Core_to_mucore.collect_instrumentation
- * which in turn is used by Executable_spec.main and TestGeneration.run *)
+ * which in turn is used by Executable_spec.main and the specification export *)
 module SymTable = Hashtbl.Make (Sym)
 
 let exec_spec_hack_syms = SymTable.create 10000

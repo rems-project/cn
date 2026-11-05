@@ -56,7 +56,9 @@ jobs:
           opam init --yes --no-setup --shell=sh --compiler=${{ matrix.version }}
           eval $(opam env --switch=${{ matrix.version }})
           opam repo add --yes --this-switch coq-released https://coq.inria.fr/opam/released
-          opam install --deps-only --with-test --yes ./cn.opam z3
+          opam install --deps-only --with-test --yes ./cn.opam
+          # Separate install: `--deps-only` would skip Z3 itself.
+          opam install --yes z3
 
       - name: Save OPAM cache
         uses: actions/cache/save@v5

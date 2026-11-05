@@ -6,6 +6,10 @@ val io : Cerb_backend.Pipeline.io_helpers
 
 val impl_name : string
 
+(** A command-line macro definition, as the operand of [-D]: [NAME] or
+    [NAME=VALUE]. *)
+val macro_def : string * string option -> string
+
 val conf
   :  string ->
   (string * string option) list ->

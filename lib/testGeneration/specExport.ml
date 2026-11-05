@@ -5,7 +5,7 @@
    `Request` / `Definition` / `Terms` / `BaseTypes` / `Sctypes` type for type
    and reads them as serde JSON. Until now those files were hand-written,
    which capped its corpus at four toy fixtures; this exports the real thing,
-   so `tests/cn-test-gen/src/*.c` can be driven through that pipeline.
+   so `tests/random-testing/legacy/src/*.c` can be driven through that pipeline.
 
    Why hand-written rather than [@@deriving yojson]: serde's encoding and the
    ppx's do not agree. serde renders an externally-tagged enum as an object
@@ -24,7 +24,10 @@
    `Definition.Function.emit_coq`, and the `Extract.fn_body` half of the
    argument type's terminal — the `cn_statement`s and loop invariants inside
    the body, which are neither pre- nor postcondition. Operators are
-   normalized rather than transcribed: see `json_of_unop` below. *)
+   normalized rather than transcribed: see `json_of_unop` below. Before
+   serialization, SpecExportLower gives C arguments and owned memory their
+   finite storage types and converts their logical values to CN integers and
+   records. The lowering is local to export and does not change CN typing. *)
 
 module BT = BaseTypes
 module T = Terms.Normal
@@ -34,6 +37,7 @@ module LRT = LogicalReturnTypes
 module AT = ArgumentTypes
 module RT = ReturnTypes
 module Req = Request
+module Lower = SpecExportLower
 
 type json = Yojson.Safe.t
 
@@ -60,7 +64,7 @@ let pair (a : json) (b : json) : json = `List [ a; b ]
 (* A CN construct AustenTest's specification language cannot carry. Raised
    anywhere inside a function's export and handled at the top level, where it
    becomes a warning that skips exporting that one function. *)
-exception Unrepresentable of string
+exception Unrepresentable = Lower.Unrepresentable
 
 (* `austen_gen::Sym`. `name` is an `Option<String>`: an anonymous Cerberus
    symbol has no description to render, and inventing one would make two
@@ -853,9 +857,14 @@ let json_of_function_linkage (test : Test.t) : json =
     `String "external"
 
 
-let json_of_test _filename sigma (test : Test.t) : json =
-  let name = Sym.pp_string test.fn in
+(* The name a function is exported under, by which AustenTest's --function
+   selects it. *)
+let exported_name (test : Test.t) : string = Sym.pp_string test.fn
+
+let json_of_test lower sigma (test : Test.t) : json =
+  let name = exported_name test in
   let params, ret = c_signature sigma test.fn in
+  let test = Lower.lower_test lower ~params:(List.map snd params) ~ret test in
   let post, _fn_body = AT.get_return test.internal in
   obj
     [ ("name", `String name);
@@ -889,14 +898,16 @@ let json_of_test _filename sigma (test : Test.t) : json =
    Computed from the emitted JSON rather than taken from `Sym.fresh_int ()`
    so the file is reproducible: the global counter depends on how much of the
    pipeline has run, so exporting it would churn every file on every run. *)
-let rec max_sym_num (j : json) : int =
+let rec max_sym_num ~skip (j : json) : int =
   match j with
   | `Assoc fields ->
     let here =
-      match List.assoc_opt String.equal "num" fields with Some (`Int n) -> n | _ -> -1
+      match List.assoc_opt String.equal "num" fields with
+      | Some (`Int n) when not (skip n) -> n
+      | _ -> -1
     in
-    List.fold_left (fun acc (_, v) -> max acc (max_sym_num v)) here fields
-  | `List xs -> List.fold_left (fun acc v -> max acc (max_sym_num v)) (-1) xs
+    List.fold_left (fun acc (_, v) -> max acc (max_sym_num ~skip v)) here fields
+  | `List xs -> List.fold_left (fun acc v -> max acc (max_sym_num ~skip v)) (-1) xs
   | _ -> -1
 
 
@@ -911,6 +922,7 @@ let rec max_sym_num (j : json) : int =
 let json_of_module
       ~filename
       sigma
+      lower
       (prog5 : unit Mucore.file)
       (functions : (Test.t * string * json) list)
   : json
@@ -938,8 +950,10 @@ let json_of_module
       (List.map (fun (test, name, _) -> (test.Test.is_static, name)) functions)
   in
   let globals = List.filter_map (json_of_global sigma prog5 owner surface) prog5.globs in
-  let fields = ("globals", `List globals) :: surface_fields in
-  obj (("next_sym", `Int (max_sym_num (obj fields) + 1)) :: fields)
+  let fields, next_sym =
+    Lower.renumber lower ~max_sym_num (("globals", `List globals) :: surface_fields)
+  in
+  obj (("next_sym", `Int next_sym) :: fields)
 
 
 (* Write one ordered specification module for the translation unit.
@@ -956,62 +970,63 @@ let json_of_module
    otherwise supported roots, while duplicate names would make
    AustenTest's --function filter ambiguous. *)
 let save ~path ~filename sigma prog5 (tests : Test.t list) : unit =
-  let functions =
-    List.filter_map
-      (fun (test : Test.t) ->
-         match json_of_test filename sigma test with
-         | function_json -> Some (test, test_name filename test, function_json)
-         | exception Unrepresentable what ->
-           Pp.warn_noloc
-             (Pp.string
-                ("not exporting "
-                 ^ Sym.pp_string_no_nums test.fn
-                 ^ " from "
-                 ^ Filename.basename filename
-                 ^ ": AustenTest cannot represent "
-                 ^ what));
-           None)
-      tests
-  in
-  let rec duplicate_name seen = function
-    | [] -> None
-    | (_, name, _) :: rest ->
-      if List.exists (String.equal name) seen then
-        Some name
-      else
-        duplicate_name (name :: seen) rest
-  in
-  match functions with
-  | [] -> ()
-  | _ when List.length functions > 256 ->
-    Pp.warn_noloc
-      (Pp.string
-         ("not exporting "
-          ^ Filename.basename filename
-          ^ ": AustenTest's one-byte function selector supports at most 256 functions, \
-             but "
-          ^ string_of_int (List.length functions)
-          ^ " are representable"))
-  | _ ->
-    (match duplicate_name [] functions with
-     | Some name ->
-       Pp.warn_noloc
-         (Pp.string
-            ("not exporting "
-             ^ Filename.basename filename
-             ^ ": more than one function has the exported name "
-             ^ name))
-     | None ->
-       (match json_of_module ~filename sigma prog5 functions with
-        | j ->
-          let oc = open_out path in
-          output_string oc (Yojson.Safe.pretty_to_string j);
-          output_char oc '\n';
-          close_out oc
-        | exception Unrepresentable what ->
-          Pp.warn_noloc
-            (Pp.string
-               ("not exporting "
+  let not_exporting what = Pp.warn_noloc (Pp.string ("not exporting " ^ what)) in
+  try
+    let lower = Lower.create prog5 in
+    let prog5 = Lower.lower_definitions lower in
+    let functions =
+      List.filter_map
+        (fun (test : Test.t) ->
+           match json_of_test lower sigma test with
+           | function_json -> Some (test, test_name filename test, function_json)
+           | exception Unrepresentable what ->
+             not_exporting
+               (Sym.pp_string_no_nums test.fn
+                ^ " from "
                 ^ Filename.basename filename
                 ^ ": AustenTest cannot represent "
-                ^ what))))
+                ^ what);
+             None)
+        tests
+    in
+    let rec duplicate_name seen = function
+      | [] -> None
+      | (_, name, _) :: rest ->
+        if List.exists (String.equal name) seen then
+          Some name
+        else
+          duplicate_name (name :: seen) rest
+    in
+    match functions with
+    | [] -> ()
+    | _ when List.length functions > 256 ->
+      not_exporting
+        (Filename.basename filename
+         ^ ": AustenTest's one-byte function selector supports at most 256 functions, \
+            but "
+         ^ string_of_int (List.length functions)
+         ^ " are representable")
+    | _ ->
+      (match duplicate_name [] functions with
+       | Some name ->
+         not_exporting
+           (Filename.basename filename
+            ^ ": more than one function has the exported name "
+            ^ name)
+       | None ->
+         let j =
+           json_of_module ~filename sigma lower (Lower.with_helpers lower prog5) functions
+         in
+         let oc = open_out path in
+         output_string oc (Yojson.Safe.pretty_to_string j);
+         output_char oc '\n';
+         close_out oc)
+  with
+  | Unrepresentable what ->
+    not_exporting (Filename.basename filename ^ ": AustenTest cannot represent " ^ what)
+
+
+(* Export every function definition in the translation unit (see
+   [TestRoots.functions_for_export]). *)
+let export ~path ~filename sigma prog5 paused : unit =
+  save ~path ~filename sigma prog5 (TestRoots.functions_for_export prog5 paused)

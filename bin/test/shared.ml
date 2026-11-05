@@ -1,251 +1,179 @@
 (* Shared infrastructure for the `cn test` engine subcommands. *)
 
-module CF = Cerb_frontend
-module CB = Cerb_backend
 open Cn
 
-(* An engine's flags are a config updater: applied on top of the config built
-   from the common flags, so unset engine flags keep their defaults. *)
+(* An engine's flags are a config updater over the config built from the
+   common flags. *)
 type engine_flags = TestGeneration.config -> TestGeneration.config
 
-let run
-      (* Engine *)
-        (engine : TestGeneration.engine)
-      (* Common *)
-        filename
-      cc
-      macros
-      permissive
-      incl_dirs
-      incl_files
-      debug_level
-      print_level
-      csv_times
-      stdout_times
-      astprints
-      no_inherit_loc
-      magic_comment_char_dollar
-      allow_split_magic_comments
-      (* Executable spec *)
-        without_ownership_checking
-      source_locs_mode
-      correct_missing_ownership_mode
-      remove_uninterp
-      experimental_ownership_stack_mode
-      (* without_loop_invariants *)
-      (* Test Generation *)
-        print_steps
-      output_dir
-      only
-      skip
-      only_fulminate
-      skip_fulminate
-      dont_run
-      num_samples
-      max_unfolds
-      build_tool
-      sanitizers
-      print_seed
-      input_timeout
-      null_in_every
-      seed
-      logging_level
-      trace_granularity
-      progress_level
-      until_timeout
-      exit_fast
-      coverage
-      disable_passes
-      trap
-      no_replays
-      no_replicas
-      output_tyche
-      export_spec_json
-      inline
-      experimental_struct_asgn_destruction
-      experimental_product_arg_destruction
-      experimental_arg_pruning
-      experimental_return_pruning
-      print_size_info
-      print_backtrack_info
-      print_satisfaction_info
-      print_discard_info
-      print_timing_info
-      progress_backtracks
-      max_bump_blocks
-      bump_block_size
-      max_input_alloc
-      dsl_log_dir
-      disable_specialization
-      (* Engine-specific *)
-        (engine_flags : engine_flags)
-  =
-  (* flags *)
-  Cerb_debug.debug_level := debug_level;
-  Pp.print_level := print_level;
-  Sym.executable_spec_enabled := true;
-  let handle_error (e : TypeErrors.t) =
-    let report = TypeErrors.pp_message e.msg in
-    Pp.error e.loc report.short (Option.to_list report.descr);
-    match e.msg with TypeErrors.Unsupported _ -> exit 2 | _ -> exit 1
+(* The flags a testing command forwards. The rest are parsed but not yet
+   forwarded (see [mk_term]). *)
+type invocation =
+  { engine : TestGeneration.engine;
+    frontend : Frontend.args;
+    print_steps : bool;
+    output_dir : string option;
+    only : string list;
+    skip : string list;
+    dont_run : bool;
+    export_spec_json : string option;
+    until_timeout : int option;
+    seed : string option;
+    without_ownership_checking : bool
+  }
+
+(* Export the specifications, then build or test the one selected testing root.
+   Austen is located before the frontend runs, so a missing Austen creates no
+   output. Multi-function campaigns are a separate migration checkpoint. *)
+let prepare (inv : invocation) : unit =
+  let name = TestGeneration.Config.cli_name inv.engine in
+  let fail fmt =
+    Printf.ksprintf
+      (fun msg ->
+         Printf.eprintf "cn test %s: %s\n" name msg;
+         exit 2)
+      fmt
   in
-  let filename = Common.there_can_only_be_one filename in
-  let output_dir =
-    Common.mk_dir_if_not_exist_maybe_tmp ~mktemp:true (Test engine) output_dir
+  let exe =
+    match Austen.find_executable () with
+    | Some exe -> exe
+    | None ->
+      fail
+        "could not find '%s' on PATH, which is required to build tests.\n\
+         Install it with '%s'."
+        Austen.executable
+        Austen.install_hint
   in
-  let basefile = Filename.basename filename in
-  let pp_file = Filename.temp_file "cn_" basefile in
-  let out_file = Fulminate.get_instrumented_filename basefile in
-  Common.with_well_formedness_check (* CLI arguments *)
-    ~filename
-    ~cc
-    ~macros:(("__CN_TEST", None) :: ("__CN_INSTRUMENT", None) :: macros)
-    ~permissive
-    ~incl_dirs
-    ~incl_files
-    ~csv_times
-    ~stdout_times
-    ~coq_export_file:None
-    ~coq_mucore:false
-    ~coq_proof_log:false
-    ~coq_check_proof_log:false
-    ~astprints
-    ~no_inherit_loc
-    ~magic_comment_char_dollar
-    ~allow_split_magic_comments (* Callbacks *)
-    ~save_cpp:(Some pp_file)
-    ~disable_linemarkers:true
-    ~handle_error
-    ~f:(fun ~cerb_conf ~prog5 ~ail_prog ~statement_locs:_ ~paused ->
-      let config : TestGeneration.config =
-        { TestGeneration.default_cfg with
-          skip_and_only = (skip, only);
-          cc;
-          print_steps;
-          num_samples;
-          build_tool;
-          sanitizers;
-          inline;
-          experimental_struct_asgn_destruction;
-          experimental_product_arg_destruction;
-          experimental_arg_pruning;
-          experimental_return_pruning;
-          engine;
-          max_unfolds;
-          print_seed;
-          input_timeout;
-          null_in_every;
-          seed;
-          logging_level;
-          trace_granularity;
-          progress_level;
-          until_timeout;
-          exit_fast;
-          coverage;
-          disable_passes;
-          trap;
-          no_replays;
-          no_replicas;
-          output_tyche;
-          export_spec_json;
-          print_size_info;
-          print_backtrack_info;
-          print_satisfaction_info;
-          print_discard_info;
-          print_timing_info;
-          progress_backtracks;
-          max_bump_blocks;
-          bump_block_size;
-          max_input_alloc;
-          dsl_log_dir;
-          disable_specialization
-        }
-      in
-      let config = engine_flags config in
-      if config.old_style_alloc && not (List.is_empty config.domains) then (
-        Printf.eprintf "Error: --old-style-alloc is incompatible with --domains\n";
-        exit 1);
-      if config.dynamic_assert_domain && not config.runtime_assert_domain then (
-        Printf.eprintf "Error: --dynamic-assert-domain requires --runtime-assert-domain\n";
-        exit 1);
-      TestGeneration.set_config config;
-      (if TestGeneration.Config.is_experimental engine then
-         Pp.(warn_noloc !^(TestGeneration.Config.experimental_message engine)));
-      let _, sigma = ail_prog in
-      let handle_test_generation_error e =
-        if TestGeneration.Config.is_experimental engine then (
-          Common.print_uncaught_exception e;
-          Cerb_colour.with_colour
-            (fun () ->
-               Pp.(warn_noloc !^(TestGeneration.Config.experimental_message engine)))
-            ();
-          exit 1)
-        else
-          Common.handle_error_with_user_guidance ~label:(Common.tool_name (Test engine)) e
-      in
-      if
-        List.is_empty
-          (TestGeneration.functions_under_test ~with_warning:true sigma prog5 paused)
-      then (
-        (try
-           Option.iter
-             (fun path -> TestGeneration.export_specs ~path ~filename sigma prog5 paused)
-             (TestGeneration.Config.get_export_spec_json ())
-         with
-         | e -> handle_test_generation_error e);
-        print_endline "No testable functions, trivially passing";
-        exit 0);
-      Cerb_colour.do_colour := false;
-      (try
-         Fulminate.main
-           ~cerb_conf
-           ~without_ownership_checking
-           ~without_loop_invariants:true
-           ~with_loop_leak_checks:false
-           ~without_lemma_checks:false
-           ~without_inline_statements:false
-           ~source_locs_mode
-           ~correct_missing_ownership_mode
-           ~remove_uninterp
-           ~experimental_ownership_stack_mode
-           ~with_testing:true
-           ~skip_and_only:(skip_fulminate, only_fulminate)
-           ~disable_ghost_arg_failure:true
-           ?max_bump_blocks
-           ?bump_block_size
-           filename
-           cc
-           pp_file
-           out_file
-           output_dir
-           ail_prog
-           prog5
-       with
-       | e ->
-         Common.handle_error_with_user_guidance ~label:(Common.tool_name Instrument) e);
-      (try
-         TestGeneration.run
-           ~output_dir
-           ~filename
-           ~without_ownership_checking
-           ~remove_uninterp
-           build_tool
-           sigma
-           prog5
-           paused
-       with
-       | e -> handle_test_generation_error e);
-      if not dont_run then (
-        Cerb_debug.maybe_close_csv_timing_file ();
-        match build_tool with
-        | Bash ->
-          let build_script = Filename.concat output_dir "run_tests.sh" in
-          Unix.execv build_script (Array.of_list [ build_script ])
-        | Make ->
-          Unix.chdir output_dir;
-          Unix.putenv "CC" cc;
-          Unix.execvp "make" (Array.of_list [ "make"; "-j" ]));
-      Result.ok ())
+  try
+    Frontend.with_checked_program
+      ~error_exit_code:2
+      inv.frontend
+      ~f:(fun ~filename:source ~cerb_conf:_ ~prog5 ~ail_prog ~statement_locs:_ ~paused ->
+        let _, sigma = ail_prog in
+        let fn =
+          TestGeneration.functions_under_test
+            ~with_warning:true
+            ~skip_and_only:(inv.skip, inv.only)
+            sigma
+            prog5
+            paused
+          |> List.map TestGeneration.function_name
+          |> function
+          | [ fn ] -> fn
+          | [] -> fail "no functions were selected for testing."
+          | fns ->
+            fail
+              "%s one function, but %d were selected (%s).\nSelect one with --only."
+              (if inv.dont_run then "--no-run builds" else "testing currently runs")
+              (List.length fns)
+              (String.concat ", " fns)
+        in
+        let output_dir =
+          Common.mk_dir_if_not_exist_maybe_tmp
+            ~mktemp:true
+            ~print_steps:inv.print_steps
+            (Common.Test inv.engine)
+            inv.output_dir
+        in
+        let spec =
+          Option.value
+            inv.export_spec_json
+            ~default:(Filename.concat output_dir "spec.json")
+        in
+        TestGeneration.export_specs ~path:spec ~filename:source sigma prog5 paused;
+        let work = Filename.concat (Filename.concat output_dir "work") fn in
+        let report = Filename.concat output_dir "report.json" in
+        let duration = Option.value inv.until_timeout ~default:10 in
+        let check_heap_ownership = not inv.without_ownership_checking in
+        let argv =
+          let cflags = Austen.cflags inv.frontend in
+          if inv.dont_run then
+            Austen.build_only_argv
+              ~exe
+              ~engine:name
+              ~fn
+              ~work
+              ~check_heap_ownership
+              ~cflags
+              ~spec
+              ~source
+          else (
+            (* Never let a previous invocation's report establish this outcome.
+             Unlink before spawning, including a dangling symlink. *)
+            let report_is_spec =
+              try String.equal (Unix.realpath report) (Unix.realpath spec) with
+              | Unix.Unix_error (ENOENT, _, _) -> false
+            in
+            if report_is_spec then
+              fail "the specification path conflicts with the campaign report: %s" report;
+            (try Unix.unlink report with Unix.Unix_error (ENOENT, _, _) -> ());
+            Austen.campaign_argv
+              ~exe
+              ~engine:name
+              ~fn
+              ~work
+              ~duration
+              ~report
+              ~crashes:(Filename.concat (Filename.concat output_dir "findings") fn)
+              ~check_heap_ownership
+              ~seed:inv.seed
+              ~cflags
+              ~spec
+              ~source)
+        in
+        if inv.print_steps then
+          print_endline
+            ("Running: " ^ Filename.quote_command (List.hd argv) (List.tl argv));
+        let status =
+          match Austen.run argv with
+          | Ok status -> status
+          | Error msg -> fail "could not run '%s': %s" exe msg
+        in
+        if inv.dont_run then (
+          match status with
+          | WEXITED 0 -> Printf.printf "Built the harness for %s in %s\n" fn work
+          | WEXITED 130 -> exit 130
+          | status ->
+            fail
+              "'%s' %s while building the harness for %s."
+              exe
+              (Austen.string_of_status status)
+              fn)
+        else (
+          match
+            AustenReport.validate
+              ~path:report
+              ~engine:name
+              ~fn
+              ~duration
+              ~seed:inv.seed
+              ~check_heap_ownership
+              status
+          with
+          | Ok 0 ->
+            Printf.printf "Completed testing %s without findings. Report: %s\n" fn report
+          | Ok 1 ->
+            Printf.printf "Confirmed findings while testing %s. Report: %s\n" fn report;
+            exit 1
+          | Ok code -> exit code
+          | Error msg -> fail "%s (report: %s)" msg report);
+        Ok ())
+  with
+  | Sys.Break -> exit 130
+  | exn -> fail "could not prepare or run tests: %s" (Printexc.to_string exn)
+
+
+(* Lucas is unsupported. Bennet and Darcy use Austen for both builds and
+   bounded campaigns. *)
+let run (inv : invocation) : unit =
+  let name = TestGeneration.Config.cli_name inv.engine in
+  match inv.engine with
+  | Lucas ->
+    Printf.eprintf "cn test %s: the Lucas engine is not supported.\n" name;
+    exit 2
+  | Bennet | Darcy ->
+    Sys.catch_break true;
+    prepare inv
 
 
 open Cmdliner
@@ -378,27 +306,11 @@ module Flags = struct
     Arg.(value & flag & info ~docs:s_output [ "no-run" ] ~doc)
 
 
-  let gen_num_samples =
-    let doc = "Set the number of samples to test" in
-    Arg.(
-      value
-      & opt int TestGeneration.default_cfg.num_samples
-      & info ~docs:s_generation [ "num-samples" ] ~doc)
-
-
   let gen_max_unfolds =
     let doc =
       "Maximum number of times to inline function calls in symbolic mode (default: 10)"
     in
     Arg.(value & opt (some int) None & info ~docs:s_generation [ "max-unfolds" ] ~doc)
-
-
-  let build_tool =
-    let doc = "Set which build tool to use." in
-    Arg.(
-      value
-      & opt (enum TestGeneration.Options.build_tool) TestGeneration.default_cfg.build_tool
-      & info ~docs:s_output [ "build-tool" ] ~doc)
 
 
   let sanitize =
@@ -440,10 +352,20 @@ module Flags = struct
 
   let seed =
     let doc = "Set the seed for random testing" in
-    Arg.(
-      value
-      & opt (some string) TestGeneration.default_cfg.seed
-      & info ~docs:s_generation [ "seed" ] ~doc)
+    let parse value =
+      if
+        (not (String.equal value ""))
+        && String.for_all
+             (fun c -> Char.code c >= Char.code '0' && Char.code c <= Char.code '9')
+             value
+        && Z.numbits (Z.of_string value) <= 64
+      then
+        Ok value
+      else
+        Error (`Msg "seed must be an unsigned 64-bit decimal integer")
+    in
+    let converter = Arg.conv (parse, Format.pp_print_string) in
+    Arg.(value & opt (some converter) None & info ~docs:s_generation [ "seed" ] ~doc)
 
 
   let logging_level =
@@ -477,11 +399,10 @@ module Flags = struct
 
 
   let until_timeout =
-    let doc = "Run tests until the given timeout (in seconds) has been reached" in
-    Arg.(
-      value
-      & opt (some int) TestGeneration.default_cfg.until_timeout
-      & info ~docs:s_generation [ "until-timeout" ] ~doc)
+    let doc =
+      "Test each selected function for this many seconds (positive; default: 10)"
+    in
+    Arg.(value & opt (some int) None & info ~docs:s_generation [ "until-timeout" ] ~doc)
 
 
   let exit_fast =
@@ -533,10 +454,7 @@ module Flags = struct
 
   let output_tyche =
     let doc = "Enable output in Tyche format" in
-    Arg.(
-      value
-      & opt (some string) TestGeneration.default_cfg.output_tyche
-      & info ~docs:s_output [ "output-tyche" ] ~doc)
+    Arg.(value & opt (some string) None & info ~docs:s_output [ "output-tyche" ] ~doc)
 
 
   let export_spec_json =
@@ -696,6 +614,42 @@ module Flags = struct
       & info ~docs:s_generation [ "max-array-length" ] ~doc)
 end
 
+(* With [--no-run], which runs no campaign, Bennet and Darcy reject the
+   campaign-only flags as a usage error, naming the first one given. Lucas is
+   unsupported whatever its flags, so it is not checked. Their CLI defaults
+   are unset, so a set value was given explicitly. *)
+let reject_campaign_options_with_no_run (inv : invocation Term.t) : invocation Term.t =
+  let check (inv : invocation) output_tyche exit_fast =
+    let given =
+      [ ("--until-timeout", Option.is_some inv.until_timeout);
+        ("--seed", Option.is_some inv.seed);
+        ("--output-tyche", Option.is_some output_tyche);
+        ("--exit-fast", exit_fast)
+      ]
+    in
+    (match (inv.engine, List.find_opt snd given) with
+     | (TestGeneration.Bennet | Darcy), Some (flag, _) when inv.dont_run ->
+       let name = TestGeneration.Config.cli_name inv.engine in
+       Printf.eprintf
+         "cn test %s: %s cannot be used with --no-run, which runs no campaign.\n\
+          Try 'cn test %s --help' for more information.\n"
+         name
+         flag
+         name;
+       exit Cmd.Exit.cli_error
+     | _ -> ());
+    (match (inv.engine, inv.until_timeout) with
+     | (TestGeneration.Bennet | Darcy), Some duration when duration <= 0 ->
+       Printf.eprintf
+         "cn test %s: --until-timeout must be a positive number of seconds.\n"
+         (TestGeneration.Config.cli_name inv.engine);
+       exit Cmd.Exit.cli_error
+     | _ -> ());
+    inv
+  in
+  Term.(const check $ inv $ Flags.output_tyche $ Flags.exit_fast)
+
+
 (* Compose two engine flag updaters *)
 let compose_flags (a : engine_flags Term.t) (b : engine_flags Term.t)
   : engine_flags Term.t
@@ -743,8 +697,12 @@ let gen_term : engine_flags Term.t =
 
 
 (* The common flag chain, shared by all engine subcommands. [engine] decides
-   which pipeline runs; [engine_flags] is the engine's config updater, so
-   wrong-engine flags are rejected as unknown options. *)
+   which engine runs; [engine_flags] is the engine's config updater, so
+   wrong-engine flags are rejected as unknown options. The flags [run] uses
+   are collected into an [invocation]; until they are forwarded to Austen,
+   [$-] parses each other flag but discards its value. Cmdliner evaluates a
+   function term before its argument, so the [--no-run] check wraps the
+   chain, and it and [run] apply only after every flag has been converted. *)
 let mk_term
       ~(engine : TestGeneration.engine Term.t)
       ~(experimental_section : string -> string)
@@ -752,72 +710,89 @@ let mk_term
   : unit Term.t
   =
   let open Term in
+  let ( $- ) t arg = const (fun x _ -> x) $ t $ arg in
+  let invocation =
+    let make
+          engine
+          frontend
+          print_steps
+          output_dir
+          only
+          skip
+          dont_run
+          export_spec_json
+          until_timeout
+          seed
+          without_ownership_checking
+      =
+      { engine;
+        frontend;
+        print_steps;
+        output_dir;
+        only;
+        skip;
+        dont_run;
+        export_spec_json;
+        until_timeout;
+        seed;
+        without_ownership_checking
+      }
+    in
+    const make
+    $ engine
+    $ Frontend.term
+    $ Flags.print_steps
+    $ Flags.output_dir
+    $ Flags.only
+    $ Flags.skip
+    $ Flags.dont_run
+    $ Flags.export_spec_json
+    $ Flags.until_timeout
+    $ Flags.seed
+    $ Instrument.Flags.without_ownership_checking
+  in
   const run
-  $ engine
-  $ Common.Flags.file
-  $ Common.Flags.cc
-  $ Common.Flags.macros
-  $ Common.Flags.permissive
-  $ Common.Flags.incl_dirs
-  $ Common.Flags.incl_files
-  $ Common.Flags.debug_level
-  $ Common.Flags.print_level
-  $ Common.Flags.csv_times
-  $ Common.Flags.stdout_times
-  $ Common.Flags.astprints
-  $ Common.Flags.no_inherit_loc
-  $ Common.Flags.magic_comment_char_dollar
-  $ Common.Flags.allow_split_magic_comments
-  $ Instrument.Flags.without_ownership_checking
-  $ Instrument.Flags.source_locs_mode
-  $ Instrument.Flags.correct_missing_ownership_mode
-  $ Instrument.Flags.remove_uninterp
-  $ Instrument.Flags.experimental_ownership_stack_mode
-      ~docs:(experimental_section s_compilation)
-  $ Flags.print_steps
-  $ Flags.output_dir
-  $ Flags.only
-  $ Flags.skip
-  $ Flags.only_fulminate
-  $ Flags.skip_fulminate
-  $ Flags.dont_run
-  $ Flags.gen_num_samples
-  $ Flags.gen_max_unfolds
-  $ Flags.build_tool
-  $ Term.product Flags.sanitize Flags.no_sanitize
-  $ Flags.print_seed
-  $ Flags.input_timeout
-  $ Flags.null_in_every
-  $ Flags.seed
-  $ Flags.logging_level
-  $ Flags.trace_granularity
-  $ Flags.progress_level
-  $ Flags.until_timeout
-  $ Flags.exit_fast
-  $ Flags.coverage ~docs:(experimental_section s_output)
-  $ Flags.disable_passes
-  $ Flags.trap
-  $ Flags.no_replays
-  $ Flags.no_replicas
-  $ Flags.output_tyche
-  $ Flags.export_spec_json
-  $ Flags.inline
-  $ Flags.experimental_struct_asgn_destruction ~docs:(experimental_section s_generation)
-  $ Flags.experimental_product_arg_destruction ~docs:(experimental_section s_generation)
-  $ Flags.experimental_arg_pruning ~docs:(experimental_section s_generation)
-  $ Flags.experimental_return_pruning ~docs:(experimental_section s_generation)
-  $ Flags.print_size_info ~docs:(experimental_section s_logging)
-  $ Flags.print_backtrack_info ~docs:(experimental_section s_logging)
-  $ Flags.print_satisfaction_info ~docs:(experimental_section s_logging)
-  $ Flags.print_discard_info ~docs:(experimental_section s_logging)
-  $ Flags.print_timing_info ~docs:(experimental_section s_logging)
-  $ Flags.progress_backtracks ~docs:(experimental_section s_logging)
-  $ Instrument.Flags.max_bump_blocks
-  $ Instrument.Flags.bump_block_size
-  $ Flags.max_input_alloc
-  $ Flags.dsl_log_dir
-  $ Flags.disable_specialization
-  $ compose_flags gen_term engine_flags
+  $ (invocation
+     $- Instrument.Flags.source_locs_mode
+     $- Instrument.Flags.correct_missing_ownership_mode
+     $- Instrument.Flags.remove_uninterp
+     $- Instrument.Flags.experimental_ownership_stack_mode
+          ~docs:(experimental_section s_compilation)
+     $- Flags.only_fulminate
+     $- Flags.skip_fulminate
+     $- Flags.gen_max_unfolds
+     $- Term.product Flags.sanitize Flags.no_sanitize
+     $- Flags.print_seed
+     $- Flags.input_timeout
+     $- Flags.null_in_every
+     $- Flags.logging_level
+     $- Flags.trace_granularity
+     $- Flags.progress_level
+     $- Flags.coverage ~docs:(experimental_section s_output)
+     $- Flags.disable_passes
+     $- Flags.trap
+     $- Flags.no_replays
+     $- Flags.no_replicas
+     $- Flags.inline
+     $- Flags.experimental_struct_asgn_destruction
+          ~docs:(experimental_section s_generation)
+     $- Flags.experimental_product_arg_destruction
+          ~docs:(experimental_section s_generation)
+     $- Flags.experimental_arg_pruning ~docs:(experimental_section s_generation)
+     $- Flags.experimental_return_pruning ~docs:(experimental_section s_generation)
+     $- Flags.print_size_info ~docs:(experimental_section s_logging)
+     $- Flags.print_backtrack_info ~docs:(experimental_section s_logging)
+     $- Flags.print_satisfaction_info ~docs:(experimental_section s_logging)
+     $- Flags.print_discard_info ~docs:(experimental_section s_logging)
+     $- Flags.print_timing_info ~docs:(experimental_section s_logging)
+     $- Flags.progress_backtracks ~docs:(experimental_section s_logging)
+     $- Instrument.Flags.max_bump_blocks
+     $- Instrument.Flags.bump_block_size
+     $- Flags.max_input_alloc
+     $- Flags.dsl_log_dir
+     $- Flags.disable_specialization
+     $- compose_flags gen_term engine_flags
+     |> reject_campaign_options_with_no_run)
 
 
 (* Build an engine subcommand. [engine] is named once - both the runtime engine
@@ -838,138 +813,3 @@ let mk_cmd
        ~engine:(Term.const engine)
        ~experimental_section:(experimental_docs engine)
        ~engine_flags)
-
-
-(* The flag chain for a paper-release subcommand: the test-generation settings
-   are frozen to [preset] (a full-literal record in lib/testGeneration's
-   Releases); only environment flags remain on the command line. Every other
-   positional of [run] is passed as a constant, so adding a flag to [mk_term]
-   (a new [run] parameter) is a type error here, forcing a decision: whitelist
-   it or pin it. Engine flag updaters (bennet/darcy/lucas terms, [gen_term])
-   are not composed in at all, so their flags are rejected as unknown options
-   and their settings come from [preset]. *)
-let mk_release_term ~(engine : TestGeneration.engine) ~(preset : TestGeneration.config)
-  : unit Term.t
-  =
-  (* Overridable value flags fall back to the frozen preset value when absent
-     from the command line (their option-typed terms default to [None] =
-     absent). Boolean diagnostic flags are plainly whitelisted instead. *)
-  let opt_or preset_value t =
-    Term.(const (function None -> preset_value | v -> v) $ t)
-  in
-  let build_tool =
-    let doc = "Set which build tool to use." in
-    Term.(
-      const (Option.value ~default:preset.build_tool)
-      $ Arg.(
-          value
-          & opt (some (enum TestGeneration.Options.build_tool)) None
-          & info ~docs:s_output [ "build-tool" ] ~doc))
-  in
-  let sanitizers =
-    Term.(
-      const (fun (s, ns) ->
-        ( (match s with None -> fst preset.sanitizers | v -> v),
-          match ns with None -> snd preset.sanitizers | v -> v ))
-      $ Term.product Flags.sanitize Flags.no_sanitize)
-  in
-  (* Whitelisted config-backed flags flow through (already resolved against
-     the preset above); everything else is the preset. *)
-  let merge (cfg : TestGeneration.config) : TestGeneration.config =
-    { preset with
-      engine;
-      skip_and_only = cfg.skip_and_only;
-      cc = cfg.cc;
-      print_steps = cfg.print_steps;
-      num_samples = cfg.num_samples;
-      build_tool = cfg.build_tool;
-      sanitizers = cfg.sanitizers;
-      seed = cfg.seed;
-      logging_level = cfg.logging_level;
-      trace_granularity = cfg.trace_granularity;
-      progress_level = cfg.progress_level;
-      until_timeout = cfg.until_timeout;
-      exit_fast = cfg.exit_fast;
-      coverage = cfg.coverage;
-      no_replays = cfg.no_replays;
-      no_replicas = cfg.no_replicas;
-      output_tyche = cfg.output_tyche;
-      export_spec_json = cfg.export_spec_json;
-      print_size_info = cfg.print_size_info;
-      print_backtrack_info = cfg.print_backtrack_info;
-      print_satisfaction_info = cfg.print_satisfaction_info;
-      print_discard_info = cfg.print_discard_info;
-      print_timing_info = cfg.print_timing_info;
-      progress_backtracks = cfg.progress_backtracks;
-      max_bump_blocks = cfg.max_bump_blocks;
-      bump_block_size = cfg.bump_block_size;
-      max_input_alloc = cfg.max_input_alloc;
-      dsl_log_dir = cfg.dsl_log_dir
-    }
-  in
-  let open Term in
-  const run
-  $ const engine
-  $ Common.Flags.file
-  $ Common.Flags.cc
-  $ Common.Flags.macros
-  $ Common.Flags.permissive
-  $ Common.Flags.incl_dirs
-  $ Common.Flags.incl_files
-  $ Common.Flags.debug_level
-  $ Common.Flags.print_level
-  $ Common.Flags.csv_times
-  $ Common.Flags.stdout_times
-  $ Common.Flags.astprints
-  $ Common.Flags.no_inherit_loc
-  $ Common.Flags.magic_comment_char_dollar
-  $ Common.Flags.allow_split_magic_comments
-  $ const false (* without_ownership_checking *)
-  $ const false (* source_locs_mode *)
-  $ const false (* correct_missing_ownership_mode *)
-  $ const true (* remove_uninterp *)
-  $ const false (* experimental_ownership_stack_mode *)
-  $ Flags.print_steps
-  $ Flags.output_dir
-  $ Flags.only
-  $ Flags.skip
-  $ Flags.only_fulminate
-  $ Flags.skip_fulminate
-  $ Flags.dont_run
-  $ Flags.gen_num_samples
-  $ const preset.max_unfolds
-  $ build_tool
-  $ sanitizers
-  $ const preset.print_seed
-  $ const preset.input_timeout
-  $ const preset.null_in_every
-  $ opt_or preset.seed Flags.seed
-  $ Flags.logging_level
-  $ Flags.trace_granularity
-  $ Flags.progress_level
-  $ opt_or preset.until_timeout Flags.until_timeout
-  $ Flags.exit_fast
-  $ Flags.coverage ~docs:Manpage.s_none
-  $ const preset.disable_passes
-  $ const preset.trap
-  $ Flags.no_replays
-  $ Flags.no_replicas
-  $ opt_or preset.output_tyche Flags.output_tyche
-  $ opt_or preset.export_spec_json Flags.export_spec_json
-  $ const preset.inline
-  $ const preset.experimental_struct_asgn_destruction
-  $ const preset.experimental_product_arg_destruction
-  $ const preset.experimental_arg_pruning
-  $ const preset.experimental_return_pruning
-  $ Flags.print_size_info ~docs:Manpage.s_none
-  $ Flags.print_backtrack_info ~docs:Manpage.s_none
-  $ Flags.print_satisfaction_info ~docs:Manpage.s_none
-  $ Flags.print_discard_info ~docs:Manpage.s_none
-  $ Flags.print_timing_info ~docs:Manpage.s_none
-  $ Flags.progress_backtracks ~docs:Manpage.s_none
-  $ opt_or preset.max_bump_blocks Instrument.Flags.max_bump_blocks
-  $ opt_or preset.bump_block_size Instrument.Flags.bump_block_size
-  $ opt_or preset.max_input_alloc Flags.max_input_alloc
-  $ Flags.dsl_log_dir
-  $ const preset.disable_specialization
-  $ const merge

@@ -119,14 +119,15 @@ let handle_frontend_error = function
   | Ok result -> result
 
 
-let there_can_only_be_one =
+let there_can_only_be_one ?(error_exit_code = 1) files =
   let err_if_not_c_h_file filename =
     let ext = String.equal (Filename.extension filename) in
     if not (ext ".c" || ext ".h") then
       Cerb_diagnostic.fatal
+        ~code:error_exit_code
         ("file \"" ^ filename ^ "\" has wrong file extension (must be .c or .h)")
   in
-  function
+  match files with
   | [] -> assert false
   | [ filename ] ->
     err_if_not_c_h_file filename;
@@ -273,6 +274,13 @@ let handle_type_error
       (error : TypeErrors.t)
   =
   report_type_error ~json ?output_dir ~serialize_json error;
+  exit (exit_code_of_error error)
+
+
+(** Print the provided error as a located diagnostic, then exit. *)
+let print_type_error_and_exit (error : TypeErrors.t) =
+  let report = TypeErrors.pp_message error.msg in
+  Pp.error error.loc report.short (Option.to_list report.descr);
   exit (exit_code_of_error error)
 
 

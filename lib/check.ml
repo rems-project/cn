@@ -2905,9 +2905,10 @@ let c_function_name ((fsym, (_loc, _args_and_body)) : c_function) : string =
 
 (** Filter functions according to [(skip, only)]: first according to [only],
     then according to [skip]. When [strict] is true, error and exit if any
-    function in [only] is not found. *)
+    function in [only] is not found, using [error_exit_code] (default 1). *)
 let select_functions
       ?(strict = false)
+      ?(error_exit_code = 1)
       (skip_and_only : string list * string list)
       (fsyms : Sym.Set.t)
   : Sym.Set.t
@@ -2930,7 +2931,7 @@ let select_functions
         (Loc.other __LOC__)
         (!^"functions specified in --only not found:" ^^^ !^missing_str)
         [];
-      exit 1));
+      exit error_exit_code));
   let strs_fsyms ss =
     ss |> List.map str_fsyms_warn |> List.fold_left Sym.Set.union Sym.Set.empty
   in
