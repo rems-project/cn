@@ -126,6 +126,36 @@ let generate_executable_specs
   let filename = Common.there_can_only_be_one filename in
   let basefile = Filename.basename filename in
   let pp_file = Filename.temp_file "cn_" basefile in
+  (* Make sure output and output_dir are compatible if both provided *)
+  let output, output_dir =
+    match output with
+    | Some f when not (String.equal (Filename.basename f) f) ->
+      let dir = Filename.dirname f in
+      let normalise d =
+        (* "./dir/", "dir/" and "dir" are the same directory *)
+        (* Normalise ./dir *)
+        let d =
+          if String.starts_with ~prefix:"./" d && String.length d > 2 then
+            String.sub d 2 (String.length d - 2)
+          else
+            d
+        in
+        let n = String.length d in
+        (* Normalise dir/ *)
+        if n > 1 && Char.equal d.[n - 1] '/' then String.sub d 0 (n - 1) else d
+      in
+      (match output_dir with
+       | Some d when not (String.equal (normalise d) (normalise dir)) ->
+         print_endline
+           ("--output-dir '"
+            ^ d
+            ^ "' and the directory of -o '"
+            ^ f
+            ^ "' differ: provide one of them, or the same directory in both");
+         exit 1
+       | _ -> (Some (Filename.basename f), Some dir))
+    | _ -> (output, output_dir)
+  in
   let out_file =
     Option.value ~default:(Fulminate.get_instrumented_filename basefile) output
   in
@@ -155,7 +185,8 @@ let generate_executable_specs
         print_endline "Tried running instrumented file (`--run`) without `main` function.";
         exit 1);
       if mktemp && Option.is_some output_dir then (
-        print_endline "Cannot use '--tmp' and '--output-dir' together.";
+        print_endline
+          "Cannot use '--tmp' and '--output-dir' (or have a directory in '-o') together.";
         exit 1);
       let output_dir =
         Common.mk_dir_if_not_exist_maybe_tmp ~mktemp Instrument output_dir
@@ -260,7 +291,9 @@ module Flags = struct
   let output =
     let doc =
       "output a version of the translation unit decorated with C runtime\n\
-      \  translations of the CN annotations."
+      \  translations of the CN annotations to FILE in the output directory; if\n\
+      \  FILE's prefix is a directory, and --output-dir is provided, these directories\n\
+      \  must be the same."
     in
     Arg.(
       value
