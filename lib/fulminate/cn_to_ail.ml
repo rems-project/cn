@@ -315,11 +315,19 @@ let bt_to_ail_ctype ?(pred_sym = None) t =
   cn_to_ail_base_type ~pred_sym (bt_to_cn_base_type t)
 
 
+(* The typedef name of a CN C type passed by value (the scalars: bitvectors,
+   integer, bool, pointer, allocation id), and None for the types passed as
+   pointers (`cn_map*`, the generated structs), which the generic `void*`
+   slots of maps and ghost frames hold directly *)
+let scalar_typedef_string ctype =
+  match rm_ctype ctype with C.Pointer _ -> None | _ -> get_typedef_string ctype
+
+
 (* The map setter for a value of the given (CN) C type: scalar values are
    boxed by a per-type setter, aggregate values are stored as the pointer
    they already are *)
 let map_set_fn_str_of_ctype ctype =
-  match get_typedef_string ctype with
+  match scalar_typedef_string ctype with
   | Some str -> "cn_map_set_" ^ str
   | None -> "cn_map_set"
 
@@ -512,7 +520,7 @@ let get_equality_fn_call bt e1 e2 =
   | BT.Map (_, val_bt) ->
     let val_ctype_with_ptr = bt_to_ail_ctype val_bt in
     let val_equality_str =
-      match get_typedef_string val_ctype_with_ptr with
+      match scalar_typedef_string val_ctype_with_ptr with
       | Some str ->
         (* scalar values are boxed in the map: compare through the box *)
         str ^ "_ptr_equality"
@@ -4237,7 +4245,7 @@ let rec cn_to_ail_cnprog_ghost_arg filename dts globals spec_mode_opt i = functi
     let pop_s = generate_cn_pop_msg_info () in
     let bs, ss, e = cn_to_ail_expr filename dts globals spec_mode_opt ghost_it PassBack in
     let add_fn_str =
-      match get_typedef_string (bt_to_ail_ctype (TN.get_bt ghost_it)) with
+      match scalar_typedef_string (bt_to_ail_ctype (TN.get_bt ghost_it)) with
       | Some str -> "add_" ^ str ^ "_to_ghost_frame"
       | None -> "add_arg_to_ghost_frame"
     in
@@ -5000,7 +5008,7 @@ let rec cn_to_ail_pre_post_aux
               (A.AilEconst
                  (ConstantInteger (IConstant (Z.of_int ghost_idx, Decimal, None))))
           in
-          match get_typedef_string cn_ctype with
+          match scalar_typedef_string cn_ctype with
           | Some str ->
             (* scalar: unboxed by the typed loader *)
             A.AilEcall
