@@ -59,7 +59,7 @@ uint16_t _OSSwapInt16(_data) {}
 uint32_t _OSSwapInt32(_data) { _data = __builtin_bswap32(_data); }
 struct {
   uint64_t __val;
-} __attribute__();
+} __attr();
 uint16_t OSReadSwapInt16(_offset) {}
 uint32_t OSReadSwapInt32() {}
 uint64_t OSReadSwapInt64() {}
