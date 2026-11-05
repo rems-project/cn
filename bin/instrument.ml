@@ -102,6 +102,7 @@ let generate_executable_specs
       source_locs_mode
       correct_missing_ownership_mode
       remove_uninterp
+      accept_uninterp
       experimental_ownership_stack_mode
       experimental_unions
       mktemp
@@ -206,6 +207,7 @@ let generate_executable_specs
                 ~source_locs_mode
                 ~correct_missing_ownership_mode
                 ~remove_uninterp
+                ~accept_uninterp
                 ~experimental_ownership_stack_mode
                 ~with_testing
                 ~skip_and_only:(skip, only)
@@ -430,6 +432,15 @@ module Flags = struct
        containing uninterpreted values from the output"
     in
     Arg.(value & flag & info ~docs:s_fulminate [ "remove-uninterp" ] ~doc)
+
+
+  let accept_uninterp =
+    let doc =
+      "Accept uninterpreted CN functions and predicates: each gets a default stub at the \
+       end of the instrumented file, which a body in <input>.uninterp.c replaces by \
+       defining CN_STUB_<name>."
+    in
+    Arg.(value & flag & info ~docs:s_fulminate [ "accept-uninterp" ] ~doc)
 end
 
 let cmd =
@@ -473,6 +484,7 @@ let cmd =
     $ Flags.source_locs_mode
     $ Flags.correct_missing_ownership_mode
     $ Flags.remove_uninterp
+    $ Flags.accept_uninterp
     $ Flags.experimental_ownership_stack_mode ~docs:s_fulminate
     $ Flags.experimental_unions
     $ Flags.mktemp

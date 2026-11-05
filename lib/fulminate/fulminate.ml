@@ -524,6 +524,13 @@ let get_instrumented_filename filename =
   Filename.(remove_extension (basename filename)) ^ ".exec.c"
 
 
+(* --accept-uninterp: the user's bodies for the uninterpreted CN functions and predicates of
+   input.c are read from input.uninterp.c beside the instrumented file, when it exists; Fulminate
+   never writes it (the default stubs are at the end of the instrumented file) *)
+let get_uninterp_filename filename =
+  Filename.(remove_extension (basename filename)) ^ ".uninterp.c"
+
+
 let get_filename_with_prefix output_dir filename = Filename.concat output_dir filename
 
 (* TODO: fix + add CLI flag *)
@@ -564,6 +571,7 @@ let main
       ~source_locs_mode
       ~correct_missing_ownership_mode
       ~remove_uninterp
+      ~accept_uninterp
       ~experimental_ownership_stack_mode
       ~with_testing
       ~skip_and_only
@@ -579,6 +587,12 @@ let main
        ail_prog)
       prog5
   =
+  if remove_uninterp && accept_uninterp then (
+    print_endline
+      "--remove-uninterp and --accept-uninterp exclude each other: the first drops the \
+       assertions that mention an uninterpreted function or predicate, the second keeps \
+       them and leaves their definitions to <input>.uninterp.c.";
+    exit 1);
   let out_filename = get_filename_with_prefix output_dir out_filename in
   (* disabled until fixed *)
   (* _gen_compile_commands_json cc output_dir out_filename; *)
@@ -619,11 +633,17 @@ let main
       prog5
   in
   let c_datatype_defs = generate_c_datatypes sigm in
-  let c_function_defs, c_function_decls, _c_function_locs =
-    generate_c_functions filename remove_uninterp prog5 sigm
+  let c_function_defs, c_function_decls, _c_function_locs, c_function_stubs =
+    generate_c_functions ~accept_uninterp filename remove_uninterp prog5 sigm
   in
-  let c_predicate_defs, c_predicate_decls, _c_predicate_locs =
-    generate_c_predicates filename without_ownership_checking remove_uninterp prog5 sigm
+  let c_predicate_defs, c_predicate_decls, _c_predicate_locs, c_predicate_stubs =
+    generate_c_predicates
+      ~accept_uninterp
+      filename
+      without_ownership_checking
+      remove_uninterp
+      prog5
+      sigm
   in
   let c_lemma_defs, c_lemma_decls =
     if without_lemma_checks then
@@ -685,6 +705,21 @@ let main
           cn_ghost_enum
         ]
       ]
+  in
+  (* --accept-uninterp: the uninterpreted CN functions and predicates get default stubs at the
+     end of the instrumented file (below), each returning the default value of its result type
+     and guarded by `#ifndef CN_STUB_<name>`. The user's bodies live in <input>.uninterp.c beside
+     it, which Fulminate never writes and the instrumented file includes before the defaults: a
+     body defines CN_STUB_<name>
+     beside itself and so disables the default. Re-instrumenting after a specification change
+     then needs nothing of the user: a new uninterpreted name gets a default, a removed one
+     leaves an unused body (harmless), a changed signature is a conflicting-types error at the
+     user's definition. The user's file is not a translation unit of its own: the instrumented
+     file declares the stubs (static) with its other helpers and includes it at its end, so the
+     bodies can call the helpers, which stay static, and nothing is exported from the unit. *)
+  let uninterp_stubs = c_function_stubs @ c_predicate_stubs in
+  let uninterp_filename =
+    get_filename_with_prefix output_dir (get_uninterp_filename filename)
   in
   (* Definitions for CN helper functions *)
   (* TODO: Topological sort *)
@@ -823,5 +858,36 @@ let main
      prerr_endline str);
   output_to_oc oc [ Globals.accessors_str filename prog5 ];
   output_to_oc oc cn_defs_list;
+  (* --accept-uninterp: the stubs, as part of this translation unit (see above): the user's
+     bodies first, from <input>.uninterp.c when it exists (a quoted include, looked up beside
+     this file), then the guarded defaults *)
+  if accept_uninterp && not (List.is_empty uninterp_stubs) then (
+    let include_line f = "#include \"" ^ f ^ "\"\n" in
+    output_to_oc
+      oc
+      ([ "\n\
+          /* UNINTERPRETED CN FUNCTIONS AND PREDICATES: the user's bodies, then a \
+          default for each one without a body.\n\
+         \   A body goes in "
+         ^ get_uninterp_filename filename
+         ^ " beside this file, which Fulminate never writes,\n\
+           \   with `#define CN_STUB_<name>` beside it, which disables the default \
+            below. The file is not a\n\
+           \   translation unit of its own: this file includes it here, so a body sees \
+            the helpers above\n\
+           \   (CN functions and predicates, struct conversions, record functions, the \
+            globals' accessors,\n\
+           \   all static) and the runtime's API (cn-executable/utils.h: a CN value is \
+            built with\n\
+           \   convert_to_cn_integer(...), convert_to_cn_bool(...), ...), and needs no \
+            include of its own.\n\
+           \   \"declared at\" gives the line of the preprocessed copy unless \
+            --source-locs-mode. */\n"
+       ]
+       @ (if Sys.file_exists uninterp_filename then
+            [ include_line (get_uninterp_filename filename) ]
+          else
+            [])
+       @ [ "\n"; generate_uninterp_stub_defs uninterp_stubs; "\n" ]));
   close_out oc;
   Stdlib.Sys.remove in_filename

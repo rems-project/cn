@@ -59,20 +59,34 @@ val generate_c_tag_decl_strs
 
 val generate_cn_versions_of_structs : AilSyntax.sigma_tag_definition list -> string
 
+(* --accept-uninterp: an uninterpreted CN function or predicate, its declaration, its default
+   stub and the comment introducing the stub *)
+type uninterp_stub =
+  { decl : AilSyntax.sigma_declaration;
+    stub : GenTypes.genTypeCategory AilSyntax.sigma_function_definition;
+    comment : string
+  }
+
 val generate_c_functions
-  :  string ->
+  :  accept_uninterp:bool ->
+  string ->
   bool ->
   _ Mucore.file ->
   GenTypes.genTypeCategory AilSyntax.sigma ->
-  string * string * Cerb_location.t list
+  string * string * Cerb_location.t list * uninterp_stub list
 
 val generate_c_predicates
-  :  string ->
+  :  accept_uninterp:bool ->
+  string ->
   bool ->
   bool ->
   _ Mucore.file ->
   GenTypes.genTypeCategory AilSyntax.sigma ->
-  string * string * Cerb_location.t list
+  string * string * Cerb_location.t list * uninterp_stub list
+
+val uninterp_stub_macro : Sym.t -> string
+
+val generate_uninterp_stub_defs : uninterp_stub list -> string
 
 val generate_c_lemmas
   :  string ->
