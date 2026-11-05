@@ -3606,14 +3606,8 @@ let extract_global_variables ?(prune_unused = false) (prog5 : _ Mucore.file) =
     | Mucore.GlobalDef (sct, _) | GlobalDecl sct -> (sym, Sctypes.to_ctype sct))
 
 
-(* TODO: Finish with rest of function - maybe header file with A.Decl_function (cn.h?) *)
-(* The C parameters of a CN function's translation: its CN arguments, by their CN names. *)
-let function_params (lf_def : Definition.Function.t) =
-  List.map (fun (sym, bt) -> (sym, bt_to_ail_ctype bt)) lf_def.args
-
-
 (* The C parameters of a CN predicate's translation: the pointer and the iargs, by their CN
-   names, then the spec_mode and loop_ownership parameters every predicate function takes. *)
+      names, then the spec_mode and loop_ownership parameters every predicate function takes. *)
 let predicate_params (rp_def : Definition.Predicate.t) =
   List.map
     (fun (sym, bt) -> (sym, bt_to_ail_ctype bt))
@@ -3623,6 +3617,7 @@ let predicate_params (rp_def : Definition.Predicate.t) =
     ]
 
 
+(* TODO: Finish with rest of function - maybe header file with A.Decl_function (cn.h?) *)
 let cn_to_ail_function
       ~accept_uninterp
       (filename : string)
@@ -3637,7 +3632,8 @@ let cn_to_ail_function
   =
   let ret_type = bt_to_ail_ctype ~pred_sym:(Some fn_sym) lf_def.return_bt in
   let ail_record_opt = generate_record_opt fn_sym lf_def.return_bt in
-  let param_syms, param_types = List.split (function_params lf_def) in
+  let params = List.map (fun (sym, bt) -> (sym, bt_to_ail_ctype bt)) lf_def.args in
+  let param_syms, param_types = List.split params in
   let param_types = List.map (fun t -> (C.no_qualifiers, t, false)) param_types in
   let matched_cn_functions =
     List.filter
@@ -3723,7 +3719,10 @@ let uninterp_stub_def
   =
   let param_syms, return_bt =
     match cn_def with
-    | `Function lf_def -> (List.map fst (function_params lf_def), lf_def.return_bt)
+    | `Function lf_def ->
+      let params = List.map (fun (sym, bt) -> (sym, bt_to_ail_ctype bt)) lf_def.args in
+      let param_syms, _ = List.split params in
+      (param_syms, lf_def.return_bt)
     | `Predicate rp_def -> (List.map fst (predicate_params rp_def), snd rp_def.oarg)
   in
   let body =
