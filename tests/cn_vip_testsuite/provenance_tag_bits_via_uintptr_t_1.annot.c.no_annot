@@ -8,9 +8,9 @@ tests/cn_vip_testsuite/provenance_tag_bits_via_uintptr_t_1.annot.c:12:11: warnin
 tests/cn_vip_testsuite/provenance_tag_bits_via_uintptr_t_1.annot.c:16:11: warning: Treating bitwise operation on integers as uninterpreted.
   ensures i & (MAXu64() - 3) == i - mod(i,4);
           ~~^~~~~~~~~~~~~~~~ 
-tests/cn_vip_testsuite/provenance_tag_bits_via_uintptr_t_1.annot.c:34:10: warning: Treating bitwise operation on integers as uninterpreted.
+tests/cn_vip_testsuite/provenance_tag_bits_via_uintptr_t_1.annot.c:34:20: warning: Treating bitwise operation on integers as uninterpreted.
   assert((i & 3u) == 0u);
-         ^~~~~~~~ 
+                   ^~~~~~~~ 
 tests/cn_vip_testsuite/provenance_tag_bits_via_uintptr_t_1.annot.c:37:7: warning: Treating bitwise operation on integers as uninterpreted.
   i = i | 1u;
       ~~^~~~ 
