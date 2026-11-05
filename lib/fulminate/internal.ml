@@ -518,12 +518,16 @@ let generate_fun_def_and_decl_docs funs =
   generate_fun_def_and_decl_docs_opt (List.map (fun (decl, def) -> (decl, Some def)) funs)
 
 
-(* --accept-uninterp: the stubs of the uninterpreted CN functions and predicates, for
-   <input>.uninterp.c: per declaration a definition that returns the default value of its
-   result type, with the declaration's own parameter names (Cn_to_ail.uninterp_stub_def),
-   `static` like the instrumented file's own helpers,
-   since that file includes the stubs at its end and has already declared them (static) at its
-   top; each stub is preceded by a comment giving the CN signature. *)
+(* --accept-uninterp: the default stubs of the uninterpreted CN functions and predicates, for
+   the end of the instrumented file: per declaration a definition that returns the default
+   value of its result type, with the declaration's own parameter names
+   (Cn_to_ail.uninterp_stub_def), `static` like the instrumented file's own helpers, which
+   declared them (static) at its top. Each is preceded by a comment giving the CN signature and
+   wrapped in `#ifndef CN_STUB_<name>`, so that a body the user gives in <input>.uninterp.c
+   (included just before) replaces the default by defining that macro beside it. *)
+(* the macro that disables the default stub of an uninterpreted function or predicate *)
+let uninterp_stub_macro sym = "CN_STUB_" ^ Sym.pp_string sym
+
 let generate_uninterp_stub_defs
       (stubs : (A.sigma_declaration * BaseTypes.t * Sym.t list * string) list)
   =
@@ -533,21 +537,25 @@ let generate_uninterp_stub_defs
   in
   let defs =
     List.filter_map
-      (fun (decl, return_bt, param_syms, comment) ->
+      (fun (((sym, _) as decl), return_bt, param_syms, comment) ->
          Option.map
            (fun def ->
               "/* "
               ^ comment
-              ^ " */\nstatic "
+              ^ " */\n#ifndef "
+              ^ uninterp_stub_macro sym
+              ^ "\nstatic "
               ^ pp
                   { A.empty_sigma with
                     declarations = [ decl ];
                     function_definitions = [ def ]
-                  })
+                  }
+              ^ "#endif\n")
            (Cn_to_ail.uninterp_stub_def ~return_bt ~param_syms decl))
       stubs
   in
-  "/* STUBS */\n\n" ^ String.concat "\n" defs
+  "/* DEFAULT STUBS, each disabled by defining its CN_STUB_<name> macro */\n\n"
+  ^ String.concat "\n" defs
 
 
 (* The fourth component: the declarations of the uninterpreted functions, accepted by

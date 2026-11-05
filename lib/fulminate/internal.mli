@@ -82,6 +82,8 @@ val generate_c_predicates
   * Cerb_location.t list
   * (AilSyntax.sigma_declaration * BaseTypes.t * Sym.t list * string) list
 
+val uninterp_stub_macro : Sym.t -> string
+
 val generate_uninterp_stub_defs
   :  (AilSyntax.sigma_declaration * BaseTypes.t * Sym.t list * string) list ->
   string
