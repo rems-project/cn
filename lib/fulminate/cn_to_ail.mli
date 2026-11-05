@@ -205,15 +205,10 @@ val cn_to_ail_function
   * AilSyntax.sigma_tag_definition option)
     option
 
-val spec_mode_sym : Sym.t
-
-val loop_ownership_sym : Sym.t
-
 val uninterp_stub_def
-  :  return_bt:BaseTypes.t ->
-  param_syms:Sym.t list ->
+  :  [ `Function of Definition.Function.t | `Predicate of Definition.Predicate.t ] ->
   AilSyntax.sigma_declaration ->
-  GenTypes.genTypeCategory AilSyntax.sigma_function_definition option
+  GenTypes.genTypeCategory AilSyntax.sigma_function_definition
 
 val cn_to_ail_predicates
   :  accept_uninterp:bool ->

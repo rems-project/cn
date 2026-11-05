@@ -488,9 +488,9 @@ let generate_cn_versions_of_structs c_structs =
 
 (* [funs]: each CN function or predicate with its definition, or without one when it is
    uninterpreted and accepted (--accept-uninterp): then only its declaration is printed here,
-   `static` like everything else, and its definition is the stub in <input>.uninterp.c, which the
-   instrumented file includes at its end, so the two are one translation unit. *)
-let generate_fun_def_and_decl_docs_opt funs =
+   `static` like everything else, and its definition is the default stub at the end of the
+   instrumented file, or the user's body in <input>.uninterp.c, included there. *)
+let generate_fun_def_and_decl_docs funs =
   let one_def_prog (decl, def) =
     { A.empty_sigma with declarations = [ decl ]; function_definitions = [ def ] }
   in
@@ -514,44 +514,46 @@ let generate_fun_def_and_decl_docs_opt funs =
   (defs_doc, decls_doc)
 
 
-let generate_fun_def_and_decl_docs funs =
-  generate_fun_def_and_decl_docs_opt (List.map (fun (decl, def) -> (decl, Some def)) funs)
+(* [funs]: declarations with their definitions, all defined *)
+let generate_defined_fun_def_and_decl_docs funs =
+  generate_fun_def_and_decl_docs (List.map (fun (decl, def) -> (decl, Some def)) funs)
 
 
-(* --accept-uninterp: the default stubs of the uninterpreted CN functions and predicates, for
-   the end of the instrumented file: per declaration a definition that returns the default
-   value of its result type, with the declaration's own parameter names
-   (Cn_to_ail.uninterp_stub_def), `static` like the instrumented file's own helpers, which
-   declared them (static) at its top. Each is preceded by a comment giving the CN signature and
-   wrapped in `#ifndef CN_STUB_<name>`, so that a body the user gives in <input>.uninterp.c
-   (included just before) replaces the default by defining that macro beside it. *)
+(* --accept-uninterp: an uninterpreted CN function or predicate: its declaration, its default
+   stub (Cn_to_ail.uninterp_stub_def) and the comment that introduces the stub, the CN signature *)
+type uninterp_stub =
+  { decl : A.sigma_declaration;
+    stub : CF.GenTypes.genTypeCategory A.sigma_function_definition;
+    comment : string
+  }
+
 (* the macro that disables the default stub of an uninterpreted function or predicate *)
 let uninterp_stub_macro sym = "CN_STUB_" ^ Sym.pp_string sym
 
-let generate_uninterp_stub_defs
-      (stubs : (A.sigma_declaration * BaseTypes.t * Sym.t list * string) list)
-  =
+(* --accept-uninterp: the default stubs, for the end of the instrumented file, `static` like
+   the instrumented file's own helpers, which declared them (static) at its top. Each is
+   preceded by its comment and wrapped in `#ifndef CN_STUB_<name>`, so that a body the user
+   gives in <input>.uninterp.c (included just before) replaces the default by defining that
+   macro beside it. *)
+let generate_uninterp_stub_defs (stubs : uninterp_stub list) =
   let pp prog =
     doc_to_pretty_string
       CF.Pp_ail.(with_executable_spec (pp_program ~show_include:true) (None, prog))
   in
   let defs =
-    List.filter_map
-      (fun (((sym, _) as decl), return_bt, param_syms, comment) ->
-         Option.map
-           (fun def ->
-              "/* "
-              ^ comment
-              ^ " */\n#ifndef "
-              ^ uninterp_stub_macro sym
-              ^ "\nstatic "
-              ^ pp
-                  { A.empty_sigma with
-                    declarations = [ decl ];
-                    function_definitions = [ def ]
-                  }
-              ^ "#endif\n")
-           (Cn_to_ail.uninterp_stub_def ~return_bt ~param_syms decl))
+    List.map
+      (fun { decl = (sym, _) as decl; stub; comment } ->
+         "/* "
+         ^ comment
+         ^ " */\n#ifndef "
+         ^ uninterp_stub_macro sym
+         ^ "\nstatic "
+         ^ pp
+             { A.empty_sigma with
+               declarations = [ decl ];
+               function_definitions = [ stub ]
+             }
+         ^ "#endif\n")
       stubs
   in
   "/* DEFAULT STUBS, each disabled by defining its CN_STUB_<name> macro */\n\n"
@@ -600,18 +602,19 @@ let generate_c_functions
          match def with
          | None ->
            Some
-             ( decl,
-               lf_def.return_bt,
-               List.map fst lf_def.args,
-               "uninterpreted CN function "
-               ^ Pp.plain (Definition.Function.pp_sig (Sym.pp fn_sym) lf_def)
-               ^ ", declared at "
-               ^ Pp.plain (Locations.pp lf_def.loc) )
+             { decl;
+               stub = Cn_to_ail.uninterp_stub_def (`Function lf_def) decl;
+               comment =
+                 "uninterpreted CN function "
+                 ^ Pp.plain (Definition.Function.pp_sig (Sym.pp fn_sym) lf_def)
+                 ^ ", declared at "
+                 ^ Pp.plain (Locations.pp lf_def.loc)
+             }
          | Some _ -> None)
       ail_funs
   in
   let decl_str_comment = "\n/* CN FUNCTIONS */\n\n" in
-  let defs_doc, decls_doc = generate_fun_def_and_decl_docs_opt decls_and_defs in
+  let defs_doc, decls_doc = generate_fun_def_and_decl_docs decls_and_defs in
   ( doc_to_pretty_string defs_doc,
     decl_str_comment ^ doc_to_pretty_string decls_doc,
     locs,
@@ -627,7 +630,8 @@ let[@warning "-32" (* unused-value-declaration *)] rec remove_duplicates eq_fun 
       t :: remove_duplicates eq_fun ts
 
 
-(* The fourth component: as for generate_c_functions, the uninterpreted predicates' *)
+(* The fourth component: as for generate_c_functions, the uninterpreted predicates'
+   declarations with their default stubs and comments *)
 let generate_c_predicates
       ~accept_uninterp
       filename
@@ -662,20 +666,18 @@ let generate_c_predicates
          match def with
          | None ->
            Some
-             ( decl,
-               snd rp_def.oarg,
-               (rp_def.pointer :: List.map fst rp_def.iargs)
-               @ [ Cn_to_ail.spec_mode_sym; Cn_to_ail.loop_ownership_sym ],
-               "uninterpreted CN predicate "
-               ^ Pp.plain (Definition.Predicate.pp_sig (Sym.pp pred_sym) rp_def)
-               ^ ", declared at "
-               ^ Pp.plain (Locations.pp rp_def.loc) )
+             { decl;
+               stub = Cn_to_ail.uninterp_stub_def (`Predicate rp_def) decl;
+               comment =
+                 "uninterpreted CN predicate "
+                 ^ Pp.plain (Definition.Predicate.pp_sig (Sym.pp pred_sym) rp_def)
+                 ^ ", declared at "
+                 ^ Pp.plain (Locations.pp rp_def.loc)
+             }
          | Some _ -> None)
       (List.combine cn_preds (List.combine decls defs))
   in
-  let defs_doc, decls_doc =
-    generate_fun_def_and_decl_docs_opt (List.combine decls defs)
-  in
+  let defs_doc, decls_doc = generate_fun_def_and_decl_docs (List.combine decls defs) in
   ( "\n/* CN PREDICATES */\n\n" ^ doc_to_pretty_string defs_doc,
     doc_to_pretty_string decls_doc,
     locs,
@@ -704,7 +706,9 @@ let generate_c_lemmas
       cn_lemmas
   in
   let decls, defs = List.split ail_funs in
-  let defs_doc, decls_doc = generate_fun_def_and_decl_docs (List.combine decls defs) in
+  let defs_doc, decls_doc =
+    generate_defined_fun_def_and_decl_docs (List.combine decls defs)
+  in
   ("\n/* CN LEMMAS */\n\n" ^ doc_to_pretty_string defs_doc, doc_to_pretty_string decls_doc)
 
 
@@ -737,7 +741,9 @@ let generate_ownership_functions without_ownership_checking ownership_ctypes =
     else
       []
   in
-  let defs_doc, decls_doc = generate_fun_def_and_decl_docs (owned_funs @ deref_funs) in
+  let defs_doc, decls_doc =
+    generate_defined_fun_def_and_decl_docs (owned_funs @ deref_funs)
+  in
   let comment = "\n/* OWNERSHIP FUNCTIONS */\n\n" in
   (comment ^ doc_to_pretty_string defs_doc, doc_to_pretty_string decls_doc)
 
@@ -783,7 +789,7 @@ let generate_conversion_and_equality_functions
            datatype_default_funs
          ])
   in
-  let defs_doc, decls_doc = generate_fun_def_and_decl_docs ail_funs in
+  let defs_doc, decls_doc = generate_defined_fun_def_and_decl_docs ail_funs in
   let comment = "\n/* GENERATED STRUCT FUNCTIONS */\n\n" in
   (comment ^ doc_to_pretty_string defs_doc, comment ^ doc_to_pretty_string decls_doc)
 
