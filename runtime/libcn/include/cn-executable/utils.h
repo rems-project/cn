@@ -221,8 +221,6 @@ static inline cn_bool default_cn_bool(void) {
   return false;
 }
 
-#define cn_ite(b, e1, e2) ((b) ? (e1) : (e2))
-
 /* Maps: a hash table from cn_integer keys to boxed values (`void*`) */
 
 cn_map* map_create(void);
@@ -617,6 +615,9 @@ CN_GEN_CONVERT(uint8_t, cn_alloc_id)
 CN_GEN_CONVERT_FROM(uint8_t, cn_alloc_id)
 CN_GEN_EQUALITY(cn_alloc_id)
 CN_GEN_DEFAULT(cn_alloc_id)
+CN_GEN_MAP_SET(cn_alloc_id)
+CN_GEN_MAP_GET(cn_alloc_id)
+CN_GEN_GHOST_ARG(cn_alloc_id)
 
 CN_GEN_BOX(cn_bool)
 CN_GEN_MAP_SET(cn_bool)
