@@ -15,6 +15,38 @@ module AT = ArgumentTypes
 module OE = Ownership
 open Terms
 
+type ail_bindings_and_statements =
+  A.bindings * CF.GenTypes.genTypeCategory A.statement_ list
+
+type loop_info =
+  { cond : Locations.t * ail_bindings_and_statements;
+    loop_loc : Locations.t;
+    loop_entry : ail_bindings_and_statements;
+    loop_exit : ail_bindings_and_statements
+  }
+
+type ail_executable_spec =
+  { pre : ail_bindings_and_statements;
+    post : ail_bindings_and_statements;
+    in_stmt : (Locations.t * ail_bindings_and_statements) list;
+    loops : loop_info list
+  }
+
+let empty_ail_executable_spec =
+  { pre = ([], []); post = ([], []); in_stmt = []; loops = [] }
+
+
+(* GADT for destination passing - keeps track of the final 'destination' of a translated CN expression *)
+type 'a dest =
+  | Assert : Cerb_location.t -> ail_bindings_and_statements dest
+  | Return : ail_bindings_and_statements dest
+  | AssignVar : C.union_tag -> ail_bindings_and_statements dest
+  | PassBack :
+      (A.bindings
+      * CF.GenTypes.genTypeCategory A.statement_ list
+      * CF.GenTypes.genTypeCategory A.expression)
+        dest
+
 let getter_str filename sym =
   "cn_test_get_" ^ Utils.static_prefix filename ^ "_" ^ Sym.pp_string sym
 
@@ -477,6 +509,38 @@ let wrap_with_convert_to ?sct ail_expr_ bt =
   wrap_with_convert ?sct ~convert_from:false ail_expr_ bt
 
 
+let wrap_with_fulm_on_check (bs, ss) =
+  let fulm_on_sym = Sym.fresh "is_fulminate_on" in
+  let fulm_on_call = A.(AilEcall (mk_expr (AilEident fulm_on_sym), [])) in
+  ( [],
+    [ A.(
+        AilSif
+          ( mk_expr fulm_on_call,
+            mk_stmt (AilSblock (bs, List.map mk_stmt ss)),
+            mk_stmt (AilSblock ([], [])) ))
+    ] )
+
+
+let wrap_loop_with_fulm_on_check (loop : loop_info) =
+  { loop with
+    cond = (fst loop.cond, wrap_with_fulm_on_check (snd loop.cond));
+    loop_entry = wrap_with_fulm_on_check loop.loop_entry;
+    loop_exit = wrap_with_fulm_on_check loop.loop_exit
+  }
+
+
+let wrap_in_stmt_with_fulm_on_check in_stmt =
+  List.map (fun (loc, (bs, ss)) -> (loc, wrap_with_fulm_on_check (bs, ss))) in_stmt
+
+
+let wrap_spec_with_fulm_on_checks (ail_executable_spec : ail_executable_spec) =
+  { pre = wrap_with_fulm_on_check ail_executable_spec.pre;
+    post = wrap_with_fulm_on_check ail_executable_spec.post;
+    in_stmt = wrap_in_stmt_with_fulm_on_check ail_executable_spec.in_stmt;
+    loops = List.map wrap_loop_with_fulm_on_check ail_executable_spec.loops
+  }
+
+
 let get_equality_fn_call bt e1 e2 =
   match bt with
   | BT.Map (_, val_bt) ->
@@ -676,38 +740,6 @@ let cn_to_ail_const const basetype =
   let is_unit = const == Unit in
   (ail_const, is_unit)
 
-
-type ail_bindings_and_statements =
-  A.bindings * CF.GenTypes.genTypeCategory A.statement_ list
-
-type loop_info =
-  { cond : Locations.t * ail_bindings_and_statements;
-    loop_loc : Locations.t;
-    loop_entry : ail_bindings_and_statements;
-    loop_exit : ail_bindings_and_statements
-  }
-
-type ail_executable_spec =
-  { pre : ail_bindings_and_statements;
-    post : ail_bindings_and_statements;
-    in_stmt : (Locations.t * ail_bindings_and_statements) list;
-    loops : loop_info list
-  }
-
-let empty_ail_executable_spec =
-  { pre = ([], []); post = ([], []); in_stmt = []; loops = [] }
-
-
-(* GADT for destination passing - keeps track of the final 'destination' of a translated CN expression *)
-type 'a dest =
-  | Assert : Cerb_location.t -> ail_bindings_and_statements dest
-  | Return : ail_bindings_and_statements dest
-  | AssignVar : C.union_tag -> ail_bindings_and_statements dest
-  | PassBack :
-      (A.bindings
-      * CF.GenTypes.genTypeCategory A.statement_ list
-      * CF.GenTypes.genTypeCategory A.expression)
-        dest
 
 (* bool flag for checking if expression is unit - needs special treatment *)
 let dest_with_unit_check
@@ -4852,28 +4884,7 @@ let rec cn_to_ail_lat_2
     let post_bs, post_ss =
       cn_to_ail_post filename dts globals preds without_ownership_checking post
     in
-    let ownership_stats_ =
-      if without_ownership_checking then
-        []
-      else (
-        let sym_to_fcall_stat_ =
-          fun fn_sym -> A.AilSexpr (mk_expr (AilEcall (mk_expr (AilEident fn_sym), [])))
-        in
-        let stack_depth_decr_stat_ = sym_to_fcall_stat_ OE.cn_stack_depth_decr_sym in
-        let postcondition_leak_check_stat_ =
-          sym_to_fcall_stat_ OE.cn_postcondition_leak_check_sym
-        in
-        let upd_s = generate_error_msg_info_update_stats () in
-        let pop_s = generate_cn_pop_msg_info () in
-        List.map
-          mk_stmt
-          ((stack_depth_decr_stat_ :: upd_s) @ (postcondition_leak_check_stat_ :: pop_s)))
-    in
-    let block =
-      A.(
-        AilSblock
-          (return_cn_binding @ post_bs, return_cn_decl @ post_ss @ ownership_stats_))
-    in
+    let block = A.(AilSblock (return_cn_binding @ post_bs, return_cn_decl @ post_ss)) in
     { pre = ([], []);
       post = ([], [ block ]);
       in_stmt = ail_statements;
@@ -5083,25 +5094,45 @@ let cn_to_ail_pre_post
           ail_executable_spec
           ([ ghost_spec_binding ], [ ghost_spec_decl ]))
     in
-    let ownership_stats_ =
+    let stack_depth_incr, stack_depth_decr_and_leak_check =
       if without_ownership_checking then
-        []
+        ([], [])
       else (
         let cn_stack_depth_incr_stat_ =
           A.AilSexpr
             (mk_expr (AilEcall (mk_expr (AilEident OE.cn_stack_depth_incr_sym), [])))
         in
-        [ cn_stack_depth_incr_stat_ ])
+        let sym_to_fcall_stat_ =
+          fun fn_sym -> A.AilSexpr (mk_expr (AilEcall (mk_expr (AilEident fn_sym), [])))
+        in
+        let stack_depth_decr_stat_ = sym_to_fcall_stat_ OE.cn_stack_depth_decr_sym in
+        let postcondition_leak_check_stat_ =
+          sym_to_fcall_stat_ OE.cn_postcondition_leak_check_sym
+        in
+        let upd_s = generate_error_msg_info_update_stats () in
+        let pop_s = generate_cn_pop_msg_info () in
+        ( [ cn_stack_depth_incr_stat_ ],
+          (stack_depth_decr_stat_ :: upd_s) @ (postcondition_leak_check_stat_ :: pop_s) ))
     in
     let bump_alloc_binding, bump_alloc_start_stat_, bump_alloc_end_stat_ =
       gen_bump_alloc_bs_and_ss ()
     in
+    (* TODO: hoist declarations out of spec block, for pres and inline statements 
+    Loops should already be taken care of, and no future spec needs to refer to
+     postcondition ghost variables) *)
+    let ail_executable_spec = wrap_spec_with_fulm_on_checks ail_executable_spec in
+    (* Add auxilliary statements: bump allocator, stack depth incr and decr, postcondition leak check *)
     let ail_executable_spec' =
       prepend_to_precondition
         ail_executable_spec
-        ([ bump_alloc_binding ], bump_alloc_start_stat_ :: ownership_stats_)
+        ([ bump_alloc_binding ], bump_alloc_start_stat_ :: stack_depth_incr)
     in
-    append_to_postcondition ail_executable_spec' ([], [ bump_alloc_end_stat_ ])
+    let ail_executable_spec' =
+      append_to_postcondition
+        ail_executable_spec'
+        ([], stack_depth_decr_and_leak_check @ [ bump_alloc_end_stat_ ])
+    in
+    ail_executable_spec'
   | None -> empty_ail_executable_spec
 
 
