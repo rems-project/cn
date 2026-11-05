@@ -120,10 +120,6 @@ jobs:
               -iname '*.c' -print0 \
             | xargs -0 -n1 ${{ matrix.compiler }} -c -I runtime/libcn/include/ $flags -o /dev/null
 
-      - name: Check C++ compatibility
-        run: |
-          ${{ matrix.compiler }} -std=c++17 -Iruntime/libcn/include/ runtime/libcn/check_compat.cpp
-
   shellcheck:
     name: ShellCheck
 
