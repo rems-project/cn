@@ -51,8 +51,7 @@ let generate_c_local_cn_addr_var sym =
   let cn_addr_sym = generate_sym_with_suffix ~suffix:"_addr_cn" sym in
   let annots = [ CF.Annot.Atypedef (Sym.fresh "cn_pointer") ] in
   (* Ctype_ doesn't matter to pretty-printer when typedef annotations are present *)
-  let inner_ctype = mk_ctype ~annots C.Void in
-  let cn_ptr_ctype = mk_ctype C.(Pointer (C.no_qualifiers, inner_ctype)) in
+  let cn_ptr_ctype = mk_ctype ~annots C.Void in
   let binding = create_binding cn_addr_sym cn_ptr_ctype in
   let addr_of_sym = mk_expr A.(AilEunary (Address, mk_expr (AilEident sym))) in
   let fcall_sym = Sym.fresh "convert_to_cn_pointer" in
