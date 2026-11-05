@@ -28,6 +28,7 @@ let frontend
       ~cc
       ~macros
       ~permissive
+      ~lexicon
       ~incl_dirs
       ~incl_files
       ~astprints
@@ -50,6 +51,10 @@ let frontend
       ~backend_name:"Cn"
       ~agnostic:false
       ~permissive
+      ~lexicon
+      ~asm_keyword:true
+      ~cerb_keywords:true
+      ~cerb_builtins:true
       ~ignore_bitfields:false
       ~allow_distinct_ptr_types_comparison:true
       ~allow_void_ptr_arithmetic:true
@@ -146,6 +151,7 @@ let with_well_formedness_check
       ~filename
       ~macros
       ~permissive
+      ~lexicon
       ~incl_dirs
       ~incl_files
       ~coq_export_file
@@ -176,6 +182,7 @@ let with_well_formedness_check
          ~cc
          ~macros
          ~permissive
+         ~lexicon
          ~incl_dirs
          ~incl_files
          ~astprints
@@ -397,6 +404,17 @@ module Flags = struct
   let permissive =
     let doc = "Enable permissive mode in Cerberus frontend" in
     Arg.(value & flag & info ~docs:s_cn [ "permissive" ] ~doc)
+
+
+  let lexicon =
+    let doc = "Select C lexicon (c11 | gnu11 | c23 | gnu23)." in
+    Arg.(
+      value
+      & opt
+          (enum
+             [ ("c11", CF.Config.C11); ("gnu11", GNU11); ("c23", C23); ("gnu23", GNU23) ])
+          GNU11
+      & info ~docs:s_cn [ "lexicon" ] ~doc)
 
 
   let incl_dirs =

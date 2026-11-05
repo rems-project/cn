@@ -29,12 +29,12 @@ val cn_loop_leak_check_sym : Sym.t
 
 val generate_c_local_ownership_entry
   :  is_register:bool ->
-  AilSyntax.ail_identifier * Ctype.ctype ->
+  Symbol.sym * Ctype.ctype ->
   GenTypes.genTypeCategory AilSyntax.statement_ option
 
 val generate_c_local_ownership_exit
   :  is_register:bool ->
-  AilSyntax.ail_identifier * Ctype.ctype ->
+  Symbol.sym * Ctype.ctype ->
   GenTypes.genTypeCategory AilSyntax.statement_ option
 
 val get_c_fn_local_ownership_checking_injs

@@ -188,7 +188,7 @@ let[@warning "-32" (* unused-value-declaration *)] create_decl_object ctype =
   A.(Decl_object ((Automatic, false), None, C.no_qualifiers, ctype))
 
 
-(* declarations: list (ail_identifier * (Loc.t * Annot.attributes * declaration)) *)
+(* declarations: list (Symbol.sym * (Loc.t * Annot.attributes * declaration)) *)
 let[@warning "-32" (* unused-value-declaration *)] create_declaration sym decl =
   (sym, (Cerb_location.unknown, CF.Annot.Attrs [], decl))
 

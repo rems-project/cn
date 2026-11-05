@@ -1,7 +1,7 @@
 open Cerb_frontend
 
 type executable_spec =
-  { pre_post : (AilSyntax.ail_identifier * (string list * string list)) list;
+  { pre_post : (Symbol.sym * (string list * string list)) list;
     in_stmt : (Cerb_location.t * string list) list;
     returns :
       (Cerb_location.t
@@ -44,20 +44,15 @@ val generate_c_datatypes
 val generate_ghost_enum : unit Mucore.file -> string
 
 val order_ail_tag_definitions
-  :  (AilSyntax.ail_identifier
-     * (Cerb_location.t * Annot.attributes * Ctype.tag_definition))
-       list ->
-  (AilSyntax.ail_identifier * (Cerb_location.t * Annot.attributes * Ctype.tag_definition))
-    list
+  :  (Symbol.sym * (Cerb_location.t * Annot.attributes * Ctype.tag_definition)) list ->
+  (Symbol.sym * (Cerb_location.t * Annot.attributes * Ctype.tag_definition)) list
 
 val generate_c_tag_def_strs
-  :  (AilSyntax.ail_identifier
-     * (Cerb_location.t * Annot.attributes * Ctype.tag_definition))
-       list ->
+  :  (Symbol.sym * (Cerb_location.t * Annot.attributes * Ctype.tag_definition)) list ->
   string
 
 val generate_c_tag_decl_strs
-  :  (AilSyntax.ail_identifier
+  :  (Symbol.sym
      * (Cerb_location.t * Cerb_frontend.Annot.attributes * Ctype.tag_definition))
        list ->
   string list

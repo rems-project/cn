@@ -190,7 +190,7 @@ val cn_to_ail_datatype
   Locations.t * AilSyntax.sigma_tag_definition list
 
 val cn_to_ail_records
-  :  (MembersKey.t * AilSyntax.ail_identifier) list ->
+  :  (MembersKey.t * Symbol.sym) list ->
   AilSyntax.sigma_tag_definition list
 
 val cn_to_ail_function

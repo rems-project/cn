@@ -7,6 +7,7 @@ let well_formed
       cc
       macros
       permissive
+      lexicon
       incl_dirs
       incl_files
       json
@@ -27,6 +28,7 @@ let well_formed
     ~cc
     ~macros
     ~permissive
+    ~lexicon
     ~incl_dirs
     ~incl_files
     ~coq_export_file:None
@@ -56,6 +58,7 @@ let cmd =
     $ Common.Flags.cc
     $ Common.Flags.macros
     $ Common.Flags.permissive
+    $ Common.Flags.lexicon
     $ Common.Flags.incl_dirs
     $ Common.Flags.incl_files
     $ Verify.Flags.json

@@ -8,6 +8,7 @@ let run_seq_tests
       cc
       macros
       permissive
+      lexicon
       incl_dirs
       incl_files
       debug_level
@@ -53,6 +54,7 @@ let run_seq_tests
     ~cc
     ~macros:(("__CN_SEQ_TEST", None) :: ("__CN_INSTRUMENT", None) :: macros)
     ~permissive
+    ~lexicon
     ~incl_dirs
     ~incl_files
     ~csv_times
@@ -172,6 +174,7 @@ let cmd =
     $ Common.Flags.cc
     $ Common.Flags.macros
     $ Common.Flags.permissive
+    $ Common.Flags.lexicon
     $ Common.Flags.incl_dirs
     $ Common.Flags.incl_files
     $ Common.Flags.debug_level
