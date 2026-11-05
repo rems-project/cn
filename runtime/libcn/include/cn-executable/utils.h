@@ -19,10 +19,6 @@
 #define true  1
 #define false 0
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 enum spec_mode {
   PRE = 1,
   POST = 2,
@@ -674,10 +670,6 @@ static inline void cn_postfix(void* ptr, size_t size) {
     cn_pop_msg_info();                                                                   \
     (*__tmp) OP;                                                                         \
   })
-
-#ifdef __cplusplus
-}
-#endif
 
 #ifdef __CN_INSTRUMENT
   #undef size_t
