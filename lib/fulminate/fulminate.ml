@@ -721,22 +721,6 @@ let main
   let uninterp_filename =
     get_filename_with_prefix output_dir (get_uninterp_filename filename)
   in
-  let uninterp_user_files =
-    Option.to_list uninterp_stubs_file
-    @ if Sys.file_exists uninterp_filename then [ uninterp_filename ] else []
-  in
-  if accept_uninterp && not (List.is_empty uninterp_stubs) then
-    print_endline
-      ("Uninterpreted CN functions and predicates: "
-       ^ String.concat
-           ", "
-           (List.map (fun ((sym, _), _, _, _) -> Sym.pp_string sym) uninterp_stubs)
-       ^ "; default stubs at the end of "
-       ^ out_filename
-       ^
-       match uninterp_user_files with
-       | [] -> "; a body goes in " ^ uninterp_filename ^ " (with #define CN_STUB_<name>)"
-       | fs -> "; bodies taken from " ^ String.concat " and " fs);
   (* Definitions for CN helper functions *)
   (* TODO: Topological sort *)
   let cn_defs_list =
