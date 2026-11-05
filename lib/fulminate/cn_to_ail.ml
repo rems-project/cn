@@ -5117,6 +5117,9 @@ let cn_to_ail_pre_post
     let bump_alloc_binding, bump_alloc_start_stat_, bump_alloc_end_stat_ =
       gen_bump_alloc_bs_and_ss ()
     in
+    (* TODO: hoist declarations out of spec block, for pres and inline statements 
+    Loops should already be taken care of, and no future spec needs to refer to
+     postcondition ghost variables) *)
     let ail_executable_spec = wrap_spec_with_fulm_on_checks ail_executable_spec in
     (* Add auxilliary statements: bump allocator, stack depth incr and decr, postcondition leak check *)
     let ail_executable_spec' =
