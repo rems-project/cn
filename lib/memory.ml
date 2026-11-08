@@ -86,31 +86,19 @@ type struct_decl = struct_layout
 
 type struct_decls = struct_layout Sym.Map.t
 
-let members ((pieces, fam) : struct_layout) =
+let struct_members ((pieces, fam) : struct_layout) =
   ( List.filter_map
       (fun { member_or_padding; _ } -> Option.map fst member_or_padding)
       pieces,
     Option.map (fun f -> fst f.member) fam )
 
 
-let member_types ((pieces, fam) : struct_layout) =
+let struct_member_types ((pieces, fam) : struct_layout) =
   ( List.filter_map (fun { member_or_padding; _ } -> member_or_padding) pieces,
     Option.map (fun f -> f.member) fam )
 
 
-(* let member_number layout member = *)
-(*   let rec aux i layout = *)
-(*     match layout with *)
-(*     | [] -> None *)
-(*     | sp :: layout -> *)
-(*       (match sp.member_or_padding with *)
-(*        | Some (member', _) when Id.equal member member' -> Some i *)
-(*        | Some (_, _) -> aux (i + 1) layout *)
-(*        | None -> aux i layout) *)
-(*   in *)
-(*   aux 0 layout *)
-
-let member_offset ((pieces, fam) : struct_layout) member : int option =
+let struct_member_offset ((pieces, fam) : struct_layout) member : int option =
   let found_in_pieces =
     List.find_map
       (fun sp ->

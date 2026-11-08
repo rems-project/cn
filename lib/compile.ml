@@ -432,7 +432,7 @@ module C_vars = struct
 
 
   let lookup_member ~fam_permitted loc (_tag, def) member =
-    let member_types, fam = Memory.member_types def in
+    let member_types, fam = Memory.struct_member_types def in
     match (List.assoc_opt Id.equal member member_types, fam) with
     | Some ty, _ -> return ty
     | None, Some (member', ct) when fam_permitted && Id.equal member member' -> return ct

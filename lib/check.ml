@@ -185,7 +185,7 @@ and check_struct
   : T.t m
   =
   let@ layout = Global.get_struct_decl loc tag in
-  let member_types, _fam = Memory.member_types layout in
+  let member_types, _fam = Memory.struct_member_types layout in
   assert (
     List.for_all2
       (fun (id, ct) (id', ct', _mv') -> Id.equal id id' && Sctypes.equal ct ct')
@@ -1008,7 +1008,7 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : T.t m =
     let@ () = WellTyped.check_ct loc (Struct tag) in
     let@ () = WellTyped.ensure_base_type loc ~expect (Struct tag) in
     let@ layout = Global.get_struct_decl loc tag in
-    let member_types, _fam = Memory.member_types layout in
+    let member_types, _fam = Memory.struct_member_types layout in
     let@ _ =
       ListM.map2M
         (fun (id, ct) (id', pe') ->

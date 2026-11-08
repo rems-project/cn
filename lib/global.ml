@@ -134,7 +134,7 @@ module Lift (M : ErrorReader) : Lifted with type 'a t := 'a M.t = struct
   let get_struct_decl loc tag = lift get_struct_decl loc tag (fun _ -> Unknown_struct tag)
 
   let get_member_type ~fam_permitted loc member layout =
-    let member_types, fam_type = Memory.member_types layout in
+    let member_types, fam_type = Memory.struct_member_types layout in
     match List.assoc_opt Id.equal member member_types with
     | Some membertyp -> M.return membertyp
     | None ->

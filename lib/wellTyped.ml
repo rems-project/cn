@@ -748,7 +748,7 @@ module WT = struct
         return (IT (NthTuple (n, t'), item_bt, loc))
       | Struct (tag, members) ->
         let@ layout = get_struct_decl loc tag in
-        let decl_members, _fam = Memory.member_types layout in
+        let decl_members, _fam = Memory.struct_member_types layout in
         let@ () = correct_members loc decl_members members in
         (* "sort" according to declaration *)
         let@ members_sorted =
@@ -877,7 +877,7 @@ module WT = struct
         let@ decl = get_struct_decl loc tag in
         let@ () =
           if !cnBV then (
-            let o = Option.get (Memory.member_offset decl member) in
+            let o = Option.get (Memory.struct_member_offset decl member) in
             let rs = Option.get (BT.is_bits_bt Memory.uintptr_bt) in
             ensure_z_fits_bits_type loc rs (Z.of_int o))
           else
@@ -923,7 +923,7 @@ module WT = struct
         let@ decl = get_struct_decl loc tag in
         let@ () =
           if !cnBV then (
-            let o = Option.get (Memory.member_offset decl member) in
+            let o = Option.get (Memory.struct_member_offset decl member) in
             let rs = Option.get (BT.is_bits_bt Memory.size_bt) in
             ensure_z_fits_bits_type loc rs (Z.of_int o))
           else
@@ -1905,7 +1905,7 @@ module BaseTyping = struct
           return (Tuple [ CType; List CType; Bool; Bool ], PEcfunction pe)
         | PEstruct (nm, nm_pes) ->
           let@ layout = get_struct_decl loc nm in
-          let decl_members, _fam = Memory.member_types layout in
+          let decl_members, _fam = Memory.struct_member_types layout in
           let@ () = correct_members loc decl_members nm_pes in
           let@ nm_pes =
             ListM.mapM

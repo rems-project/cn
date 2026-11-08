@@ -645,7 +645,7 @@ let json_of_structs (prog5 : unit Mucore.file) : json list =
                ^ " has no AustenTest counterpart and is not exported"));
          acc
        | Mucore.StructDef layout ->
-         let member_types, fam = Memory.member_types layout in
+         let member_types, fam = Memory.struct_member_types layout in
          (match fam with None -> () | Some _ -> failwith "todo: flexible array members");
          let fields =
            List.map

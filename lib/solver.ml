@@ -903,7 +903,7 @@ let rec translate_term s iterm =
   | StructUpdate ((t, member), v) ->
     let tag = BT.struct_bt (get_bt t) in
     let layout = Sym.Map.find tag struct_decls in
-    let members, _fam = Memory.member_types layout in
+    let members, _fam = Memory.struct_member_types layout in
     let str =
       List.map
         (fun (member', sct) ->
@@ -919,7 +919,7 @@ let rec translate_term s iterm =
     translate_term s (struct_ (tag, str) loc)
   | OffsetOf (tag, member) ->
     let decl = Sym.Map.find tag struct_decls in
-    let v = Option.get (Memory.member_offset decl member) in
+    let v = Option.get (Memory.struct_member_offset decl member) in
     translate_term s (int_lit_ v (get_bt iterm) loc)
   (* Records *)
   | Record members ->

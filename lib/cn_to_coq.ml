@@ -263,7 +263,7 @@ let it_to_itp_ir global it b =
       CI.ITP_arrayshift (aux base, size_of_ct, aux index)
     | Terms.OffsetOf (tag, member) ->
       let decl = Sym.Map.find tag global.struct_decls in
-      let v = Option.get (Memory.member_offset decl member) in
+      let v = Option.get (Memory.struct_member_offset decl member) in
       f comp_bool (MT.int_lit_ v (Terms.get_bt it) (Terms.get_loc it))
     | Terms.SizeOf ct ->
       f

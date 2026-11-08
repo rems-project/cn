@@ -300,7 +300,7 @@ module Make (AD : Domain.T) = struct
       | OffsetOf (tag, member) ->
         (match Pmap.find tag prog5.tagDefs with
          | StructDef st ->
-           let n = Z.of_int (Option.get (Memory.member_offset st member)) in
+           let n = Z.of_int (Option.get (Memory.struct_member_offset st member)) in
            return @@ num_lit_ n bt here
          | _ -> Error "Invalid OffsetOf")
       | MemberShift _ -> Error "todo: MemberShift"

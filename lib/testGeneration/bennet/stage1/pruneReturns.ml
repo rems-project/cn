@@ -225,7 +225,7 @@ module Make (AD : Domain.T) = struct
         | BT.Struct tag ->
           (match Pmap.find tag prog5.tagDefs with
            | StructDef layout ->
-             let member_ids, fam = Memory.members layout in
+             let member_ids, fam = Memory.struct_members layout in
              (match fam with
               | None -> ()
               | Some _ -> failwith "todo: flexible array members");
@@ -353,7 +353,7 @@ module Make (AD : Domain.T) = struct
             | BT.Struct tag ->
               (match Pmap.find tag prog5.tagDefs with
                | StructDef layout ->
-                 let member_types_list, fam = Memory.member_types layout in
+                 let member_types_list, fam = Memory.struct_member_types layout in
                  (match fam with
                   | None -> ()
                   | Some _ -> failwith "todo: flexible array members");
