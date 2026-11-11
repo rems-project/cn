@@ -437,10 +437,10 @@ module Flags = struct
   let accept_uninterp =
     let doc =
       "Support uninterpreted functions+predicates at runtime, by providing function \
-       stubs in <input>.uninterp.c for the user to fill in. These return the default \
-       value for the\n\
+       stubs that the user can fill in.These return the default value for the\n\
       \       function/predicate return type unless overwritten (using \
-       CN_STUB_<fn_or_pred_name>)."
+       CN_STUB_<fn_or_pred_name>, in a new file assumed to be called \
+       \"<input>.uninterp.c\")."
     in
     Arg.(value & flag & info ~docs:s_fulminate [ "accept-uninterp" ] ~doc)
 end
