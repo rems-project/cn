@@ -258,8 +258,8 @@ type 'TY fun_map_decl =
   | ProcDecl of Locations.t * ArgumentTypes.ft option
 
 type tag_definition =
-  | StructDef of Memory.struct_layout
-  | UnionDef
+  | StructDef of Memory.struct_decl
+  | UnionDef of Memory.union_decl
 
 type function_to_convert =
   { loc : Locations.t;

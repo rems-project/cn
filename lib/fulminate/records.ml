@@ -162,11 +162,10 @@ let add_records_to_map_from_struct (tag_def : Mucore.tag_definition) =
       (fun (sp : Memory.struct_piece) ->
          match sp.member_or_padding with
          | Some (_, sct) ->
-           populate
-             (BT.of_sct Memory.is_signed_integer_type Memory.size_of_integer_type sct)
+           populate (Memory.bt_of_sct sct)
          | None -> ())
       sl
-  | UnionDef -> ()
+  | UnionDef _ -> ()
 
 
 (* Populate record table *)

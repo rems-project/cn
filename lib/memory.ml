@@ -36,22 +36,6 @@ let max_pointer =
   Z.sub (Z.pow (Z.of_int 2) pointer_bits) (Z.of_int 1)
 
 
-let bt_of_sct = BT.of_sct is_signed_integer_type size_of_integer_type
-
-let sbt_of_sct = BaseTypes.Surface.of_sct is_signed_integer_type size_of_integer_type
-
-let uintptr_bt = BT.uintptr_bt is_signed_integer_type size_of_integer_type
-
-let intptr_bt = BT.intptr_bt is_signed_integer_type size_of_integer_type
-
-let size_bt = BT.size_bt is_signed_integer_type size_of_integer_type
-
-let size_sbt = BaseTypes.Surface.size_bt is_signed_integer_type size_of_integer_type
-
-let sint_bt = bt_of_sct Sctypes.(Integer (Signed Int_))
-
-let sint_sbt = sbt_of_sct Sctypes.(Integer (Signed Int_))
-
 let size_of_ctype = function
   | Void -> Cerb_diagnostic.fatal "size_of_ctype applied to void"
   | ct -> Z.to_int (OI.sizeof !Sctypes.tagDefs_ref (to_ctype ct))
@@ -62,6 +46,22 @@ let align_of_ctype = function
   | Function _ -> 1
   | ct -> Z.to_int (OI.alignof !Sctypes.tagDefs_ref (Sctypes.to_ctype ct))
 
+
+let bt_of_sct = BT.of_sct is_signed_integer_type size_of_ctype
+
+let sbt_of_sct = BaseTypes.Surface.of_sct is_signed_integer_type size_of_ctype
+
+let uintptr_bt = BT.uintptr_bt is_signed_integer_type size_of_ctype
+
+let intptr_bt = BT.intptr_bt is_signed_integer_type size_of_ctype
+
+let size_bt = BT.size_bt is_signed_integer_type size_of_ctype
+
+let size_sbt = BaseTypes.Surface.size_bt is_signed_integer_type size_of_ctype
+
+let sint_bt = bt_of_sct Sctypes.(Integer (Signed Int_))
+
+let sint_sbt = sbt_of_sct Sctypes.(Integer (Signed Int_))
 
 type struct_piece =
   { offset : int;
@@ -84,7 +84,7 @@ type struct_layout = struct_piece list * flexible_array_member option
 
 type struct_decl = struct_layout
 
-type struct_decls = struct_layout Sym.Map.t
+type struct_decls = struct_decl Sym.Map.t
 
 let struct_members ((pieces, fam) : struct_layout) =
   ( List.filter_map
@@ -111,6 +111,18 @@ let struct_member_offset ((pieces, fam) : struct_layout) member : int option =
   | Some i, _ -> Some i
   | None, Some { member = member', _; offset } when Id.equal member member' -> Some offset
   | _ -> None
+
+
+type union_member = 
+  { member : Id.t;
+    ct : Sctypes.t;
+    size : int;
+    padding : int }
+
+type union_decl = union_member list
+
+type union_decls = union_decl Sym.Map.t
+
 
 
 (* tries to implement all_values_representable_in from runtime std.core *)

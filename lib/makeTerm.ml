@@ -550,6 +550,7 @@ let value_check mode (struct_layouts : Memory.struct_decls) ct about loc =
            (fst (Sym.Map.find tag struct_layouts))
            (* Ignore any flexible array member: it's not part of the struct *value*. *))
         loc
+    | Union _tag -> Cerb_diagnostic.fatal "todo: union types"
     | Function _ -> Cerb_diagnostic.fatal "todo: function types"
   in
   aux ct about

@@ -5,6 +5,7 @@ module AT = ArgumentTypes
 
 type t =
   { struct_decls : Memory.struct_decls;
+    union_decls : Memory.union_decls;
     datatypes : BaseTypes.dt_info Sym.Map.t;
     datatype_constrs : BaseTypes.constr_info Sym.Map.t;
     datatype_order : Sym.t list list option;
@@ -18,6 +19,7 @@ type t =
 
 let empty =
   { struct_decls = Sym.Map.empty;
+    union_decls = Sym.Map.empty;
     datatypes = Sym.Map.empty;
     datatype_constrs = Sym.Map.empty;
     datatype_order = None;
@@ -40,6 +42,8 @@ let get_lemma global sym = Sym.Map.find_opt sym global.lemmata
 
 let get_struct_decl global sym = Sym.Map.find_opt sym global.struct_decls
 
+let get_union_decl global sym = Sym.Map.find_opt sym global.union_decls
+
 let get_datatype global sym = Sym.Map.find_opt sym global.datatypes
 
 let get_datatype_constr global sym = Sym.Map.find_opt sym global.datatype_constrs
@@ -51,6 +55,8 @@ let sym_map_from_bindings xs =
 type message =
   | Unknown_function of Sym.t
   | Unknown_struct of Sym.t
+  | Unknown_union of Sym.t
+  | Unknown_struct_or_union of Sym.t
   | Unknown_datatype of Sym.t
   | Unknown_datatype_constr of Sym.t
   | Unknown_resource_predicate of
@@ -92,9 +98,11 @@ module type Lifted = sig
 
   val get_lemma : Locations.t -> Sym.t -> (Cerb_location.t * AT.lemmat) t
 
-  val get_struct_decl : Locations.t -> Sym.t -> Memory.struct_layout t
+  val get_struct_decl : Locations.t -> Sym.t -> Memory.struct_decl t
 
-  val get_member_type
+  val get_union_decl : Locations.t -> Sym.t -> Memory.union_decl t
+
+  val get_struct_member_type
     :  fam_permitted:bool ->
     Locations.t ->
     Id.t ->
@@ -133,7 +141,9 @@ module Lift (M : ErrorReader) : Lifted with type 'a t := 'a M.t = struct
 
   let get_struct_decl loc tag = lift get_struct_decl loc tag (fun _ -> Unknown_struct tag)
 
-  let get_member_type ~fam_permitted loc member layout =
+  let get_union_decl loc tag = lift get_union_decl loc tag (fun _ -> Unknown_union tag)
+
+  let get_struct_member_type ~fam_permitted loc member layout =
     let member_types, fam_type = Memory.struct_member_types layout in
     match List.assoc_opt Id.equal member member_types with
     | Some membertyp -> M.return membertyp

@@ -1547,7 +1547,7 @@ let bytes_constraints
   (* FIXME this hard codes big endianness but this should be switchable *)
   let here = Locations.other __LOC__ in
   match ct with
-  | Sctypes.Void | Array (_, _) | Struct _ | Function (_, _, _) | Byte ->
+  | Sctypes.Void | Array (_, _) | Struct _ | Union _ | Function (_, _, _) | Byte ->
     fail (fun _ -> { loc; msg = Unsupported_byte_conv_ct ct })
   | Integer it ->
     let bt = T.get_bt value in
@@ -2674,12 +2674,8 @@ let record_tagdefs tagDefs =
   PmapM.iterM
     (fun tag def ->
        match def with
-       | Mu.UnionDef ->
-         if !Sym.experimental_unions then
-           return ()
-         else
-           unsupported (Loc.other __LOC__) !^"todo: union types"
-       | StructDef layout -> Global.add_struct_decl tag layout)
+       | Mu.UnionDef ud -> Global.add_union_decl tag ud
+       | StructDef sd -> Global.add_struct_decl tag sd)
     tagDefs
 
 
@@ -2688,11 +2684,14 @@ let check_tagdefs tagDefs =
     (fun _tag def ->
        let open Memory in
        match def with
-       | Mu.UnionDef ->
-         if !Sym.experimental_unions then
-           return ()
-         else
-           unsupported (Loc.other __LOC__) !^"todo: union types"
+       | Mu.UnionDef ud ->
+         let@ _ids = ListM.fold_leftM (fun ids {member;ct;_} ->
+           let@ () = WellTyped.check_ct (Loc.other __LOC__) ct in
+           assert (not (IdSet.mem member ids));
+           return (IdSet.add member ids)
+           ) IdSet.empty ud
+         in
+         return ()
        | StructDef (members, fam) ->
          let@ member_names =
            ListM.fold_rightM

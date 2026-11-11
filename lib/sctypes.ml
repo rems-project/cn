@@ -76,6 +76,7 @@ type ctype =
   | Array of ctype * int option
   | Pointer of ctype
   | Struct of Sym.t
+  | Union of Sym.t
   | Function of
       (qualifiers * ctype)
       * (ctype * (* is_register *) bool) list
@@ -145,6 +146,7 @@ let rec to_ctype (ct_ : ctype) =
     | Array (t, oi) -> Array (to_ctype t, Option.map Z.of_int oi)
     | Pointer t -> Pointer (Ctype.no_qualifiers, to_ctype t)
     | Struct t -> Struct t
+    | Union t -> Union t
     | Byte -> Byte
     | Function ((ret_q, ret_ct), args, variadic) ->
       let args =
@@ -160,7 +162,7 @@ let rec to_ctype (ct_ : ctype) =
 
 let tagDefs_ref : Ctype.tag_definitions ref = ref (Pmap.empty Sym.compare)
 
-let rec of_ctype (Ctype.Ctype (_, ct_) as ct) =
+let rec of_ctype (Ctype.Ctype (_, ct_)) =
   let open Option in
   match ct_ with
   | Ctype.Void -> return Void
@@ -191,13 +193,7 @@ let rec of_ctype (Ctype.Ctype (_, ct_) as ct) =
   | Ctype.Atomic _ -> None
   | Ctype.Struct s -> return (Struct s)
   | Byte -> return Byte
-  | Union _ ->
-    let tagDefs = !tagDefs_ref in
-    let size = Z.to_int (Ocaml_implementation.sizeof tagDefs ct) in
-    if !Sym.experimental_unions then
-      return (Array (Byte, Some size))
-    else
-      fail
+  | Union tag -> return (Union tag)
 
 
 let of_ctype_unsafe loc ct =

@@ -723,6 +723,7 @@ let rec pp_sctype = function
     pp_constructor "SCtypes.Array" [ pp_tuple [ pp_sctype ct; pp_option pp_nat on ] ]
   | Sctypes.Pointer ct -> pp_constructor "SCtypes.Pointer" [ pp_sctype ct ]
   | Sctypes.Struct sym -> pp_constructor "SCtypes.Struct" [ pp_symbol sym ]
+  | Sctypes.Union sym -> pp_constructor "SCtypes.Union" [ pp_symbol sym ]
   | Sctypes.Function ((quals, ret), args, variadic) ->
     pp_constructor
       "SCtypes.SCFunction"

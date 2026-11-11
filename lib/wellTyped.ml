@@ -105,7 +105,7 @@ module NoSolver = struct
 
   let get_struct_member_type ~fam_permitted loc tag member =
     let@ decl = get_struct_decl loc tag in
-    let@ ty = get_member_type ~fam_permitted loc member decl in
+    let@ ty = get_struct_member_type ~fam_permitted loc member decl in
     return ty
 
 
@@ -375,6 +375,9 @@ module WCT = struct
       | Pointer ct -> aux ct
       | Struct tag ->
         let@ _struct_decl = get_struct_decl loc tag in
+        return ()
+      | Union tag ->
+        let@ _union_decl = get_union_decl loc tag in
         return ()
       | Function ((_, rct), args, _) -> ListM.iterM aux (rct :: List.map fst args)
       | Byte -> return ()
@@ -1960,16 +1963,7 @@ module BaseTyping = struct
           let@ pe2 = check_pexpr CType pe2 in
           return (BT.Bool, PEare_compatible (pe1, pe2))
         | PEconstrained _ -> todo ()
-        | PEunion (tag, member, pe) ->
-          if !Sym.experimental_unions then (
-            (* todo: make this proper when CN actually supports unions *)
-            let ct = Option.get (Sctypes.of_ctype (CF.Ctype.Ctype ([], Union tag))) in
-            let@ () = WCT.is_ct loc ct in
-            let@ pe = infer_pexpr pe in
-            return (Memory.bt_of_sct ct, PEunion (tag, member, pe)))
-          else
-            fail
-              { loc; msg = Generic !^"unsupported: union types" } [@alert "-deprecated"]
+        | PEunion (_tag, _member, _pe) -> failwith "todo: PEunion is being changed in Core"
         | PEmemberof (tag, member, pe) ->
           let@ pe = check_pexpr (Struct tag) pe in
           let@ field_ct = get_struct_member_type ~fam_permitted:false loc tag member in
@@ -1978,14 +1972,8 @@ module BaseTyping = struct
            inferring types of PEif *)
         | PEerror (_, _) -> todo ()
         | PEundef (loc, ub) ->
-          if !Sym.experimental_unions then
-            (* in the case of a well-formedness check when labels are not inlined
-             *      run ret_label ( undef(<<UB088_reached_end_of_function>>)))
-             * we may need to infer an type for PEundef, which in the absence of
-             * polymorphism is arbitrarily to Unit below *)
+            (* In the absence of polymorphism, arbitrarily use Unit *)
             return (Unit, PEundef (loc, ub))
-          else
-            todo ()
       in
       return (Pexpr (loc, annots, bty, pe_))
 

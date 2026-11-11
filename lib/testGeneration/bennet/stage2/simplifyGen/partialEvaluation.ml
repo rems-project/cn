@@ -292,10 +292,7 @@ module Make (AD : Domain.T) = struct
                  (Bits
                     ( (Unsigned, Memory.size_of_ctype Sctypes.(Integer Size_t)),
                       Z.of_int (Memory.size_of_ctype ty) )),
-               BT.of_sct
-                 Memory.is_signed_integer_type
-                 Memory.size_of_integer_type
-                 Sctypes.(Integer Size_t),
+               Memory.bt_of_sct Sctypes.(Integer Size_t),
                here )
       | OffsetOf (tag, member) ->
         (match Pmap.find tag prog5.tagDefs with

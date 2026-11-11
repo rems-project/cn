@@ -102,7 +102,7 @@ let lookup_function sym env = Sym.Map.find_opt sym env.functions
 let lookup_struct_opt sym env =
   match Pmap.lookup sym env.tagDefs with
   | Some (StructDef xs) -> Some xs
-  | Some UnionDef | None -> None
+  | Some (UnionDef _) | None -> None
 
 
 let add_datatype sym info env =
