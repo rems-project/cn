@@ -519,49 +519,6 @@ let generate_defined_fun_def_and_decl_docs funs =
   generate_fun_def_and_decl_docs (List.map (fun (decl, def) -> (decl, Some def)) funs)
 
 
-(* --accept-uninterp: an uninterpreted CN function or predicate: its declaration, its default
-   stub (Cn_to_ail.uninterp_stub_def) and the comment that introduces the stub, the CN signature *)
-type uninterp_stub =
-  { decl : A.sigma_declaration;
-    stub : CF.GenTypes.genTypeCategory A.sigma_function_definition;
-    comment : string
-  }
-
-(* the macro that disables the default stub of an uninterpreted function or predicate *)
-let uninterp_stub_macro sym = "CN_STUB_" ^ Sym.pp_string sym
-
-(* --accept-uninterp: the default stubs, for the end of the instrumented file, `static` like
-   the instrumented file's own helpers, which declared them (static) at its top. Each is
-   preceded by its comment and wrapped in `#ifndef CN_STUB_<name>`, so that a body the user
-   gives in <input>.uninterp.c (included just before) replaces the default by defining that
-   macro beside it. *)
-let generate_uninterp_stub_defs (stubs : uninterp_stub list) =
-  let pp prog =
-    doc_to_pretty_string
-      CF.Pp_ail.(with_executable_spec (pp_program ~show_include:true) (None, prog))
-  in
-  let defs =
-    List.map
-      (fun { decl = (sym, _) as decl; stub; comment } ->
-         "/* "
-         ^ comment
-         ^ " */\n#ifndef "
-         ^ uninterp_stub_macro sym
-         ^ "\nstatic "
-         ^ pp
-             { A.empty_sigma with
-               declarations = [ decl ];
-               function_definitions = [ stub ]
-             }
-         ^ "#endif\n")
-      stubs
-  in
-  "/* DEFAULT STUBS, each disabled by defining its CN_STUB_<name> macro */\n\n"
-  ^ String.concat "\n" defs
-
-
-(* The fourth component: the declarations of the uninterpreted functions, accepted by
-   --accept-uninterp and so without a definition here, each with the comment for its stub *)
 let generate_c_functions
       ~accept_uninterp
       filename
@@ -596,29 +553,9 @@ let generate_c_functions
   in
   let locs = List.map (fun (_, ((loc, _), _)) -> loc) ail_funs in
   let decls_and_defs = List.map (fun (_, ((_, decl), def)) -> (decl, def)) ail_funs in
-  let stubs =
-    List.filter_map
-      (fun ((fn_sym, (lf_def : Definition.Function.t)), ((_, decl), def)) ->
-         match def with
-         | None ->
-           Some
-             { decl;
-               stub = Cn_to_ail.generate_uninterp_stub_def (`Function lf_def) decl;
-               comment =
-                 "uninterpreted CN function "
-                 ^ Pp.plain (Definition.Function.pp_sig (Sym.pp fn_sym) lf_def)
-                 ^ ", declared at "
-                 ^ Pp.plain (Locations.pp lf_def.loc)
-             }
-         | Some _ -> None)
-      ail_funs
-  in
   let decl_str_comment = "\n/* CN FUNCTIONS */\n\n" in
   let defs_doc, decls_doc = generate_fun_def_and_decl_docs decls_and_defs in
-  ( doc_to_pretty_string defs_doc,
-    decl_str_comment ^ doc_to_pretty_string decls_doc,
-    locs,
-    stubs )
+  (doc_to_pretty_string defs_doc, decl_str_comment ^ doc_to_pretty_string decls_doc, locs)
 
 
 let[@warning "-32" (* unused-value-declaration *)] rec remove_duplicates eq_fun = function
@@ -660,28 +597,10 @@ let generate_c_predicates
   in
   let locs_and_decls, defs = List.split ail_funs in
   let locs, decls = List.split locs_and_decls in
-  let stubs =
-    List.filter_map
-      (fun ((pred_sym, (rp_def : Definition.Predicate.t)), (decl, def)) ->
-         match def with
-         | None ->
-           Some
-             { decl;
-               stub = Cn_to_ail.generate_uninterp_stub_def (`Predicate rp_def) decl;
-               comment =
-                 "uninterpreted CN predicate "
-                 ^ Pp.plain (Definition.Predicate.pp_sig (Sym.pp pred_sym) rp_def)
-                 ^ ", declared at "
-                 ^ Pp.plain (Locations.pp rp_def.loc)
-             }
-         | Some _ -> None)
-      (List.combine cn_preds (List.combine decls defs))
-  in
   let defs_doc, decls_doc = generate_fun_def_and_decl_docs (List.combine decls defs) in
   ( "\n/* CN PREDICATES */\n\n" ^ doc_to_pretty_string defs_doc,
     doc_to_pretty_string decls_doc,
-    locs,
-    stubs )
+    locs )
 
 
 let generate_c_lemmas

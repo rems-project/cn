@@ -3662,8 +3662,18 @@ let cn_to_ail_function
           Decl_function
             (false, (C.no_qualifiers, ret_type), param_types, false, false, false)) ) )
   in
-  let cn_to_ail_function_aux (it : TN.t) =
-    let bs, ss =
+  (* Generating function definition *)
+  let generate_fun_def (bs, ss) =
+    ( fn_sym,
+      ( lf_def.loc,
+        0,
+        empty_attributes,
+        param_syms,
+        mk_stmt A.(AilSblock (bs, List.map mk_stmt ss)) ) )
+  in
+  let body_bs, body_ss =
+    match lf_def.body with
+    | Def it | Rec_Def it ->
       cn_to_ail_expr_with_pred_name
         filename
         (Some fn_sym)
@@ -3672,63 +3682,28 @@ let cn_to_ail_function
         None
         it
         Return
-    in
-    (* Generating function definition *)
-    let def =
-      ( fn_sym,
-        ( lf_def.loc,
-          0,
-          empty_attributes,
-          param_syms,
-          mk_stmt A.(AilSblock (bs, List.map mk_stmt ss)) ) )
-    in
-    Some (((loc, decl), Some def), ail_record_opt)
-  in
-  match lf_def.body with
-  | Def it | Rec_Def it -> cn_to_ail_function_aux it
-  | Uninterp when accept_uninterp ->
-    (* When accept_uninterp enabled and function is uninterpreted, just output the declaration in <input>.exec.c;
+    | Uninterp when accept_uninterp ->
+      (* When accept_uninterp enabled and function is uninterpreted, just output the declaration in <input>.exec.c;
        definition is the stub in <input>.uninterp.c *)
-    Some (((loc, decl), None), ail_record_opt)
-  | Uninterp ->
-    Cerb_colour.with_colour
-      (fun () ->
-         print_endline
-           Pp.(
-             plain
-               (Pp.item
-                  "Uninterpreted CN functions not supported at runtime. Please provide a \
-                   concrete function definition for"
-                  (squotes (Definition.Function.pp_sig (Sym.pp fn_sym) lf_def)
-                   ^^^ !^"at"
-                   ^^^ Locations.pp lf_def.loc))))
-      ();
-    exit 2
-
-
-(* Produce a stub definition for uninterpreted functions and predicates *)
-let generate_uninterp_stub_def
-      (cn_def :
-        [ `Function of Definition.Function.t | `Predicate of Definition.Predicate.t ])
-      ((sym, (loc, attrs, _)) : A.sigma_declaration)
-  : CF.GenTypes.genTypeCategory A.sigma_function_definition
-  =
-  let param_syms, return_bt =
-    match cn_def with
-    | `Function lf_def ->
-      let params = List.map (fun (sym, bt) -> (sym, bt_to_ail_ctype bt)) lf_def.args in
-      let param_syms, _ = List.split params in
-      (param_syms, lf_def.return_bt)
-    | `Predicate rp_def -> (List.map fst (predicate_params rp_def), snd rp_def.oarg)
+      ([], [ A.(AilSreturn (mk_expr (cn_to_ail_default lf_def.return_bt))) ])
+      (* Some (((loc, decl), None), ail_record_opt) *)
+    | Uninterp ->
+      Cerb_colour.with_colour
+        (fun () ->
+           print_endline
+             Pp.(
+               plain
+                 (Pp.item
+                    "Uninterpreted CN functions not supported at runtime. Please provide \
+                     a concrete function definition for"
+                    (squotes (Definition.Function.pp_sig (Sym.pp fn_sym) lf_def)
+                     ^^^ !^"at"
+                     ^^^ Locations.pp lf_def.loc))))
+        ();
+      exit 2
   in
-  let body =
-    match return_bt with
-    | BT.Unit -> []
-    | bt ->
-      (* Return default value for return type *)
-      [ mk_stmt A.(AilSreturn (mk_expr (cn_to_ail_default bt))) ]
-  in
-  (sym, (loc, 0, attrs, param_syms, mk_stmt A.(AilSblock ([], body))))
+  let def = generate_fun_def (body_bs, body_ss) in
+  Some (((loc, decl), Some def), ail_record_opt)
 
 
 (* only used in cn_to_ail_predicate *)
@@ -3846,7 +3821,8 @@ let cn_to_ail_predicate
       without_ownership_checking
       (pred_sym, (rp_def : Definition.Predicate.t))
   =
-  let ret_type = bt_to_ail_ctype ~pred_sym:(Some pred_sym) (snd rp_def.oarg) in
+  let return_bt = snd rp_def.oarg in
+  let ret_type = bt_to_ail_ctype ~pred_sym:(Some pred_sym) return_bt in
   let clause_translate (pred_sym, (rp_def : Definition.Predicate.t)) =
     let rec clause_translate_aux (clauses : Definition.Clause.t list) =
       match clauses with
@@ -3893,12 +3869,12 @@ let cn_to_ail_predicate
     in
     function
     | Some clauses -> Some (clause_translate_aux clauses)
+    (* None => uninterpreted *)
     | None when accept_uninterp ->
-      (* When accept_uninterp enabled and predicate is uninterpreted, just output the declaration in <input>.exec.c;
-       definition is the stub in <input>.uninterp.c *)
-      None
+      (* When accept_uninterp enabled and predicate is uninterpreted, return default value 
+      for return type as body *)
+      Some ([], [ A.(AilSreturn (mk_expr (cn_to_ail_default return_bt))) ])
     | None ->
-      (* Uninterpreted predicate *)
       Cerb_colour.with_colour
         (fun () ->
            print_endline

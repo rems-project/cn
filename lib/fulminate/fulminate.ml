@@ -633,10 +633,10 @@ let main
       prog5
   in
   let c_datatype_defs = generate_c_datatypes sigm in
-  let c_function_defs, c_function_decls, _c_function_locs, c_function_stubs =
+  let c_function_defs, c_function_decls, _c_function_locs =
     generate_c_functions ~accept_uninterp filename remove_uninterp prog5 sigm
   in
-  let c_predicate_defs, c_predicate_decls, _c_predicate_locs, c_predicate_stubs =
+  let c_predicate_defs, c_predicate_decls, _c_predicate_locs =
     generate_c_predicates
       ~accept_uninterp
       filename
@@ -706,7 +706,6 @@ let main
         ]
       ]
   in
-  let uninterp_stubs = c_function_stubs @ c_predicate_stubs in
   let uninterp_filename =
     get_filename_with_prefix output_dir (get_uninterp_filename filename)
   in
@@ -813,6 +812,12 @@ let main
   (* Save things *)
   let oc = Stdlib.open_out out_filename in
   output_to_oc oc [ "#define __CN_INSTRUMENT\n"; "#include <cn-executable/utils.h>\n" ];
+  if accept_uninterp && Sys.file_exists uninterp_filename then
+    output_to_oc
+      oc
+      [ "/* Include user-provided bodies for (some) uninterpreted functions/predicates */\n";
+        "#include \"" ^ get_uninterp_filename filename ^ "\"\n"
+      ];
   output_to_oc oc cn_header_decls_list;
   output_to_oc
     oc
@@ -847,20 +852,5 @@ let main
      prerr_endline str);
   output_to_oc oc [ Globals.accessors_str filename prog5 ];
   output_to_oc oc cn_defs_list;
-  if accept_uninterp && not (List.is_empty uninterp_stubs) then (
-    let include_line f = "#include \"" ^ f ^ "\"\n" in
-    output_to_oc
-      oc
-      ([ "\n/* UNINTERPRETED CN FUNCTIONS AND PREDICATES */\n\n"
-         ^ get_uninterp_filename filename
-       ]
-       @ (if Sys.file_exists uninterp_filename then
-            [ "/* Include user-provided bodies for (some) uninterpreted \
-               functions/predicates */\n";
-              include_line (get_uninterp_filename filename)
-            ]
-          else
-            [])
-       @ [ "\n"; generate_uninterp_stub_defs uninterp_stubs; "\n" ]));
   close_out oc;
   Stdlib.Sys.remove in_filename
