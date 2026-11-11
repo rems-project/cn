@@ -520,15 +520,17 @@ let output_to_oc oc str_list = List.iter (Stdlib.output_string oc) str_list
 
 open Internal
 
+let get_filename_with_extension ~ext filename =
+  Filename.(remove_extension (basename filename)) ^ ext
+
+
 let get_instrumented_filename filename =
-  Filename.(remove_extension (basename filename)) ^ ".exec.c"
+  get_filename_with_extension ~ext:".exec.c" filename
 
 
-(* --accept-uninterp: the user's bodies for the uninterpreted CN functions and predicates of
-   input.c are read from input.uninterp.c beside the instrumented file, when it exists; Fulminate
-   never writes it (the default stubs are at the end of the instrumented file) *)
+(* For accept-uninterp *)
 let get_uninterp_filename filename =
-  Filename.(remove_extension (basename filename)) ^ ".uninterp.c"
+  get_filename_with_extension ~ext:".uninterp.c" filename
 
 
 let get_filename_with_prefix output_dir filename = Filename.concat output_dir filename
@@ -589,9 +591,7 @@ let main
   =
   if remove_uninterp && accept_uninterp then (
     print_endline
-      "--remove-uninterp and --accept-uninterp exclude each other: the first drops the \
-       assertions that mention an uninterpreted function or predicate, the second keeps \
-       them and leaves their definitions to <input>.uninterp.c.";
+      "Cannot supply both remove_uninterp and accept_uninterp -- please pick one";
     exit 1);
   let out_filename = get_filename_with_prefix output_dir out_filename in
   (* disabled until fixed *)
@@ -706,17 +706,6 @@ let main
         ]
       ]
   in
-  (* --accept-uninterp: the uninterpreted CN functions and predicates get default stubs at the
-     end of the instrumented file (below), each returning the default value of its result type
-     and guarded by `#ifndef CN_STUB_<name>`. The user's bodies live in <input>.uninterp.c beside
-     it, which Fulminate never writes and the instrumented file includes before the defaults: a
-     body defines CN_STUB_<name>
-     beside itself and so disables the default. Re-instrumenting after a specification change
-     then needs nothing of the user: a new uninterpreted name gets a default, a removed one
-     leaves an unused body (harmless), a changed signature is a conflicting-types error at the
-     user's definition. The user's file is not a translation unit of its own: the instrumented
-     file declares the stubs (static) with its other helpers and includes it at its end, so the
-     bodies can call the helpers, which stay static, and nothing is exported from the unit. *)
   let uninterp_stubs = c_function_stubs @ c_predicate_stubs in
   let uninterp_filename =
     get_filename_with_prefix output_dir (get_uninterp_filename filename)
@@ -858,34 +847,18 @@ let main
      prerr_endline str);
   output_to_oc oc [ Globals.accessors_str filename prog5 ];
   output_to_oc oc cn_defs_list;
-  (* --accept-uninterp: the stubs, as part of this translation unit (see above): the user's
-     bodies first, from <input>.uninterp.c when it exists (a quoted include, looked up beside
-     this file), then the guarded defaults *)
   if accept_uninterp && not (List.is_empty uninterp_stubs) then (
     let include_line f = "#include \"" ^ f ^ "\"\n" in
     output_to_oc
       oc
-      ([ "\n\
-          /* UNINTERPRETED CN FUNCTIONS AND PREDICATES: the user's bodies, then a \
-          default for each one without a body.\n\
-         \   A body goes in "
+      ([ "\n/* UNINTERPRETED CN FUNCTIONS AND PREDICATES */\n\n"
          ^ get_uninterp_filename filename
-         ^ " beside this file, which Fulminate never writes,\n\
-           \   with `#define CN_STUB_<name>` beside it, which disables the default \
-            below. The file is not a\n\
-           \   translation unit of its own: this file includes it here, so a body sees \
-            the helpers above\n\
-           \   (CN functions and predicates, struct conversions, record functions, the \
-            globals' accessors,\n\
-           \   all static) and the runtime's API (cn-executable/utils.h: a CN value is \
-            built with\n\
-           \   convert_to_cn_integer(...), convert_to_cn_bool(...), ...), and needs no \
-            include of its own.\n\
-           \   \"declared at\" gives the line of the preprocessed copy unless \
-            --source-locs-mode. */\n"
        ]
        @ (if Sys.file_exists uninterp_filename then
-            [ include_line (get_uninterp_filename filename) ]
+            [ "/* Include user-provided bodies for (some) uninterpreted \
+               functions/predicates */\n";
+              include_line (get_uninterp_filename filename)
+            ]
           else
             [])
        @ [ "\n"; generate_uninterp_stub_defs uninterp_stubs; "\n" ]));
