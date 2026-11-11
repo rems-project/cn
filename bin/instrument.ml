@@ -428,17 +428,19 @@ module Flags = struct
 
   let remove_uninterp =
     let doc =
-      "Support uninterpreted functions+predicates at runtime, by removing any assertions \
-       containing uninterpreted values from the output"
+      "Remove any specifications containing uninterpreted values or calls to \
+       uninterpreted functions/predicates from the output"
     in
     Arg.(value & flag & info ~docs:s_fulminate [ "remove-uninterp" ] ~doc)
 
 
   let accept_uninterp =
     let doc =
-      "Accept uninterpreted CN functions and predicates: each gets a default stub at the \
-       end of the instrumented file, which a body in <input>.uninterp.c replaces by \
-       defining CN_STUB_<name>."
+      "Support uninterpreted functions+predicates at runtime, by providing function \
+       stubs in <input>.uninterp.c for the user to fill in. These return the default \
+       value for the\n\
+      \       function/predicate return type unless overwritten (using \
+       CN_STUB_<fn_or_pred_name>)."
     in
     Arg.(value & flag & info ~docs:s_fulminate [ "accept-uninterp" ] ~doc)
 end
