@@ -3683,8 +3683,8 @@ let cn_to_ail_function
         it
         Return
     | Uninterp when accept_uninterp ->
-      (* When accept_uninterp enabled and function is uninterpreted, just output the declaration in <input>.exec.c;
-       definition is the stub in <input>.uninterp.c *)
+      (* When accept_uninterp enabled and function is uninterpreted, return default value 
+      for return type as body *)
       ([], [ A.(AilSreturn (mk_expr (cn_to_ail_default lf_def.return_bt))) ])
       (* Some (((loc, decl), None), ail_record_opt) *)
     | Uninterp ->

@@ -514,7 +514,6 @@ let generate_fun_def_and_decl_docs funs =
   (defs_doc, decls_doc)
 
 
-(* [funs]: declarations with their definitions, all defined *)
 let generate_defined_fun_def_and_decl_docs funs =
   generate_fun_def_and_decl_docs (List.map (fun (decl, def) -> (decl, Some def)) funs)
 
