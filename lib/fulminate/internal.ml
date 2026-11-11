@@ -486,11 +486,17 @@ let generate_cn_versions_of_structs c_structs =
   "\n/* CN VERSIONS OF C STRUCTS */\n\n" ^ generate_str_from_ail_structs ail_structs
 
 
-(* [funs]: each CN function or predicate with its definition, or without one when it is
-   uninterpreted and accepted (--accept-uninterp): then only its declaration is printed here,
-   `static` like everything else, and its definition is the default stub at the end of the
-   instrumented file, or the user's body in <input>.uninterp.c, included there. *)
-let generate_fun_def_and_decl_docs funs =
+(* --accept-uninterp: the macro whose definition disables the default body of the
+   uninterpreted CN function or predicate [sym] *)
+let uninterp_stub_macro sym = "CN_STUB_" ^ Sym.pp_string sym
+
+(* [funs]: each CN function or predicate with its definition, `static` like everything else.
+   [uninterp]: the uninterpreted ones, whose definition is the default body --accept-uninterp
+   gives them (Cn_to_ail.cn_to_ail_function, cn_to_ail_predicate): it is printed between
+   `#ifndef CN_STUB_<name>` and `#endif`, so that a body of the user's in <input>.uninterp.c,
+   which the instrumented file includes at its top, replaces the default by defining that macro
+   beside itself. The declarations are printed unguarded. *)
+let generate_fun_def_and_decl_docs ?(uninterp = Sym.Set.empty) funs =
   let one_def_prog (decl, def) =
     { A.empty_sigma with declarations = [ decl ]; function_definitions = [ def ] }
   in
@@ -499,11 +505,22 @@ let generate_fun_def_and_decl_docs funs =
     !^"static "
     ^^ CF.Pp_ail.(with_executable_spec (pp_program ~show_include:true) (None, x))
   in
+  let guarded sym doc =
+    if Sym.Set.mem sym uninterp then
+      !^("#ifndef " ^ uninterp_stub_macro sym)
+      ^^ hardline
+      ^^ doc
+      ^^ !^"#endif"
+      ^^ hardline
+      ^^ hardline
+    else
+      doc
+  in
   let defs_doc =
     List.fold_left
-      (fun d (decl, def_opt) ->
+      (fun d (((sym, _) as decl), def_opt) ->
          match def_opt with
-         | Some def -> pp_it (one_def_prog (decl, def)) ^^ d
+         | Some def -> guarded sym (pp_it (one_def_prog (decl, def))) ^^ d
          | None -> d)
       empty
       funs
@@ -552,8 +569,16 @@ let generate_c_functions
   in
   let locs = List.map (fun (_, ((loc, _), _)) -> loc) ail_funs in
   let decls_and_defs = List.map (fun (_, ((_, decl), def)) -> (decl, def)) ail_funs in
+  (* --accept-uninterp: the uninterpreted ones got a default body, to be guarded *)
+  let uninterp =
+    Sym.Set.of_list
+      (List.filter_map
+         (fun (f_sym, lf_def) ->
+            if Definition.Function.is_uninterp lf_def then Some f_sym else None)
+         cn_funs)
+  in
   let decl_str_comment = "\n/* CN FUNCTIONS */\n\n" in
-  let defs_doc, decls_doc = generate_fun_def_and_decl_docs decls_and_defs in
+  let defs_doc, decls_doc = generate_fun_def_and_decl_docs ~uninterp decls_and_defs in
   (doc_to_pretty_string defs_doc, decl_str_comment ^ doc_to_pretty_string decls_doc, locs)
 
 
@@ -596,7 +621,17 @@ let generate_c_predicates
   in
   let locs_and_decls, defs = List.split ail_funs in
   let locs, decls = List.split locs_and_decls in
-  let defs_doc, decls_doc = generate_fun_def_and_decl_docs (List.combine decls defs) in
+  (* --accept-uninterp: the uninterpreted ones got a default body, to be guarded *)
+  let uninterp =
+    Sym.Set.of_list
+      (List.filter_map
+         (fun (pred_sym, rp_def) ->
+            if Definition.Predicate.is_uninterp rp_def then Some pred_sym else None)
+         cn_preds)
+  in
+  let defs_doc, decls_doc =
+    generate_fun_def_and_decl_docs ~uninterp (List.combine decls defs)
+  in
   ( "\n/* CN PREDICATES */\n\n" ^ doc_to_pretty_string defs_doc,
     doc_to_pretty_string decls_doc,
     locs )
