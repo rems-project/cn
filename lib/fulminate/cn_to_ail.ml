@@ -3606,15 +3606,18 @@ let extract_global_variables ?(prune_unused = false) (prog5 : _ Mucore.file) =
     | Mucore.GlobalDef (sct, _) | GlobalDecl sct -> (sym, Sctypes.to_ctype sct))
 
 
-(* The C parameters of a CN predicate's translation: the pointer and the iargs, by their CN
-      names, then the spec_mode and loop_ownership parameters every predicate function takes. *)
 let predicate_params (rp_def : Definition.Predicate.t) =
-  List.map
-    (fun (sym, bt) -> (sym, bt_to_ail_ctype bt))
-    ((rp_def.pointer, BT.(Loc ())) :: rp_def.iargs)
-  @ [ (spec_mode_sym, spec_mode_enum_type);
+  let pred_params =
+    List.map
+      (fun (sym, bt) -> (sym, bt_to_ail_ctype bt))
+      ((rp_def.pointer, BT.(Loc ())) :: rp_def.iargs)
+  in
+  let auxilliary_fulm_params =
+    [ (spec_mode_sym, spec_mode_enum_type);
       (loop_ownership_sym, loop_ownership_struct_ptr_ctype)
     ]
+  in
+  pred_params @ auxilliary_fulm_params
 
 
 (* TODO: Finish with rest of function - maybe header file with A.Decl_function (cn.h?) *)
@@ -3684,8 +3687,8 @@ let cn_to_ail_function
   match lf_def.body with
   | Def it | Rec_Def it -> cn_to_ail_function_aux it
   | Uninterp when accept_uninterp ->
-    (* --accept-uninterp: the declaration alone, which the instrumented file calls through;
-       the definition is the stub in <input>.uninterp.c (see Internal.generate_uninterp_stub_defs) *)
+    (* When accept_uninterp enabled and function is uninterpreted, just output the declaration in <input>.exec.c;
+       definition is the stub in <input>.uninterp.c *)
     Some (((loc, decl), None), ail_record_opt)
   | Uninterp ->
     Cerb_colour.with_colour
@@ -3703,15 +3706,8 @@ let cn_to_ail_function
     exit 2
 
 
-(* --accept-uninterp: the default stub of an uninterpreted CN function or predicate, a
-   definition for the declaration [decl] that its translation produced: the body returns the
-   default value of the result type (the runtime's default_cn_* for the base types, the
-   generated default_struct_* for structs, records and datatypes), so that the instrumented
-   program compiles and runs before any stub is filled in; a predicate with unit output, the
-   one type without a value, gets an empty body. The parameters are those of the translation
-   (function_params, predicate_params), by their CN names, so that the stub reads like the
-   declaration it stands for. *)
-let uninterp_stub_def
+(* Produce a stub definition for uninterpreted functions and predicates *)
+let generate_uninterp_stub_def
       (cn_def :
         [ `Function of Definition.Function.t | `Predicate of Definition.Predicate.t ])
       ((sym, (loc, attrs, _)) : A.sigma_declaration)
@@ -3728,7 +3724,9 @@ let uninterp_stub_def
   let body =
     match return_bt with
     | BT.Unit -> []
-    | bt -> [ mk_stmt A.(AilSreturn (mk_expr (cn_to_ail_default bt))) ]
+    | bt ->
+      (* Return default value for return type *)
+      [ mk_stmt A.(AilSreturn (mk_expr (cn_to_ail_default bt))) ]
   in
   (sym, (loc, 0, attrs, param_syms, mk_stmt A.(AilSblock ([], body))))
 
@@ -3896,7 +3894,8 @@ let cn_to_ail_predicate
     function
     | Some clauses -> Some (clause_translate_aux clauses)
     | None when accept_uninterp ->
-      (* --accept-uninterp: the declaration alone; the definition is the stub in <input>.uninterp.c *)
+      (* When accept_uninterp enabled and predicate is uninterpreted, just output the declaration in <input>.exec.c;
+       definition is the stub in <input>.uninterp.c *)
       None
     | None ->
       (* Uninterpreted predicate *)
@@ -3928,6 +3927,7 @@ let cn_to_ail_predicate
             (false, (C.no_qualifiers, ret_type), param_types, false, false, false)) ) )
   in
   (* Generating function definition *)
+  (* None case is where predicate is uninterpreted and accept_uninterp is enabled *)
   let def =
     Option.map
       (fun (bs, ss) ->

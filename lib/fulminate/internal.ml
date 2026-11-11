@@ -603,7 +603,7 @@ let generate_c_functions
          | None ->
            Some
              { decl;
-               stub = Cn_to_ail.uninterp_stub_def (`Function lf_def) decl;
+               stub = Cn_to_ail.generate_uninterp_stub_def (`Function lf_def) decl;
                comment =
                  "uninterpreted CN function "
                  ^ Pp.plain (Definition.Function.pp_sig (Sym.pp fn_sym) lf_def)
@@ -667,7 +667,7 @@ let generate_c_predicates
          | None ->
            Some
              { decl;
-               stub = Cn_to_ail.uninterp_stub_def (`Predicate rp_def) decl;
+               stub = Cn_to_ail.generate_uninterp_stub_def (`Predicate rp_def) decl;
                comment =
                  "uninterpreted CN predicate "
                  ^ Pp.plain (Definition.Predicate.pp_sig (Sym.pp pred_sym) rp_def)

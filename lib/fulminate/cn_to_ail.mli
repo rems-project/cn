@@ -205,7 +205,7 @@ val cn_to_ail_function
   * AilSyntax.sigma_tag_definition option)
     option
 
-val uninterp_stub_def
+val generate_uninterp_stub_def
   :  [ `Function of Definition.Function.t | `Predicate of Definition.Predicate.t ] ->
   AilSyntax.sigma_declaration ->
   GenTypes.genTypeCategory AilSyntax.sigma_function_definition
