@@ -302,7 +302,7 @@ let lookup_records_map_with_default ?(cn_sym : Sym.t option) bt =
 
 
 (* TODO: Complete *)
-let rec cn_to_ail_base_type ?pred_sym:(_ = None) cn_typ =
+let rec cn_to_ail_base_type cn_typ =
   let typedef_string_opt =
     match cn_typ with
     | CN_bits (sign, size) -> Some ("cn_bits_" ^ str_of_cn_bitvector_type sign size)
@@ -348,9 +348,7 @@ let rec cn_to_ail_base_type ?pred_sym:(_ = None) cn_typ =
   match typ with C.Void -> ret | _ -> mk_ctype C.(Pointer (C.no_qualifiers, ret))
 
 
-let bt_to_ail_ctype ?(pred_sym = None) t =
-  cn_to_ail_base_type ~pred_sym (bt_to_cn_base_type t)
-
+let bt_to_ail_ctype t = cn_to_ail_base_type (bt_to_cn_base_type t)
 
 let cn_to_ail_unop bt =
   let bt_typedef_str_opt = get_typedef_string (bt_to_ail_ctype bt) in
@@ -2690,7 +2688,7 @@ let cn_to_ail_resource
         | CN_record _members ->
           let pred_record_name = generate_sym_with_suffix ~suffix:"_record" pred_sym' in
           mk_ctype C.(Pointer (C.no_qualifiers, mk_ctype (Struct pred_record_name)))
-        | _ -> cn_to_ail_base_type ~pred_sym:(Some pred_sym') cn_bt
+        | _ -> cn_to_ail_base_type cn_bt
       in
       (ctype, snd pred_def'.oarg)
   in
@@ -2749,7 +2747,7 @@ let cn_to_ail_resource
                 (e :: es) @ List.map mk_expr [ AilEident enum_sym; loop_ownership_expr_ ]
               ))
         in
-        let binding = create_binding sym (bt_to_ail_ctype ~pred_sym:(Some pname) bt) in
+        let binding = create_binding sym (bt_to_ail_ctype bt) in
         (mk_expr fcall, binding :: List.concat bs, List.concat ss)
     in
     let s_decl =
@@ -3247,7 +3245,7 @@ let cn_to_ail_function
     * CF.GenTypes.genTypeCategory A.sigma_function_definition option)
     * A.sigma_tag_definition option
   =
-  let ret_type = bt_to_ail_ctype ~pred_sym:(Some fn_sym) lf_def.return_bt in
+  let ret_type = bt_to_ail_ctype lf_def.return_bt in
   let ail_record_opt = generate_record_opt fn_sym lf_def.return_bt in
   let params = List.map (fun (sym, bt) -> (sym, bt_to_ail_ctype bt)) lf_def.args in
   let param_syms, param_types = List.split params in
@@ -3367,7 +3365,7 @@ let cn_to_ail_predicate
       (pred_sym, (rp_def : Definition.Predicate.t))
   =
   let return_bt = snd rp_def.oarg in
-  let ret_type = bt_to_ail_ctype ~pred_sym:(Some pred_sym) return_bt in
+  let ret_type = bt_to_ail_ctype return_bt in
   let clause_translate (pred_sym, (rp_def : Definition.Predicate.t)) =
     let rec clause_translate_aux (clauses : Definition.Clause.t list) =
       match clauses with
@@ -4698,7 +4696,7 @@ let cn_to_ail_assume_resource
         | CN_record _members ->
           let pred_record_name = generate_sym_with_suffix ~suffix:"_record" pred_sym' in
           mk_ctype C.(Pointer (C.no_qualifiers, mk_ctype (Struct pred_record_name)))
-        | _ -> cn_to_ail_base_type ~pred_sym:(Some pred_sym') cn_bt
+        | _ -> cn_to_ail_base_type cn_bt
       in
       (ctype, snd pred_def'.oarg)
   in
@@ -4749,7 +4747,7 @@ let cn_to_ail_assume_resource
             AilEcall
               (mk_expr (AilEident (Sym.fresh ("assume_" ^ Sym.pp_string pname))), e :: es))
         in
-        let binding = create_binding sym (bt_to_ail_ctype ~pred_sym:(Some pname) bt) in
+        let binding = create_binding sym (bt_to_ail_ctype bt) in
         ( mk_expr fcall,
           binding :: List.concat bs,
           List.concat ss @ error_msg_update_stats_,
@@ -4993,7 +4991,7 @@ let cn_to_ail_assume_predicate
       spec_mode_opt
       without_ownership_checking
   =
-  let ret_type = bt_to_ail_ctype ~pred_sym:(Some pred_sym) (snd rp_def.oarg) in
+  let ret_type = bt_to_ail_ctype (snd rp_def.oarg) in
   let rec clause_translate (clauses : Definition.Clause.t list) =
     match clauses with
     | [] -> ([], [])
