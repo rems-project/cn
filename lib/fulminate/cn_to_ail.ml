@@ -3255,7 +3255,10 @@ let env_of ~filename (sigm : _ A.sigma) (prog5 : _ Mucore.file) : env =
   { filename;
     dts = sigm.cn_datatypes;
     globals = extract_global_variables prog5;
-    funs = Sym.Set.of_list (List.map fst (Pmap.bindings_list prog5.funs))
+    funs =
+      Sym.Set.empty
+      (* to be populated (the C functions of the unit, Pmap.bindings_list prog5.funs) when
+       the Sym case of cn_to_ail_expr_aux prints a C function's address as a pointer *)
   }
 
 
