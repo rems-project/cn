@@ -18,8 +18,12 @@ let get_typedef_string_aux (C.Ctype (annots, _)) =
   match annots with CF.Annot.Atypedef sym :: _ -> Some (Sym.pp_string sym) | _ -> None
 
 
-let get_typedef_string C.(Ctype (_, ctype_)) =
-  match ctype_ with Pointer (_, ctype) -> get_typedef_string_aux ctype | _ -> None
+(* The CN typedef name of a CN C type, whether it is passed by value
+   (`cn_bits_i32`) or as a pointer (`cn_map*`) *)
+let get_typedef_string (C.(Ctype (_, ctype_)) as ctype) =
+  match ctype_ with
+  | Pointer (_, ctype') -> get_typedef_string_aux ctype'
+  | _ -> get_typedef_string_aux ctype
 
 
 let mk_expr ?(loc = Cerb_location.unknown) expr_ =
