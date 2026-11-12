@@ -15,6 +15,8 @@ module AT = ArgumentTypes
 module OE = Ownership
 open Terms
 
+let experimental_unions = ref false
+
 type ail_bindings_and_statements =
   A.bindings * CF.GenTypes.genTypeCategory A.statement_ list
 
@@ -245,7 +247,7 @@ let rec bt_to_cn_base_type = function
   | Tuple bts -> CN_tuple (List.map bt_to_cn_base_type bts)
   | Set bt -> CN_set (bt_to_cn_base_type bt)
   | Option MemByte ->
-    if !Sym.experimental_unions then
+    if !experimental_unions then
       bt_to_cn_base_type (Bits (Unsigned, 8))
     else
       failwith (__LOC__ ^ ": TODO Option")
@@ -2612,15 +2614,9 @@ let generate_struct_map_get ((sym, (_loc, _attrs, tag_def)) : A.sigma_tag_defini
   | C.UnionDef _ -> []
 
 
-let transform_if_union (bt, sct) ail_expr =
-  let is_union =
-    !Sym.experimental_unions
-    &&
-    match (bt, sct) with
-    | BT.Map (_, Option MemByte), Sctypes.Array (Byte, _) -> true
-    | _, _ -> false
-  in
-  if is_union then (
+let transform_if_union (_bt, sct) ail_expr =
+  let is_union = match sct with Sctypes.Union _ -> true | _ -> false in
+  if !experimental_unions && is_union then (
     let addr_of_lhs = A.(AilEunary (Address, mk_expr ail_expr)) in
     let cast_addr_of_lhs =
       A.(AilEcast (C.no_qualifiers, C.pointer_to_char, mk_expr addr_of_lhs))
