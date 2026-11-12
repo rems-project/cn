@@ -170,7 +170,6 @@ val generate_record_map_get
 
 val cn_to_ail_expr_toplevel
   :  env ->
-  Sym.t option ->
   spec_mode option ->
   Terms.Normal.t ->
   AilSyntax.bindings

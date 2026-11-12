@@ -54,7 +54,7 @@ module Make (AD : Domain.T) = struct
     name_of_bt bt |> String.split_on_char ' ' |> String.concat "_"
 
 
-  let transform_it (env : CtA.env) (name : Sym.t) (it : T.t) =
+  let transform_it (env : CtA.env) (it : T.t) =
     let var = Sym.fresh_anon () in
     let it_bt = T.get_bt it in
     let bs, ss, e =
@@ -62,7 +62,7 @@ module Make (AD : Domain.T) = struct
       | BT.Unit ->
         (* For unit types, return NULL directly *)
         ([], [], mk_expr (AilEconst ConstantNull))
-      | _ -> CtA.cn_to_ail_expr_toplevel env (Some name) None it
+      | _ -> CtA.cn_to_ail_expr_toplevel env None it
     in
     ( [ Utils.create_binding var (bt_to_ctype_for_binding it_bt) ],
       A.
@@ -110,7 +110,7 @@ module Make (AD : Domain.T) = struct
   let generate_value_read (env : CtA.env) (it : T.t) : Pp.document =
     let open Pp in
     let bt = T.get_bt it in
-    let bs, ss, e = CtA.cn_to_ail_expr_toplevel env None None it in
+    let bs, ss, e = CtA.cn_to_ail_expr_toplevel env None it in
     let e_cn =
       if List.is_empty bs && List.is_empty ss then
         e
@@ -562,7 +562,6 @@ module Make (AD : Domain.T) = struct
         (sigma : CF.GenTypes.genTypeCategory A.sigma)
         ~(var_sym : Sym.t)
         ~(last_var : Sym.t)
-        (name : Sym.t)
         (asgns : (T.t * Sctypes.t * T.t option) list)
     : A.bindings * CF.GenTypes.genTypeCategory A.statement_ list
     =
@@ -573,7 +572,7 @@ module Make (AD : Domain.T) = struct
          match pointer_opt with
          | Some (p, _) when Sym.equal p var_sym ->
            let offset_it = compute_offset_it var_sym it_addr in
-           let b_off, s_off, e_off = transform_it env name offset_it in
+           let b_off, s_off, e_off = transform_it env offset_it in
            let (A.AnnotatedExpression (_, _, _, e_off_)) = e_off in
            let raw_offset_expr =
              mk_expr (CtA.wrap_with_convert_from e_off_ Memory.size_bt)
@@ -590,7 +589,7 @@ module Make (AD : Domain.T) = struct
                  MT.mul_ (MT.cast_ Memory.size_bt it_max loc, MT.sizeOf_ sct loc) loc
                in
                let range_size_it = MT.sub_ (end_bytes_it, offset_it) loc in
-               let b_range, s_range, e_range = transform_it env name range_size_it in
+               let b_range, s_range, e_range = transform_it env range_size_it in
                let (A.AnnotatedExpression (_, _, _, e_range_)) = e_range in
                let raw_range_expr =
                  mk_expr (CtA.wrap_with_convert_from e_range_ Memory.size_bt)
@@ -890,7 +889,6 @@ module Make (AD : Domain.T) = struct
   (** Generate BENNET_ASSERT_DOMAIN_EVAL_CONSTRAINT calls for blame-first phase *)
   let generate_eval_constraints
         (env : CtA.env)
-        (name : Sym.t)
         ~(free_vars : (Sym.t * BT.t) list)
         (constraints : T.t list)
     : A.bindings * CF.GenTypes.genTypeCategory A.statement_ list
@@ -900,7 +898,7 @@ module Make (AD : Domain.T) = struct
     in
     List.fold_right
       (fun constraint_it (acc_b, acc_s) ->
-         let b_cond, s_cond, e_cond = transform_it env name constraint_it in
+         let b_cond, s_cond, e_cond = transform_it env constraint_it in
          let blame_syms =
            T.free_vars constraint_it
            |> Sym.Set.inter free_var_set
@@ -925,7 +923,6 @@ module Make (AD : Domain.T) = struct
   let generate_eval_assignments
         (env : CtA.env)
         (sigma : CF.GenTypes.genTypeCategory A.sigma)
-        (name : Sym.t)
         ~(free_vars : (Sym.t * BT.t) list)
         ~(ad : AD.t)
         (asgns : (T.t * Sctypes.t * T.t option) list)
@@ -944,7 +941,7 @@ module Make (AD : Domain.T) = struct
               let pointer_opt = try Some (pointer_of it_addr) with _ -> None in
               match pointer_opt with
               | Some (p, _) when Sym.equal p var_sym ->
-                let b_addr, s_addr, e_addr = transform_it env name it_addr in
+                let b_addr, s_addr, e_addr = transform_it env it_addr in
                 let addr_sym =
                   match e_addr with
                   | A.AnnotatedExpression (_, _, _, A.AilEident sym) -> sym
@@ -965,7 +962,7 @@ module Make (AD : Domain.T) = struct
                     in
                     let start_offset_it = compute_offset_it var_sym it_addr in
                     let range_size_it = MT.sub_ (end_bytes_it, start_offset_it) loc in
-                    let b_range, s_range, e_range = transform_it env name range_size_it in
+                    let b_range, s_range, e_range = transform_it env range_size_it in
                     let (A.AnnotatedExpression (_, _, _, e_range_)) = e_range in
                     let raw_range_expr =
                       mk_expr (CtA.wrap_with_convert_from e_range_ Memory.size_bt)
@@ -1020,7 +1017,6 @@ module Make (AD : Domain.T) = struct
         (sigma : CF.GenTypes.genTypeCategory A.sigma)
         ~(var_sym : Sym.t)
         ~(backtrack_var : Sym.t)
-        (name : Sym.t)
         (asgns : (T.t * Sctypes.t * T.t option) list)
     : A.bindings * CF.GenTypes.genTypeCategory A.statement_ list
     =
@@ -1030,7 +1026,7 @@ module Make (AD : Domain.T) = struct
          let pointer_opt = try Some (pointer_of it_addr) with _ -> None in
          match pointer_opt with
          | Some (p, _) when Sym.equal p var_sym ->
-           let b_addr, s_addr, e_addr = transform_it env name it_addr in
+           let b_addr, s_addr, e_addr = transform_it env it_addr in
            let addr_sym =
              match e_addr with
              | A.AnnotatedExpression (_, _, _, A.AilEident sym) -> sym
@@ -1054,7 +1050,7 @@ module Make (AD : Domain.T) = struct
                in
                let start_offset_it = compute_offset_it var_sym it_addr in
                let range_size_it = MT.sub_ (end_bytes_it, start_offset_it) loc in
-               let b_range, s_range, e_range = transform_it env name range_size_it in
+               let b_range, s_range, e_range = transform_it env range_size_it in
                let (A.AnnotatedExpression (_, _, _, e_range_)) = e_range in
                let raw_range_expr =
                  mk_expr (CtA.wrap_with_convert_from e_range_ Memory.size_bt)
@@ -1321,7 +1317,7 @@ module Make (AD : Domain.T) = struct
       let mk_bound_arg = function
         | None -> mk_expr (AilEconst ConstantNull)
         | Some it ->
-          let bs, ss, e = transform_it env name it in
+          let bs, ss, e = transform_it env it in
           mk_expr (AilEgcc_statement (bs, List.map mk_stmt (ss @ [ A.AilSexpr e ])))
       in
       let free_vars_from_bounds =
@@ -1418,7 +1414,7 @@ module Make (AD : Domain.T) = struct
       let bs, ss, es =
         iargs
         |> List.map (fun x ->
-          let bs, ss, e = transform_it env name x in
+          let bs, ss, e = transform_it env x in
           (bs, ss, e))
         |> List.fold_left
              (fun (bs, ss, es) (b, s, e) -> (bs @ b, ss @ s, es @ [ e ]))
@@ -1470,7 +1466,7 @@ module Make (AD : Domain.T) = struct
       let bs, ss, es =
         iargs
         |> List.map (fun x ->
-          let bs, ss, e = transform_it env name x in
+          let bs, ss, e = transform_it env x in
           (bs, ss, e))
         |> List.fold_left
              (fun (bs, ss, es) (b, s, e) -> (bs @ b, ss @ s, es @ [ e ]))
@@ -1529,9 +1525,9 @@ module Make (AD : Domain.T) = struct
                               ] ))))
                ] )) )
     | `AsgnElab (_, (((p_sym, p_bt), it_addr), sct), it_val, gt_rest) ->
-      let b_addr, s_addr, e_addr = transform_it env name it_addr in
+      let b_addr, s_addr, e_addr = transform_it env it_addr in
       let b_value, s_value, AnnotatedExpression (_, _, _, e_value_) =
-        transform_it env name it_val
+        transform_it env it_val
       in
       let ptr_ty =
         match p_bt with
@@ -1555,7 +1551,6 @@ module Make (AD : Domain.T) = struct
                              let b, s, e =
                                transform_it
                                  env
-                                 name
                                  (MT.cast_
                                     (BT.Loc ())
                                     (MT.sym_ (p_sym, p_bt, Locations.other __LOC__))
@@ -1639,7 +1634,7 @@ module Make (AD : Domain.T) = struct
         let mk_bound_arg = function
           | None -> mk_expr (AilEconst ConstantNull)
           | Some it ->
-            let bs, ss, e = transform_it env name it in
+            let bs, ss, e = transform_it env it in
             mk_expr (AilEgcc_statement (bs, List.map mk_stmt (ss @ [ A.AilSexpr e ])))
         in
         let free_vars_from_bounds =
@@ -1803,7 +1798,7 @@ module Make (AD : Domain.T) = struct
         let mk_bound_arg = function
           | None -> mk_expr (AilEconst ConstantNull)
           | Some it ->
-            let bs, ss, e = transform_it env name it in
+            let bs, ss, e = transform_it env it in
             mk_expr (AilEgcc_statement (bs, List.map mk_stmt (ss @ [ A.AilSexpr e ])))
         in
         let free_vars_from_bounds =
@@ -1920,13 +1915,7 @@ module Make (AD : Domain.T) = struct
               asgns
           in
           let b_asgn, s_asgn =
-            generate_assignment_refinements
-              env
-              sigma
-              ~var_sym:x
-              ~last_var
-              name
-              sorted_asgns
+            generate_assignment_refinements env sigma ~var_sym:x ~last_var sorted_asgns
           in
           let s_end =
             [ A.AilSexpr
@@ -1979,7 +1968,7 @@ module Make (AD : Domain.T) = struct
     | `LetStar ((_, GenTerms.Annot (`ArbitrarySpecialized _, _, bt, _)), _) ->
       failwith ("unreachable @ " ^ __LOC__ ^ " with type: " ^ Pp.plain (BT.pp bt))
     | `LetStar ((x, GenTerms.Annot (`Return it, _, x_bt, _)), gt_rest) ->
-      let b_value, s_value, e_value = transform_it env name it in
+      let b_value, s_value, e_value = transform_it env it in
       let free_vars_set = T.free_vars it in
       let free_vars_list = List.of_seq (Sym.Set.to_seq free_vars_set) in
       let s_let =
@@ -2088,7 +2077,7 @@ module Make (AD : Domain.T) = struct
     | `LetStar ((_, GenTerms.Annot (`SplitSizeElab _, _, _, _)), _) ->
       failwith "Should be unreachable due to lifting"
     | `Return it ->
-      let b, s, e = transform_it env name it in
+      let b, s, e = transform_it env it in
       (b, s, e)
     | `Assert (lc, gt_rest) ->
       let b1, s1, e1 = transform_lc env lc in
@@ -2147,9 +2136,9 @@ module Make (AD : Domain.T) = struct
         let b_eval, s_eval =
           if TestGenConfig.has_dynamic_assert_domain () then (
             let b_eval_a, s_eval_a =
-              generate_eval_assignments env sigma name ~free_vars ~ad asgns
+              generate_eval_assignments env sigma ~free_vars ~ad asgns
             in
-            let b_eval_c, s_eval_c = generate_eval_constraints env name ~free_vars its in
+            let b_eval_c, s_eval_c = generate_eval_constraints env ~free_vars its in
             (b_eval_a @ b_eval_c, s_eval_a @ s_eval_c))
           else
             ([], [])
@@ -2211,7 +2200,6 @@ module Make (AD : Domain.T) = struct
                   sigma
                   ~var_sym:x
                   ~backtrack_var
-                  name
                   asgns
               else
                 ([], [])
@@ -2284,7 +2272,7 @@ module Make (AD : Domain.T) = struct
           s_begin @ s_eval @ s_vars_guarded @ s_end @ s_rest,
           e_rest ))
     | `ITE (it_if, gt_then, gt_else) ->
-      let b_if, s_if, e_if = transform_it env name it_if in
+      let b_if, s_if, e_if = transform_it env it_if in
       let b_then, s_then, e_then = transform_term env sigma ctx name gt_then in
       let b_else, s_else, e_else = transform_term env sigma ctx name gt_else in
       let res_sym = Sym.fresh_anon () in
@@ -2308,8 +2296,8 @@ module Make (AD : Domain.T) = struct
       let sym_map = Sym.fresh_anon () in
       let b_map = Utils.create_binding sym_map (bt_to_ctype_for_binding bt) in
       let b_i = Utils.create_binding i (bt_to_ctype_for_binding i_bt) in
-      let b_min, s_min, e_min = transform_it env name it_min in
-      let b_max, s_max, e_max = transform_it env name it_max in
+      let b_min, s_min, e_min = transform_it env it_min in
+      let b_max, s_max, e_max = transform_it env it_max in
       let e_args =
         [ mk_expr (AilEident sym_map);
           mk_expr (AilEident i);
@@ -2317,7 +2305,7 @@ module Make (AD : Domain.T) = struct
         ]
       in
       let e_perm =
-        let b_perm, s_perm, e_perm = transform_it env name it_perm in
+        let b_perm, s_perm, e_perm = transform_it env it_perm in
         A.(
           mk_expr
             (AilEgcc_statement (b_perm, List.map mk_stmt (s_perm @ [ AilSexpr e_perm ]))))

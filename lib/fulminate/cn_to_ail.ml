@@ -926,10 +926,8 @@ let is_sym_obj_address sym =
   match Sym.description sym with SD_ObjectAddress _ -> true | _ -> false
 
 
-let rec cn_to_ail_expr_aux
-  : type a. env -> _ option -> spec_mode option -> TN.t -> a dest -> a
-  =
-  fun env pred_name spec_mode_opt (IT (term_, basetype, _loc)) d ->
+let rec cn_to_ail_expr_aux : type a. env -> spec_mode option -> TN.t -> a dest -> a =
+  fun env spec_mode_opt (IT (term_, basetype, _loc)) d ->
   match term_ with
   | Const const ->
     let ail_expr, is_unit = cn_to_ail_const const basetype in
@@ -960,8 +958,8 @@ let rec cn_to_ail_expr_aux
     in
     dest d spec_mode_opt ([], [], mk_expr ail_expr_)
   | Binop (bop, t1, t2) ->
-    let b1, s1, e1 = cn_to_ail_expr_aux env pred_name spec_mode_opt t1 PassBack in
-    let b2, s2, e2 = cn_to_ail_expr_aux env pred_name spec_mode_opt t2 PassBack in
+    let b1, s1, e1 = cn_to_ail_expr_aux env spec_mode_opt t1 PassBack in
+    let b2, s2, e2 = cn_to_ail_expr_aux env spec_mode_opt t2 PassBack in
     let annot = cn_to_ail_binop (TN.get_bt t1) (TN.get_bt t2) bop in
     let str =
       match annot with
@@ -978,7 +976,7 @@ let rec cn_to_ail_expr_aux
     in
     dest d spec_mode_opt (b1 @ b2, s1 @ s2, mk_expr ail_expr_)
   | Unop (unop, t) ->
-    let b, s, e = cn_to_ail_expr_aux env pred_name spec_mode_opt t PassBack in
+    let b, s, e = cn_to_ail_expr_aux env spec_mode_opt t PassBack in
     let annot = cn_to_ail_unop (TN.get_bt t) unop in
     let str =
       match annot with
@@ -1001,16 +999,12 @@ let rec cn_to_ail_expr_aux
     let result_ident = A.(AilEident result_sym) in
     let result_binding = create_binding result_sym (bt_to_ail_ctype (TN.get_bt t2)) in
     let result_decl = A.(AilSdeclaration [ (result_sym, None) ]) in
-    let b1, s1, e1 = cn_to_ail_expr_aux env pred_name spec_mode_opt t1 PassBack in
+    let b1, s1, e1 = cn_to_ail_expr_aux env spec_mode_opt t1 PassBack in
     let wrapped_cond =
       A.(AilEcall (mk_expr (AilEident (Sym.fresh "convert_from_cn_bool")), [ e1 ]))
     in
-    let b2, s2 =
-      cn_to_ail_expr_aux env pred_name spec_mode_opt t2 (AssignVar result_sym)
-    in
-    let b3, s3 =
-      cn_to_ail_expr_aux env pred_name spec_mode_opt t3 (AssignVar result_sym)
-    in
+    let b2, s2 = cn_to_ail_expr_aux env spec_mode_opt t2 (AssignVar result_sym) in
+    let b3, s3 = cn_to_ail_expr_aux env spec_mode_opt t3 (AssignVar result_sym) in
     let ite_stat =
       A.(
         AilSif
@@ -1051,16 +1045,14 @@ let rec cn_to_ail_expr_aux
     let end_it = MT.sym_ (end_sym, bt', Cerb_location.unknown) in
     let incr_var = IT (Sym sym, bt', Cerb_location.unknown) in
     let _, _, start_int_const =
-      cn_to_ail_expr_aux env pred_name spec_mode_opt start_const_it PassBack
+      cn_to_ail_expr_aux env spec_mode_opt start_const_it PassBack
     in
     let _, _, end_int_const =
-      cn_to_ail_expr_aux env pred_name spec_mode_opt end_const_it PassBack
+      cn_to_ail_expr_aux env spec_mode_opt end_const_it PassBack
     in
     let while_cond_it = IT (Binop (LT, incr_var, end_it), bt', Cerb_location.unknown) in
-    let _, _, while_cond =
-      cn_to_ail_expr_aux env pred_name spec_mode_opt while_cond_it PassBack
-    in
-    let translated_t = cn_to_ail_expr_aux env pred_name spec_mode_opt t PassBack in
+    let _, _, while_cond = cn_to_ail_expr_aux env spec_mode_opt while_cond_it PassBack in
+    let translated_t = cn_to_ail_expr_aux env spec_mode_opt t PassBack in
     let bs, ss, e =
       gen_bool_while_loop
         sym
@@ -1079,7 +1071,7 @@ let rec cn_to_ail_expr_aux
     let res_ident = A.(AilEident res_sym) in
     let cn_struct_tag = generate_sym_with_suffix ~suffix:"_cn" tag in
     let generate_ail_stat (id, it) =
-      let b, s, e = cn_to_ail_expr_aux env pred_name spec_mode_opt it PassBack in
+      let b, s, e = cn_to_ail_expr_aux env spec_mode_opt it PassBack in
       let ail_memberof = A.(AilEmemberofptr (mk_expr res_ident, id)) in
       let assign_stat = A.(AilSexpr (mk_expr (AilEassign (mk_expr ail_memberof, e)))) in
       (b, s, assign_stat)
@@ -1096,10 +1088,10 @@ let rec cn_to_ail_expr_aux
       (List.concat bs @ b, List.concat ss @ s @ assign_stats, mk_expr res_ident)
   | RecordMember (t, m) ->
     (* Currently assuming records only exist *)
-    let b, s, e = cn_to_ail_expr_aux env pred_name spec_mode_opt t PassBack in
+    let b, s, e = cn_to_ail_expr_aux env spec_mode_opt t PassBack in
     dest d spec_mode_opt (b, s, mk_expr A.(AilEmemberofptr (e, m)))
   | StructMember (t, m) ->
-    let b, s, e = cn_to_ail_expr_aux env pred_name spec_mode_opt t PassBack in
+    let b, s, e = cn_to_ail_expr_aux env spec_mode_opt t PassBack in
     let ail_expr_ = A.(AilEmemberofptr (e, m)) in
     dest d spec_mode_opt (b, s, mk_expr ail_expr_)
   | StructUpdate ((struct_term, m), new_val) ->
@@ -1120,10 +1112,8 @@ let rec cn_to_ail_expr_aux
     in
     (match tag_def with
      | C.StructDef (members, _) ->
-       let b1, s1, e1 =
-         cn_to_ail_expr_aux env pred_name spec_mode_opt struct_term PassBack
-       in
-       let b2, s2, e2 = cn_to_ail_expr_aux env pred_name spec_mode_opt new_val PassBack in
+       let b1, s1, e1 = cn_to_ail_expr_aux env spec_mode_opt struct_term PassBack in
+       let b2, s2, e2 = cn_to_ail_expr_aux env spec_mode_opt new_val PassBack in
        let res_sym = Sym.fresh_anon () in
        let res_ident = mk_expr A.(AilEident res_sym) in
        let cn_struct_tag = generate_sym_with_suffix ~suffix:"_cn" struct_tag in
@@ -1157,7 +1147,7 @@ let rec cn_to_ail_expr_aux
     let res_sym = Sym.fresh_anon () in
     let res_ident = A.(AilEident res_sym) in
     let generate_ail_stat (id, it) =
-      let b, s, e = cn_to_ail_expr_aux env pred_name spec_mode_opt it PassBack in
+      let b, s, e = cn_to_ail_expr_aux env spec_mode_opt it PassBack in
       let ail_memberof = A.(AilEmemberofptr (mk_expr res_ident, id)) in
       let assign_stat = A.(AilSexpr (mk_expr (AilEassign (mk_expr ail_memberof, e)))) in
       (b, s, assign_stat)
@@ -1220,7 +1210,7 @@ let rec cn_to_ail_expr_aux
     let e_ = A.(AilEmemberofptr (mk_expr res_ident, Id.make here "u")) in
     let e_' = A.(AilEmemberof (mk_expr e_, create_id_from_sym lc_constr_sym)) in
     let generate_ail_stat (id, it) =
-      let b, s, e = cn_to_ail_expr_aux env pred_name spec_mode_opt it PassBack in
+      let b, s, e = cn_to_ail_expr_aux env spec_mode_opt it PassBack in
       let ail_memberof =
         if Id.equal id (Id.make here "tag") then
           e
@@ -1266,7 +1256,7 @@ let rec cn_to_ail_expr_aux
         mk_expr res_ident )
   | MemberShift (it, tag, member) ->
     let membershift_macro_sym = Sym.fresh "cn_member_shift" in
-    let bs, ss, e = cn_to_ail_expr_aux env pred_name spec_mode_opt it PassBack in
+    let bs, ss, e = cn_to_ail_expr_aux env spec_mode_opt it PassBack in
     let ail_fcall =
       A.(
         AilEcall
@@ -1278,8 +1268,8 @@ let rec cn_to_ail_expr_aux
     in
     dest d spec_mode_opt (bs, ss, mk_expr ail_fcall)
   | ArrayShift { base; ct; index } ->
-    let b1, s1, e1 = cn_to_ail_expr_aux env pred_name spec_mode_opt base PassBack in
-    let b2, s2, e2 = cn_to_ail_expr_aux env pred_name spec_mode_opt index PassBack in
+    let b1, s1, e1 = cn_to_ail_expr_aux env spec_mode_opt base PassBack in
+    let b2, s2, e2 = cn_to_ail_expr_aux env spec_mode_opt index PassBack in
     let sizeof_expr = mk_expr A.(AilEsizeof (C.no_qualifiers, Sctypes.to_ctype ct)) in
     let ail_expr_ =
       A.(
@@ -1292,7 +1282,7 @@ let rec cn_to_ail_expr_aux
   | Nil _bt -> failwith (__LOC__ ^ ": TODO Nil")
   | Cons (_x, _xs) -> failwith (__LOC__ ^ ": TODO Cons")
   | Head xs ->
-    let b, s, e = cn_to_ail_expr_aux env pred_name spec_mode_opt xs PassBack in
+    let b, s, e = cn_to_ail_expr_aux env spec_mode_opt xs PassBack in
     (* dereference to get first value, where xs is assumed to be a pointer *)
     let ail_expr_ = A.(AilEunary (Indirection, e)) in
     dest d spec_mode_opt (b, s, mk_expr ail_expr_)
@@ -1302,18 +1292,18 @@ let rec cn_to_ail_expr_aux
     (* `representable` and `good` both need to be fixed *)
   | Good (_ct, _t) -> dest d spec_mode_opt ([], [], cn_bool_true_expr)
   | Aligned _t_and_align -> failwith (__LOC__ ^ ": TODO Aligned")
-  | WrapI (_ct, t) -> cn_to_ail_expr_aux env pred_name spec_mode_opt t d
+  | WrapI (_ct, t) -> cn_to_ail_expr_aux env spec_mode_opt t d
   | MapConst (_bt, _t) -> failwith (__LOC__ ^ ": TODO MapConst")
   | MapSet (m, key, value) ->
-    let b1, s1, e1 = cn_to_ail_expr_aux env pred_name spec_mode_opt m PassBack in
+    let b1, s1, e1 = cn_to_ail_expr_aux env spec_mode_opt m PassBack in
     let key_term =
       if TN.get_bt key == BT.Integer then
         key
       else
         IT (Cast (BT.Integer, key), BT.Integer, Cerb_location.unknown)
     in
-    let b2, s2, e2 = cn_to_ail_expr_aux env pred_name spec_mode_opt key_term PassBack in
-    let b3, s3, e3 = cn_to_ail_expr_aux env pred_name spec_mode_opt value PassBack in
+    let b2, s2, e2 = cn_to_ail_expr_aux env spec_mode_opt key_term PassBack in
+    let b3, s3, e3 = cn_to_ail_expr_aux env spec_mode_opt value PassBack in
     let new_map_sym = Sym.fresh_anon () in
     let new_map_binding = create_binding new_map_sym (bt_to_ail_ctype (TN.get_bt m)) in
     let map_deep_copy_fcall =
@@ -1336,14 +1326,14 @@ let rec cn_to_ail_expr_aux
         mk_expr map_set_fcall )
   | MapGet (m, key) ->
     (* Only works when index is a cn_integer *)
-    let b1, s1, e1 = cn_to_ail_expr_aux env pred_name spec_mode_opt m PassBack in
+    let b1, s1, e1 = cn_to_ail_expr_aux env spec_mode_opt m PassBack in
     let key_term =
       if TN.get_bt key == BT.Integer then
         key
       else
         IT (Cast (BT.Integer, key), BT.Integer, Cerb_location.unknown)
     in
-    let b2, s2, e2 = cn_to_ail_expr_aux env pred_name spec_mode_opt key_term PassBack in
+    let b2, s2, e2 = cn_to_ail_expr_aux env spec_mode_opt key_term PassBack in
     let is_record =
       match BT.map_bt (TN.get_bt m) with _, Record _ -> true | _ -> false
     in
@@ -1363,21 +1353,21 @@ let rec cn_to_ail_expr_aux
   | MapDef ((_sym, _bt), _t) -> failwith (__LOC__ ^ ": TODO MapDef")
   | Apply (sym, ts) ->
     let bs_ss_es =
-      List.map (fun e -> cn_to_ail_expr_aux env pred_name spec_mode_opt e PassBack) ts
+      List.map (fun e -> cn_to_ail_expr_aux env spec_mode_opt e PassBack) ts
     in
     let bs, ss, es = list_split_three bs_ss_es in
     let f = mk_expr A.(AilEident sym) in
     let ail_expr_ = A.AilEcall (f, es) in
     dest d spec_mode_opt (List.concat bs, List.concat ss, mk_expr ail_expr_)
   | Let ((var, t1), body) ->
-    let b1, s1, e1 = cn_to_ail_expr_aux env pred_name spec_mode_opt t1 PassBack in
+    let b1, s1, e1 = cn_to_ail_expr_aux env spec_mode_opt t1 PassBack in
     let ctype = bt_to_ail_ctype (TN.get_bt t1) in
     let binding = create_binding var ctype in
     let ail_assign = A.(AilSdeclaration [ (var, Some e1) ]) in
     prefix
       d
       (b1 @ [ binding ], s1 @ [ ail_assign ])
-      (cn_to_ail_expr_aux env pred_name spec_mode_opt body d)
+      (cn_to_ail_expr_aux env spec_mode_opt body d)
   | Match (t, ps) ->
     (* PATTERN COMPILER *)
     let mk_pattern pattern_ bt loc = T.(Pat (pattern_, bt, loc)) in
@@ -1423,17 +1413,11 @@ let rec cn_to_ail_expr_aux
         (match cases with
          | ([], t) :: _rest ->
            (match d with
-            | Assert loc -> cn_to_ail_expr_aux env pred_name spec_mode_opt t (Assert loc)
-            | Return -> cn_to_ail_expr_aux env pred_name spec_mode_opt t Return
-            | AssignVar x ->
-              cn_to_ail_expr_aux env pred_name spec_mode_opt t (AssignVar x)
+            | Assert loc -> cn_to_ail_expr_aux env spec_mode_opt t (Assert loc)
+            | Return -> cn_to_ail_expr_aux env spec_mode_opt t Return
+            | AssignVar x -> cn_to_ail_expr_aux env spec_mode_opt t (AssignVar x)
             | PassBack ->
-              cn_to_ail_expr_aux
-                env
-                pred_name
-                spec_mode_opt
-                t
-                (AssignVar (Option.get res_sym_opt)))
+              cn_to_ail_expr_aux env spec_mode_opt t (AssignVar (Option.get res_sym_opt)))
          | [] -> failwith (__LOC__ ^ ": Incomplete pattern match")
          | (_ :: _, _e) :: _rest -> failwith (__LOC__ ^ ": Redundant patterns"))
       | term :: vs ->
@@ -1449,9 +1433,7 @@ let rec cn_to_ail_expr_aux
             (match cn_dt with
              | [] -> failwith (__LOC__ ^ ": Datatype not found")
              | dt :: _ ->
-               let b1, s1, e1 =
-                 cn_to_ail_expr_aux env pred_name spec_mode_opt term PassBack
-               in
+               let b1, s1, e1 = cn_to_ail_expr_aux env spec_mode_opt term PassBack in
                let build_case (constr_sym, members_with_types) =
                  let cases' = List.filter_map (expand_datatype constr_sym) cases in
                  let suffix = "_" ^ string_of_int count in
@@ -1575,7 +1557,7 @@ let rec cn_to_ail_expr_aux
         in
         (wrap_with_convert_to ail_const_expr_ BT.Alloc_id, [], [])
       | _ ->
-        let b, s, e = cn_to_ail_expr_aux env pred_name spec_mode_opt t PassBack in
+        let b, s, e = cn_to_ail_expr_aux env spec_mode_opt t PassBack in
         let ail_expr_ =
           match
             ( get_typedef_string (bt_to_ail_ctype bt),
@@ -1596,26 +1578,15 @@ let rec cn_to_ail_expr_aux
 
 
 let cn_to_ail_expr : type a. env -> spec_mode option -> TN.t -> a dest -> a =
-  fun env spec_mode_opt cn_expr d -> cn_to_ail_expr_aux env None spec_mode_opt cn_expr d
+  fun env spec_mode_opt cn_expr d -> cn_to_ail_expr_aux env spec_mode_opt cn_expr d
 
 
-let cn_to_ail_expr_toplevel
-      (env : env)
-      (pred_sym_opt : Sym.t option)
-      (spec_mode_opt : spec_mode option)
-      (it : TN.t)
+let cn_to_ail_expr_toplevel (env : env) (spec_mode_opt : spec_mode option) (it : TN.t)
   : A.bindings
     * CF.GenTypes.genTypeCategory A.statement_ list
     * CF.GenTypes.genTypeCategory A.expression
   =
-  cn_to_ail_expr_aux env pred_sym_opt spec_mode_opt it PassBack
-
-
-let cn_to_ail_expr_with_pred_name
-  : type a. env -> Sym.t option -> spec_mode option -> TN.t -> a dest -> a
-  =
-  fun env pred_name_opt spec_mode_opt cn_expr d ->
-  cn_to_ail_expr_aux env pred_name_opt spec_mode_opt cn_expr d
+  cn_to_ail_expr_aux env spec_mode_opt it PassBack
 
 
 let create_member (ctype, id) = (id, (empty_attributes, None, C.no_qualifiers, ctype))
@@ -3316,8 +3287,7 @@ let cn_to_ail_function
   in
   let body_bs, body_ss =
     match lf_def.body with
-    | Def it | Rec_Def it ->
-      cn_to_ail_expr_with_pred_name env (Some fn_sym) None it Return
+    | Def it | Rec_Def it -> cn_to_ail_expr env None it Return
     | Uninterp when accept_uninterp ->
       (* When accept_uninterp enabled and function is uninterpreted, return default value 
       for return type as body *)
@@ -3342,18 +3312,13 @@ let cn_to_ail_function
 
 
 (* only used in cn_to_ail_predicate *)
-let rec cn_to_ail_lat env pred_sym_opt preds spec_mode_opt without_ownership_checking
-  = function
+let rec cn_to_ail_lat env preds spec_mode_opt without_ownership_checking = function
   | LAT.Define ((name, it), _info, lat) ->
     let ctype = bt_to_ail_ctype (TN.get_bt it) in
     let binding = create_binding name ctype in
     let decl = A.(AilSdeclaration [ (name, None) ]) in
-    let b1, s1 =
-      cn_to_ail_expr_with_pred_name env pred_sym_opt spec_mode_opt it (AssignVar name)
-    in
-    let b2, s2 =
-      cn_to_ail_lat env pred_sym_opt preds spec_mode_opt without_ownership_checking lat
-    in
+    let b1, s1 = cn_to_ail_expr env spec_mode_opt it (AssignVar name) in
+    let b2, s2 = cn_to_ail_lat env preds spec_mode_opt without_ownership_checking lat in
     (b1 @ b2 @ [ binding ], (decl :: s1) @ s2)
   | LAT.Resource ((name, (ret, _bt)), (loc, _str_opt), lat) ->
     let upd_s = generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) () in
@@ -3372,9 +3337,7 @@ let rec cn_to_ail_lat env pred_sym_opt preds spec_mode_opt without_ownership_che
         without_ownership_checking
         ret
     in
-    let b2, s2 =
-      cn_to_ail_lat env pred_sym_opt preds spec_mode_opt without_ownership_checking lat
-    in
+    let b2, s2 = cn_to_ail_lat env preds spec_mode_opt without_ownership_checking lat in
     (b1 @ b2, upd_s @ s1 @ pop_s @ s2)
   | LAT.Constraint (lc, (loc, _str_opt), lat) ->
     let b1, s, e = cn_to_ail_logical_constraint env spec_mode_opt lc in
@@ -3388,12 +3351,10 @@ let rec cn_to_ail_lat env pred_sym_opt preds spec_mode_opt without_ownership_che
         upd_s @ s @ (assert_stmt :: pop_s)
       | None -> s
     in
-    let b2, s2 =
-      cn_to_ail_lat env pred_sym_opt preds spec_mode_opt without_ownership_checking lat
-    in
+    let b2, s2 = cn_to_ail_lat env preds spec_mode_opt without_ownership_checking lat in
     (b1 @ b2, ss @ s2)
   | LAT.I it ->
-    let bs, ss = cn_to_ail_expr_with_pred_name env pred_sym_opt spec_mode_opt it Return in
+    let bs, ss = cn_to_ail_expr env spec_mode_opt it Return in
     (bs, ss)
 
 
@@ -3413,22 +3374,14 @@ let cn_to_ail_predicate
       | [] -> ([], [])
       | c :: cs ->
         let bs, ss =
-          cn_to_ail_lat
-            env
-            (Some pred_sym)
-            preds
-            None
-            without_ownership_checking
-            c.packing_ft
+          cn_to_ail_lat env preds None without_ownership_checking c.packing_ft
         in
         (match c.guard with
          | IT (Const (Bool true), _, _) ->
            let bs'', ss'' = clause_translate_aux cs in
            (bs @ bs'', ss @ ss'')
          | _ ->
-           let bs', ss', e =
-             cn_to_ail_expr_with_pred_name env (Some pred_sym) None c.guard PassBack
-           in
+           let bs', ss', e = cn_to_ail_expr env None c.guard PassBack in
            let bs'', ss'' = clause_translate_aux cs in
            let conversion_from_cn_bool =
              A.(AilEcall (mk_expr (AilEident convert_from_cn_bool_sym), [ e ]))
@@ -4995,28 +4948,14 @@ let cn_to_ail_assume_resource
     (b1 @ b2 @ b3 @ bs' @ bs, s1 @ s2 @ s3 @ ss @ ss')
 
 
-let rec cn_to_ail_assume_lat
-          env
-          pred_sym_opt
-          preds
-          spec_mode_opt
-          without_ownership_checking
-  = function
+let rec cn_to_ail_assume_lat env preds spec_mode_opt without_ownership_checking = function
   | LAT.Define ((name, it), _info, lat) ->
     let ctype = bt_to_ail_ctype (TN.get_bt it) in
     let binding = create_binding name ctype in
     let decl = A.(AilSdeclaration [ (name, None) ]) in
-    let b1, s1 =
-      cn_to_ail_expr_with_pred_name env pred_sym_opt spec_mode_opt it (AssignVar name)
-    in
+    let b1, s1 = cn_to_ail_expr env spec_mode_opt it (AssignVar name) in
     let b2, s2 =
-      cn_to_ail_assume_lat
-        env
-        pred_sym_opt
-        preds
-        spec_mode_opt
-        without_ownership_checking
-        lat
+      cn_to_ail_assume_lat env preds spec_mode_opt without_ownership_checking lat
     in
     (b1 @ b2 @ [ binding ], (decl :: s1) @ s2)
   | LAT.Resource ((name, (ret, _bt)), (loc, _str_opt), lat) ->
@@ -5031,33 +4970,19 @@ let rec cn_to_ail_assume_lat
         ret
     in
     let b2, s2 =
-      cn_to_ail_assume_lat
-        env
-        pred_sym_opt
-        preds
-        spec_mode_opt
-        without_ownership_checking
-        lat
+      cn_to_ail_assume_lat env preds spec_mode_opt without_ownership_checking lat
     in
     (b1 @ b2, s1 @ s2)
   | LAT.Constraint (_lc, (_loc, _str_opt), lat) ->
     let b2, s2 =
-      cn_to_ail_assume_lat
-        env
-        pred_sym_opt
-        preds
-        spec_mode_opt
-        without_ownership_checking
-        lat
+      cn_to_ail_assume_lat env preds spec_mode_opt without_ownership_checking lat
     in
     (b2, s2)
   | LAT.I it ->
     if BT.equal (TN.get_bt it) BT.Unit then
       ([], [ A.AilSreturnVoid ])
     else (
-      let bs, ss =
-        cn_to_ail_expr_with_pred_name env pred_sym_opt spec_mode_opt it Return
-      in
+      let bs, ss = cn_to_ail_expr env spec_mode_opt it Return in
       (bs, ss))
 
 
@@ -5076,7 +5001,6 @@ let cn_to_ail_assume_predicate
       let bs, ss =
         cn_to_ail_assume_lat
           env
-          (Some pred_sym)
           preds
           spec_mode_opt
           without_ownership_checking
@@ -5087,14 +5011,7 @@ let cn_to_ail_assume_predicate
          let bs'', ss'' = clause_translate cs in
          (bs @ bs'', ss @ ss'')
        | _ ->
-         let bs', ss', e =
-           cn_to_ail_expr_with_pred_name
-             env
-             (Some pred_sym)
-             spec_mode_opt
-             c.guard
-             PassBack
-         in
+         let bs', ss', e = cn_to_ail_expr env spec_mode_opt c.guard PassBack in
          let bs'', ss'' = clause_translate cs in
          let conversion_from_cn_bool =
            A.(AilEcall (mk_expr (AilEident convert_from_cn_bool_sym), [ e ]))
@@ -5149,28 +5066,15 @@ let rec cn_to_ail_assume_predicates env pred_def_list preds without_ownership_ch
     d :: ds
 
 
-let rec cn_to_ail_assume_lat_2
-          env
-          pred_sym_opt
-          preds
-          spec_mode_opt
-          without_ownership_checking
+let rec cn_to_ail_assume_lat_2 env preds spec_mode_opt without_ownership_checking
   = function
   | LAT.Define ((name, it), _info, lat) ->
     let ctype = bt_to_ail_ctype (TN.get_bt it) in
     let binding = create_binding name ctype in
     let decl = A.(AilSdeclaration [ (name, None) ]) in
-    let b1, s1 =
-      cn_to_ail_expr_with_pred_name env pred_sym_opt spec_mode_opt it (AssignVar name)
-    in
+    let b1, s1 = cn_to_ail_expr env spec_mode_opt it (AssignVar name) in
     let b2, s2 =
-      cn_to_ail_assume_lat_2
-        env
-        pred_sym_opt
-        preds
-        spec_mode_opt
-        without_ownership_checking
-        lat
+      cn_to_ail_assume_lat_2 env preds spec_mode_opt without_ownership_checking lat
     in
     (b1 @ b2 @ [ binding ], (decl :: s1) @ s2)
   | LAT.Resource ((name, (ret, _bt)), (loc, _str_opt), lat) ->
@@ -5185,24 +5089,12 @@ let rec cn_to_ail_assume_lat_2
         ret
     in
     let b2, s2 =
-      cn_to_ail_assume_lat_2
-        env
-        pred_sym_opt
-        preds
-        spec_mode_opt
-        without_ownership_checking
-        lat
+      cn_to_ail_assume_lat_2 env preds spec_mode_opt without_ownership_checking lat
     in
     (b1 @ b2, s1 @ s2)
   | LAT.Constraint (_lc, (_loc, _str_opt), lat) ->
     let b2, s2 =
-      cn_to_ail_assume_lat_2
-        env
-        pred_sym_opt
-        preds
-        spec_mode_opt
-        without_ownership_checking
-        lat
+      cn_to_ail_assume_lat_2 env preds spec_mode_opt without_ownership_checking lat
     in
     (b2, s2)
   | LAT.I _ -> ([], [ A.AilSreturnVoid ])
@@ -5246,9 +5138,7 @@ let cn_to_ail_assume_pre env sym args preds without_ownership_checking lat
       lat
   in
   (* Generate function *)
-  let bs', ss' =
-    cn_to_ail_assume_lat_2 env (Some sym) preds None without_ownership_checking lat
-  in
+  let bs', ss' = cn_to_ail_assume_lat_2 env preds None without_ownership_checking lat in
   let decl : A.sigma_declaration =
     ( fsym,
       ( Locations.other __LOC__,
