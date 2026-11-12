@@ -552,7 +552,7 @@ CN_GEN_PTR_CASTS_UNSIGNED(uint32_t, cn_bits_u32)
 CN_GEN_PTR_CASTS_UNSIGNED(uint64_t, cn_bits_u64)
 CN_GEN_PTR_CASTS_SIGNED(signed long, cn_integer)
 
-cn_pointer* convert_to_cn_pointer(const void* ptr);
+cn_pointer* convert_to_cn_pointer(const volatile void* ptr);
 void* convert_from_cn_pointer(cn_pointer* cn_ptr);
 cn_pointer* cn_pointer_min(cn_pointer* p, cn_pointer* q);
 cn_pointer* cn_pointer_max(cn_pointer* p, cn_pointer* q);
@@ -596,10 +596,11 @@ void cn_get_or_put_ownership(enum spec_mode spec_mode,
     struct loop_ownership* loop_ownership);
 
 /* C ownership checking */
-void c_add_to_ghost_state(void* ptr_to_local, size_t size, signed long stack_depth);
-void c_remove_from_ghost_state(void* ptr_to_local, size_t size);
+void c_add_to_ghost_state(
+    const volatile void* ptr_to_local, size_t size, signed long stack_depth);
+void c_remove_from_ghost_state(const volatile void* ptr_to_local, size_t size);
 enum region_owned c_ownership_check(char* access_kind,
-    void* generic_c_ptr,
+    const volatile void* generic_c_ptr,
     int size,
     signed long expected_stack_depth,
     enum spec_mode spec_mode);
@@ -626,13 +627,13 @@ void cn_ghost_arg_failure(void);
   c_concat_with_mapping_stat(CTYPE VAR_NAME = EXPR, CTYPE, VAR_NAME)
 // /Unused
 
-static inline void cn_load(void* ptr, size_t size) {
+static inline void cn_load(const volatile void* ptr, size_t size) {
   //   cn_printf(CN_LOGGING_INFO, "  \x1b[31mLOAD\x1b[0m[%lu] - ptr: %p\n", size, ptr);
 }
-static inline void cn_store(void* ptr, size_t size) {
+static inline void cn_store(const volatile void* ptr, size_t size) {
   //   cn_printf(CN_LOGGING_INFO, "  \x1b[31mSTORE\x1b[0m[%lu] - ptr: %p\n", size, ptr);
 }
-static inline void cn_postfix(void* ptr, size_t size) {
+static inline void cn_postfix(const volatile void* ptr, size_t size) {
   //   cn_printf(CN_LOGGING_INFO, "  \x1b[31mPOSTFIX\x1b[0m[%lu] - ptr: %p\n", size, ptr);
 }
 
