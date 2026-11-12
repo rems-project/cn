@@ -4254,8 +4254,9 @@ let gen_ghost_enum_member_id bts =
   else (
     let triple_underscore = Pp.(underscore ^^ underscore ^^ underscore) in
     let bts_doc = Pp.(flow_map triple_underscore BT.(pp_executable_spec) bts) in
-    let bts_str = CF.Pp_utils.to_plain_string bts_doc in
-    let underscored_bts_str = String.concat "_" (String.split_on_char ' ' bts_str) in
+    let underscored_bts_str =
+      String.concat "_" (String.split_on_char ' ' (CF.Pp_utils.to_plain_string bts_doc))
+    in
     let uppercase_bts_str = String.uppercase_ascii underscored_bts_str in
     Id.make here uppercase_bts_str)
 
