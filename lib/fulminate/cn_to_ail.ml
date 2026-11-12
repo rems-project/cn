@@ -47,12 +47,12 @@ type 'a dest =
       * CF.GenTypes.genTypeCategory A.expression)
         dest
 
-let getter_str env sym =
-  "cn_test_get_" ^ Utils.static_prefix env ^ "_" ^ Sym.pp_string sym
+let getter_str filename sym =
+  "cn_test_get_" ^ Utils.static_prefix filename ^ "_" ^ Sym.pp_string sym
 
 
-let setter_str env sym =
-  "cn_test_set_" ^ Utils.static_prefix env ^ "_" ^ Sym.pp_string sym
+let setter_str filename sym =
+  "cn_test_set_" ^ Utils.static_prefix filename ^ "_" ^ Sym.pp_string sym
 
 
 (* Need to output as int rather than bool to make runtime dependencies and includes happy *)
