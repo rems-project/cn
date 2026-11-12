@@ -230,14 +230,15 @@ cn_bool cn_map_equality(
     cn_map* m1, cn_map* m2, cn_bool(value_equality_fun)(void*, void*));
 cn_map* default_cn_map(void);
 
-/* Converts the C array `c_ptr` of `num_elements` elements to a CN map, with
-   `set_fn` the map setter for the element type (`cn_map_set_<cntype>`, or
-   `cn_map_set` for struct values) and `conversion_fn` its `convert_to_`. */
-#define convert_to_cn_map(c_ptr, set_fn, conversion_fn, num_elements)                    \
+/* Converts the C array `c_ptr` of `num_elements` elements to a CN map of
+   `cntype` values, through that type's `convert_to_` and `cn_map_set_` (every
+   CN type has both: the runtime's for the scalars, generated ones for the
+   structs). */
+#define convert_to_cn_map(c_ptr, cntype, num_elements)                                   \
   ({                                                                                     \
     cn_map* m = map_create();                                                            \
     for (int i = 0; i < num_elements; i++) {                                             \
-      set_fn(m, convert_to_cn_integer(i), conversion_fn((c_ptr)[i]));                    \
+      cn_map_set_##cntype(m, convert_to_cn_integer(i), convert_to_##cntype((c_ptr)[i])); \
     }                                                                                    \
     m;                                                                                   \
   })

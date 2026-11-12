@@ -654,11 +654,17 @@ let generate_conversion_and_equality_functions
   let struct_map_get_funs =
     List.map Cn_to_ail.generate_struct_map_get sigm.tag_definitions
   in
+  let struct_map_set_funs =
+    List.map Cn_to_ail.generate_struct_map_set sigm.tag_definitions
+  in
   let struct_default_funs =
     List.map Cn_to_ail.generate_struct_default_function sigm.tag_definitions
   in
   let datatype_map_get_funs =
     List.map Cn_to_ail.generate_datatype_map_get sigm.cn_datatypes
+  in
+  let datatype_map_set_funs =
+    List.map Cn_to_ail.generate_datatype_map_set sigm.cn_datatypes
   in
   let datatype_default_funs =
     List.map Cn_to_ail.generate_datatype_default_function sigm.cn_datatypes
@@ -673,8 +679,10 @@ let generate_conversion_and_equality_functions
            struct_equality_funs;
            datatype_equality_funs;
            struct_map_get_funs;
+           struct_map_set_funs;
            struct_default_funs;
            datatype_map_get_funs;
+           datatype_map_set_funs;
            datatype_default_funs
          ])
   in

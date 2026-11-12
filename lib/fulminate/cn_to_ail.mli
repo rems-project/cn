@@ -98,6 +98,12 @@ val generate_datatype_map_get
   * GenTypes.genTypeCategory AilSyntax.sigma_function_definition)
     list
 
+val generate_datatype_map_set
+  :  Cerb_frontend.Symbol.sym Cerb_frontend.Cn.cn_datatype ->
+  (AilSyntax.sigma_declaration
+  * GenTypes.genTypeCategory AilSyntax.sigma_function_definition)
+    list
+
 val generate_datatype_default_function
   :  Cerb_frontend.Symbol.sym Cerb_frontend.Cn.cn_datatype ->
   (AilSyntax.sigma_declaration
@@ -129,6 +135,12 @@ val generate_struct_map_get
   * GenTypes.genTypeCategory AilSyntax.sigma_function_definition)
     list
 
+val generate_struct_map_set
+  :  AilSyntax.sigma_tag_definition ->
+  (AilSyntax.sigma_declaration
+  * GenTypes.genTypeCategory AilSyntax.sigma_function_definition)
+    list
+
 val generate_struct_default_function
   :  ?is_record:bool ->
   AilSyntax.sigma_tag_definition ->
@@ -154,6 +166,12 @@ val generate_record_default_function
     list
 
 val generate_record_map_get
+  :  Sym.t * 'a ->
+  (AilSyntax.sigma_declaration
+  * GenTypes.genTypeCategory AilSyntax.sigma_function_definition)
+    list
+
+val generate_record_map_set
   :  Sym.t * 'a ->
   (AilSyntax.sigma_declaration
   * GenTypes.genTypeCategory AilSyntax.sigma_function_definition)

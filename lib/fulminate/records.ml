@@ -203,6 +203,7 @@ let generate_c_record_funs (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigm
   in
   let record_map_get_functions =
     List.concat (List.map Cn_to_ail.generate_record_map_get cn_record_info)
+    @ List.concat (List.map Cn_to_ail.generate_record_map_set cn_record_info)
   in
   let eq_decls, eq_defs = List.split record_equality_functions in
   let default_decls, default_defs = List.split record_default_functions in
