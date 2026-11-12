@@ -529,11 +529,8 @@ let wrap_in_stmt_with_fulm_on_check in_stmt =
 let wrap_spec_with_fulm_on_checks (ail_executable_spec : ail_executable_spec) =
   (* Need to separate declarations and assignments for precondition -- vars used later in spec *)
   let pre_bs, pre_ss = ail_executable_spec.pre in
-  let pre_decls = ref [] in
-  let pre_modified_stats = ref [] in
-  Utils.separate_decls_and_assigns pre_decls pre_modified_stats pre_ss;
-  { pre =
-      (pre_bs, !pre_decls @ snd (wrap_with_fulm_on_check (pre_bs, !pre_modified_stats)));
+  let pre_decls, pre_modified_stats = Utils.separate_decls_and_assigns pre_ss in
+  { pre = (pre_bs, pre_decls @ snd (wrap_with_fulm_on_check (pre_bs, pre_modified_stats)));
     post = wrap_with_fulm_on_check ail_executable_spec.post;
     in_stmt = wrap_in_stmt_with_fulm_on_check ail_executable_spec.in_stmt;
     loops = ail_executable_spec.loops (* Loops handled separately in cn_to_ail_loop_inv *)
@@ -4529,12 +4526,10 @@ let rec cn_to_ail_loop_inv_aux
         lat
     in
     (* Needed so that CN invariant ghost variables are in scope for assertions in the loop body. *)
-    let decls = ref [] in
-    let modified_stats = ref [] in
-    Utils.separate_decls_and_assigns decls modified_stats ss;
-    { cond = (cond_loc, (bs, !modified_stats));
+    let decls, modified_stats = Utils.separate_decls_and_assigns ss in
+    { cond = (cond_loc, (bs, modified_stats));
       loop_loc;
-      loop_entry = (bs, !decls);
+      loop_entry = (bs, decls);
       loop_exit = ([], [])
     }
 

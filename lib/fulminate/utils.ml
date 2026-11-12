@@ -276,14 +276,16 @@ let rec remove_last_semicolon =
   | x :: xs -> x :: remove_last_semicolon xs
 
 
-let rec separate_decls_and_assigns decls modified_stats =
+let rec separate_decls_and_assigns =
+  let decls = ref [] in
+  let modified_stats = ref [] in
   let collect_initialised_syms_and_exprs sym_expr_pairs =
     List.filter_map
       (fun (sym, e_opt) -> match e_opt with Some e -> Some (sym, e) | _ -> None)
       sym_expr_pairs
   in
   function
-  | [] -> ()
+  | [] -> (!decls, !modified_stats)
   | s :: ss ->
     let () =
       match s with
@@ -305,4 +307,4 @@ let rec separate_decls_and_assigns decls modified_stats =
         modified_stats := !modified_stats @ assign_stats
       | _ -> modified_stats := !modified_stats @ [ s ]
     in
-    separate_decls_and_assigns decls modified_stats ss
+    separate_decls_and_assigns ss
