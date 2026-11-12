@@ -55,14 +55,10 @@ let setter_str filename sym =
   "cn_test_set_" ^ Utils.static_prefix filename ^ "_" ^ Sym.pp_string sym
 
 
-(* Boolean constants are emitted as the integer literals 1 and 0 rather than as
-   Ail's predefined `true`/`false`, which Cerberus's printer renders as the C23
-   keywords: the instrumented file is compiled as C11/GNU C, where those names
-   exist only if <stdbool.h> (or the program itself, e.g. Linux's
-   `enum { false, true }`) provides them. Removing the dependency lets the
-   runtime header stop defining `true`/`false` as macros, which clashed with
-   such programs. *)
-let ail_int_const n = A.AilEconst (ConstantInteger (IConstant (Z.of_int n, Decimal, None)))
+(* Need to output as int rather than bool to make runtime dependencies and includes happy *)
+let ail_int_const n =
+  A.AilEconst (ConstantInteger (IConstant (Z.of_int n, Decimal, None)))
+
 
 let true_const = ail_int_const 1
 
@@ -735,7 +731,7 @@ let cn_to_ail_const const basetype =
       in
       wrap (A.AilEunary (Address, mk_expr ail_const'))
     | Alloc_id _ -> failwith (__LOC__ ^ ": TODO Alloc_id")
-    | Bool b -> wrap (ail_int_const (if b then 1 else 0)) (* see true_const *)
+    | Bool b -> wrap (ail_int_const (if b then 1 else 0))
     | Unit -> wrap ail_null (* Gets overridden by dest_with_unit_check *)
     | Null -> wrap ail_null
     | CType_const _ -> failwith (__LOC__ ^ ": TODO CType_const")

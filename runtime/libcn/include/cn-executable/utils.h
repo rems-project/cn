@@ -15,7 +15,6 @@
     printf(__VA_ARGS__);                                                                 \
   }
 
-
 enum spec_mode {
   PRE = 1,
   POST = 2,
