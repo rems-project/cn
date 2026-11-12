@@ -3589,6 +3589,12 @@ let extract_global_variables ?(prune_unused = false) (prog5 : _ Mucore.file) =
             Definition.Predicate.free_vars pred)
           |> List.fold_left Sym.Set.union Sym.Set.empty
         in
+        let from_functions =
+          prog5.logical_predicates
+          |> List.map (fun (_sym, (f : Definition.Function.t)) ->
+            Definition.Function.free_vars f)
+          |> List.fold_left Sym.Set.union Sym.Set.empty
+        in
         let from_annotations =
           fst (Extract.collect_instrumentation prog5)
           |> List.map (fun (inst : Extract.instrumentation) -> inst.internal)
@@ -3622,7 +3628,10 @@ let extract_global_variables ?(prune_unused = false) (prog5 : _ Mucore.file) =
           |> List.map (AT.free_vars LRT.free_vars)
           |> List.fold_left Sym.Set.union Sym.Set.empty
         in
-        List.fold_left Sym.Set.union from_predicates [ from_annotations; from_lemmata ]
+        List.fold_left
+          Sym.Set.union
+          from_predicates
+          [ from_functions; from_annotations; from_lemmata ]
       in
       (* Filter globals to only those referenced in resource predicates *)
       fun (sym, _) -> Sym.Set.mem sym referenced_syms)

@@ -20,6 +20,8 @@ module Function : sig
 
   val given_to_solver : t -> bool
 
+  val free_vars : t -> Sym.Set.t
+
   val pp_args : (Cerb_frontend.Symbol.sym * unit BaseTypes.t_gen) list -> Pp.document
 
   val pp_sig : Pp.document -> t -> Pp.document

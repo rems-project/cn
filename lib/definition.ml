@@ -34,6 +34,16 @@ module Function = struct
     match def.body with Rec_Def _ -> false | Def _ -> true | Uninterp -> false
 
 
+  let free_vars (def : t) : Sym.Set.t =
+    let vars_in_body =
+      match def.body with
+      | Def it | Rec_Def it -> T.free_vars it
+      | Uninterp -> Sym.Set.empty
+    in
+    let args = def.args |> List.map fst |> Sym.Set.of_list in
+    Sym.Set.diff vars_in_body args
+
+
   let pp_args xs =
     let doc =
       Pp.flow_map
