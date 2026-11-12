@@ -532,8 +532,8 @@ let generate_defined_fun_def_and_decl_docs ?(uninterps = Sym.Set.empty) funs =
 
 let generate_c_functions
       ~accept_uninterp
+      ~remove_uninterp
       filename
-      (remove_uninterp : bool)
       (prog5 : _ Mucore.file)
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
   =
@@ -591,9 +591,9 @@ let[@warning "-32" (* unused-value-declaration *)] rec remove_duplicates eq_fun 
    declarations with their default stubs and comments *)
 let generate_c_predicates
       ~accept_uninterp
+      ~remove_uninterp
       filename
       without_ownership_checking
-      remove_uninterp
       (prog5 : _ Mucore.file)
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
   =

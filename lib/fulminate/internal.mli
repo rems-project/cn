@@ -61,16 +61,16 @@ val generate_cn_versions_of_structs : AilSyntax.sigma_tag_definition list -> str
 
 val generate_c_functions
   :  accept_uninterp:bool ->
+  remove_uninterp:bool ->
   string ->
-  bool ->
   _ Mucore.file ->
   GenTypes.genTypeCategory AilSyntax.sigma ->
   string * string * Cerb_location.t list
 
 val generate_c_predicates
   :  accept_uninterp:bool ->
+  remove_uninterp:bool ->
   string ->
-  bool ->
   bool ->
   _ Mucore.file ->
   GenTypes.genTypeCategory AilSyntax.sigma ->

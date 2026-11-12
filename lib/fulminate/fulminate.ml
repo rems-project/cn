@@ -634,14 +634,14 @@ let main
   in
   let c_datatype_defs = generate_c_datatypes sigm in
   let c_function_defs, c_function_decls, _c_function_locs =
-    generate_c_functions ~accept_uninterp filename remove_uninterp prog5 sigm
+    generate_c_functions ~accept_uninterp ~remove_uninterp filename prog5 sigm
   in
   let c_predicate_defs, c_predicate_decls, _c_predicate_locs =
     generate_c_predicates
       ~accept_uninterp
+      ~remove_uninterp
       filename
       without_ownership_checking
-      remove_uninterp
       prog5
       sigm
   in
