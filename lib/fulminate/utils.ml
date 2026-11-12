@@ -276,7 +276,7 @@ let rec remove_last_semicolon =
   | x :: xs -> x :: remove_last_semicolon xs
 
 
-let rec separate_decls_and_assigns =
+let separate_decls_and_assigns stats =
   let decls = ref [] in
   let modified_stats = ref [] in
   let collect_initialised_syms_and_exprs sym_expr_pairs =
@@ -284,27 +284,29 @@ let rec separate_decls_and_assigns =
       (fun (sym, e_opt) -> match e_opt with Some e -> Some (sym, e) | _ -> None)
       sym_expr_pairs
   in
-  function
-  | [] -> (!decls, !modified_stats)
-  | s :: ss ->
-    let () =
-      match s with
-      (*
-         Separate initialised variable declarations into declaration and initialisation (assignment).
-      *)
-      | A.(AilSdeclaration syms_and_exprs) ->
-        let sym_some_expr_pairs = collect_initialised_syms_and_exprs syms_and_exprs in
-        let none_pairs = List.map (fun (sym, _) -> (sym, None)) syms_and_exprs in
-        let none_decl = A.(AilSdeclaration none_pairs) in
-        let assign_stats =
-          List.map
-            (fun (sym, rhs_expr) ->
-               let ident = mk_expr A.(AilEident sym) in
-               A.(AilSexpr (mk_expr (AilEassign (ident, rhs_expr)))))
-            sym_some_expr_pairs
-        in
-        decls := !decls @ [ none_decl ];
-        modified_stats := !modified_stats @ assign_stats
-      | _ -> modified_stats := !modified_stats @ [ s ]
-    in
-    separate_decls_and_assigns ss
+  let rec separate_decls_and_assigns_aux = function
+    | [] -> (!decls, !modified_stats)
+    | s :: ss ->
+      let () =
+        match s with
+        (*
+           Separate initialised variable declarations into declaration and initialisation (assignment).
+        *)
+        | A.(AilSdeclaration syms_and_exprs) ->
+          let sym_some_expr_pairs = collect_initialised_syms_and_exprs syms_and_exprs in
+          let none_pairs = List.map (fun (sym, _) -> (sym, None)) syms_and_exprs in
+          let none_decl = A.(AilSdeclaration none_pairs) in
+          let assign_stats =
+            List.map
+              (fun (sym, rhs_expr) ->
+                 let ident = mk_expr A.(AilEident sym) in
+                 A.(AilSexpr (mk_expr (AilEassign (ident, rhs_expr)))))
+              sym_some_expr_pairs
+          in
+          decls := !decls @ [ none_decl ];
+          modified_stats := !modified_stats @ assign_stats
+        | _ -> modified_stats := !modified_stats @ [ s ]
+      in
+      separate_decls_and_assigns_aux ss
+  in
+  separate_decls_and_assigns_aux stats
