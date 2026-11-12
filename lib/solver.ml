@@ -918,8 +918,11 @@ let rec translate_term s iterm =
     in
     translate_term s (struct_ (tag, str) loc)
   | OffsetOf (tag, member) ->
-    let decl = Sym.Map.find tag struct_decls in
-    let v = Option.get (Memory.struct_member_offset decl member) in
+    let su = Option.get (Global.get_struct_or_union_decl s.globals tag) in
+    let v = match su with
+      | `Struct decl -> Option.get (Memory.struct_member_offset decl member) 
+      | `Union _decl -> 0
+    in
     translate_term s (int_lit_ v (get_bt iterm) loc)
   (* Records *)
   | Record members ->
