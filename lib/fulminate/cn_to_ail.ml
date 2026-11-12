@@ -3434,13 +3434,7 @@ let cn_to_ail_predicate
            (bs @ bs'', ss @ ss'')
          | _ ->
            let bs', ss', e =
-             cn_to_ail_expr_with_pred_name
-               { env with globals = [] }
-               (* as before: a clause guard reaches a global by its address, not its accessor *)
-               (Some pred_sym)
-               None
-               c.guard
-               PassBack
+             cn_to_ail_expr_with_pred_name env (Some pred_sym) None c.guard PassBack
            in
            let bs'', ss'' = clause_translate_aux cs in
            let conversion_from_cn_bool =
@@ -5102,8 +5096,7 @@ let cn_to_ail_assume_predicate
        | _ ->
          let bs', ss', e =
            cn_to_ail_expr_with_pred_name
-             { env with globals = [] }
-             (* as before: a clause guard reaches a global by its address, not its accessor *)
+             env
              (Some pred_sym)
              spec_mode_opt
              c.guard
