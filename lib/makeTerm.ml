@@ -507,6 +507,11 @@ let value_check mode (struct_layouts : Memory.struct_decls) ct about loc =
             let value = cast_ Integer membyte loc in
             in_range value (min, max) loc )
           loc)
+    | Union tag -> 
+      and_
+        (List.init (Memory.size_of_ctype (Union tag)) (fun i ->
+          aux Byte (nthTuple_ ~item_bt:(Memory.bt_of_sct Byte) (i, about) loc)
+        )) loc
     | Integer it ->
       in_z_range about (Memory.min_integer_type it, Memory.max_integer_type it) loc
     | Array (_, None) ->
@@ -550,7 +555,6 @@ let value_check mode (struct_layouts : Memory.struct_decls) ct about loc =
            (fst (Sym.Map.find tag struct_layouts))
            (* Ignore any flexible array member: it's not part of the struct *value*. *))
         loc
-    | Union _tag -> Cerb_diagnostic.fatal "todo: union types"
     | Function _ -> Cerb_diagnostic.fatal "todo: function types"
   in
   aux ct about
