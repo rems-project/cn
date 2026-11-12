@@ -110,6 +110,9 @@ let lookup_union_opt sym env =
   | Some (UnionDef xs) -> Some xs
   | Some (StructDef _) | None -> None
 
+let lookup_struct_or_union_opt sym env =
+  Pmap.lookup sym env.tagDefs
+
 
 let add_datatype sym info env =
   let datatypes = Sym.Map.add sym info env.datatypes in
@@ -442,6 +445,11 @@ module C_vars = struct
     | Some def -> return def
     | None -> fail { loc; msg = Global (Unknown_union tag) }
 
+
+  let lookup_struct_or_union loc tag env =
+    match lookup_struct_or_union_opt tag env with
+    | Some def -> return def
+    | None -> fail { loc; msg = Global (Unknown_struct_or_union tag) }
 
   let lookup_struct_member ~fam_permitted loc (_tag, def) member =
     let member_types, fam = Memory.struct_member_types def in
@@ -840,7 +848,13 @@ module C_vars = struct
         let scty = Sctypes.of_ctype_unsafe loc ct in
         return (IT (SizeOf scty, Memory.size_sbt, loc))
       | CNExpr_offsetof (tag, member) ->
-        let@ _ = lookup_struct loc tag env in
+        let@ def = lookup_struct_or_union loc tag env in
+        let@ _ = match def with
+        | StructDef sd -> 
+          lookup_struct_member ~fam_permitted:true loc (tag, sd) member
+        | UnionDef ud -> 
+          lookup_union_member loc (tag, ud) member
+        in
         return (IT (OffsetOf (tag, member), Memory.size_sbt, loc))
       | CNExpr_array_shift (base, ty_annot, index) ->
         let@ base = self base in

@@ -100,9 +100,20 @@ module Global : sig
 
   val get_union_decl : Locations.t -> Sym.t -> Memory.union_decl m
 
+  val get_struct_or_union_decl 
+    :  Locations.t -> 
+    Sym.t -> 
+    [`Struct of Memory.struct_decl | `Union of Memory.union_decl ] m
+
   val get_struct_member_type
     :  fam_permitted:bool ->
     Locations.t ->
+    Sym.t ->
+    Id.t ->
+    Sctypes.t m
+
+  val get_union_member_type
+    :  Locations.t ->
     Sym.t ->
     Id.t ->
     Sctypes.t m

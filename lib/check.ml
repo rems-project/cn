@@ -758,7 +758,11 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : T.t m =
     let@ () = WellTyped.ensure_base_type loc ~expect (Loc ()) in
     let@ () = WellTyped.ensure_base_type loc ~expect:(Loc ()) (Mu.bt_of_pexpr pe) in
     let@ vt = check_pexpr path_cs pe in
-    let@ ct = Global.get_struct_member_type ~fam_permitted:true loc tag member in
+    let@ su = Global.get_struct_or_union_decl loc tag in
+    let@ ct = match su with
+      | `Struct _sd -> Global.get_struct_member_type ~fam_permitted:true loc tag member 
+      | `Union _ud -> Global.get_union_member_type loc tag member
+    in
     let result = memberShift_ (vt, tag, member) loc in
     (* This should only be called after a PtrValidForDeref, so if we
         were willing to optimise, we could skip to [k result]. *)
@@ -1042,13 +1046,19 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : T.t m =
                 [@alert "-deprecated"]
             })))
   | PEmemberof (tag, member, pe) ->
-    let struct_bt = BT.Struct tag in
-    let@ () = WellTyped.ensure_base_type loc ~expect:struct_bt (Mu.bt_of_pexpr pe) in
-    let@ struct_val = check_pexpr path_cs pe in
-    let@ member_sct = Global.get_struct_member_type ~fam_permitted:false loc tag member in
-    let member_bt = Memory.bt_of_sct member_sct in
-    let@ () = WellTyped.ensure_base_type loc ~expect member_bt in
-    return (member_ ~member_bt (struct_val, member) loc)
+    let@ su = Global.get_struct_or_union_decl loc tag in
+    (match su with
+     | `Struct _sd ->
+       let struct_bt = BT.Struct tag in
+       let@ () = WellTyped.ensure_base_type loc ~expect:struct_bt (Mu.bt_of_pexpr pe) in
+       let@ struct_val = check_pexpr path_cs pe in
+       let@ member_sct = Global.get_struct_member_type ~fam_permitted:false loc tag member in
+       let member_bt = Memory.bt_of_sct member_sct in
+       let@ () = WellTyped.ensure_base_type loc ~expect member_bt in
+       return (member_ ~member_bt (struct_val, member) loc)
+      | `Union _sd ->
+        unsupported loc !^"todo: unions as values"
+    )
   | PEwrapI (ity, iop, pe1, pe2) when !cnBV ->
     (* in integers, perform this op and round. in bitvector types, just perform
         the op (for all the ops where wrapping is consistent) *)

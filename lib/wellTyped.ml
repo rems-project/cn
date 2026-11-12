@@ -933,11 +933,17 @@ module WT = struct
         in
         return (IT (SizeOf ct, Memory.size_bt, loc))
       | OffsetOf (tag, member) ->
-        let@ _ty = get_struct_member_type ~fam_permitted:true loc tag member in
-        let@ decl = get_struct_decl loc tag in
+        let@ def = get_struct_or_union_decl loc tag in
+        let@ o = match def with
+          | `Struct decl ->
+            let@ _ty = get_struct_member_type ~fam_permitted:true loc tag member in
+            return (Option.get (Memory.struct_member_offset decl member))
+          | `Union _decl ->
+            let@ _ty = get_union_member_type loc tag member in
+            return 0
+        in
         let@ () =
           if !cnBV then (
-            let o = Option.get (Memory.struct_member_offset decl member) in
             let rs = Option.get (BT.is_bits_bt Memory.size_bt) in
             ensure_z_fits_bits_type loc rs (Z.of_int o))
           else
