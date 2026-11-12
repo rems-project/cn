@@ -848,7 +848,8 @@ let main
   if accept_uninterp && Sys.file_exists uninterp_filename then
     output_to_oc
       oc
-      [ "/* Include user-provided bodies for (some) uninterpreted functions/predicates */\n";
+      [ "/* Include user-provided bodies for (some subset of) uninterpreted \
+         functions/predicates */\n";
         "#include \"" ^ get_uninterp_filename filename ^ "\"\n"
       ];
   output_to_oc oc cn_defs_list;
