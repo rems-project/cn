@@ -596,7 +596,8 @@ void cn_get_or_put_ownership(enum spec_mode spec_mode,
     struct loop_ownership* loop_ownership);
 
 /* C ownership checking */
-void c_add_to_ghost_state(const volatile void* ptr_to_local, size_t size, signed long stack_depth);
+void c_add_to_ghost_state(
+    const volatile void* ptr_to_local, size_t size, signed long stack_depth);
 void c_remove_from_ghost_state(const volatile void* ptr_to_local, size_t size);
 enum region_owned c_ownership_check(char* access_kind,
     const volatile void* generic_c_ptr,
