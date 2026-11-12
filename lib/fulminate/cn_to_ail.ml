@@ -64,17 +64,15 @@ let true_const = ail_int_const 1
 
 let ownership_ctypes = ref []
 
-(* What the translation of a specification to C needs from the unit, fixed for a run: built
-   once (env_of, below extract_global_variables) and threaded through, never updated. *)
+(* Per-unit information, fixed for a run *)
 type env =
-  { filename : string; (* the unit, for the accessor names (getter_str, setter_str) *)
-    dts : A.sigma_cn_datatype list; (* the CN datatypes of the unit *)
-    globals : (C.union_tag * C.ctype) list; (* the globals that have accessors *)
-    funs : Sym.Set.t (* the C functions of the unit, declared or defined *)
+  { filename : string; (* For accessor names *)
+    dts : A.sigma_cn_datatype list;
+    globals : (C.union_tag * C.ctype) list; (* Those with accessors *)
+    funs : Sym.Set.t (* C functions *)
   }
 
-(* For generated code whose terms name no global and no C function (the struct and
-   datatype helpers, the generated tests): the datatypes only *)
+(* No globals or functions: struct/datatype helpers, generated tests *)
 let env_of_sigma ~filename (sigm : _ A.sigma) : env =
   { filename; dts = sigm.cn_datatypes; globals = []; funs = Sym.Set.empty }
 
@@ -3255,10 +3253,7 @@ let env_of ~filename (sigm : _ A.sigma) (prog5 : _ Mucore.file) : env =
   { filename;
     dts = sigm.cn_datatypes;
     globals = extract_global_variables prog5;
-    funs =
-      Sym.Set.empty
-      (* to be populated (the C functions of the unit, Pmap.bindings_list prog5.funs) when
-       the Sym case of cn_to_ail_expr_aux prints a C function's address as a pointer *)
+    funs = Sym.Set.empty (* TODO: Pmap.bindings_list prog5.funs, once read *)
   }
 
 
