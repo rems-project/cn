@@ -2921,13 +2921,15 @@ let cn_to_ail_struct ((sym, (loc, attrs, tag_def)) : A.sigma_tag_definition)
     let cn_struct_sym = generate_sym_with_suffix ~suffix:"_cn" sym in
     let new_members =
       List.map
-        (fun (id, (attrs, alignment, qualifiers, ctype)) ->
+        (fun (id, (attrs, _alignment, qualifiers, ctype)) ->
            let sct_opt = Sctypes.of_ctype ctype in
            let sct = match sct_opt with Some t -> t | None -> failwith "Bad sctype" in
            let bt =
              BT.of_sct Memory.is_signed_integer_type Memory.size_of_integer_type sct
            in
-           (id, (attrs, alignment, qualifiers, bt_to_ail_ctype bt)))
+           (* Don't carry alignment through -- may not necessarily match
+            between C type and Fulminate representation *)
+           (id, (attrs, None, qualifiers, bt_to_ail_ctype bt)))
         members
     in
     [ (cn_struct_sym, (loc, attrs, C.StructDef (new_members, opt))) ]
