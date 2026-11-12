@@ -72,6 +72,8 @@ let spec_mode_to_str = function
   | Statement -> "STATEMENT"
 
 
+let fulm_on_sym = Sym.fresh "is_fulminate_on"
+
 let spec_mode_sym = Sym.fresh "spec_mode"
 
 let spec_mode_enum_type = mk_ctype C.(Basic (Integer (Enum spec_mode_sym)))
@@ -510,7 +512,6 @@ let wrap_with_convert_to ?sct ail_expr_ bt =
 
 
 let wrap_with_fulm_on_check (bs, ss) =
-  let fulm_on_sym = Sym.fresh "is_fulminate_on" in
   let fulm_on_call = A.(AilEcall (mk_expr (AilEident fulm_on_sym), [])) in
   ( [],
     [ A.(

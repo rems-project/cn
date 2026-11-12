@@ -92,10 +92,6 @@ void disable_fulminate(void) {
   fulminate_on = false;
 }
 
-_Bool is_fulminate_on(void) {
-  return fulminate_on;
-}
-
 static enum cn_logging_level logging_level = CN_LOGGING_INFO;
 
 enum cn_logging_level get_cn_logging_level(void) {

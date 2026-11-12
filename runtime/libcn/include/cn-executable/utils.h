@@ -54,9 +54,14 @@ struct fulm_init_config {
 void fulminate_destroy(bool with_ghost_args);
 void fulminate_init(struct fulm_init_config flags);
 
+extern _Bool fulminate_on;
+
+static inline _Bool is_fulminate_on(void) {
+  return fulminate_on;
+}
+
 void enable_fulminate(void);
 void disable_fulminate(void);
-bool is_fulminate_on(void);
 
 /* Error handlers */
 enum cn_logging_level {
