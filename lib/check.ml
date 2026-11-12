@@ -2685,11 +2685,14 @@ let check_tagdefs tagDefs =
        let open Memory in
        match def with
        | Mu.UnionDef ud ->
-         let@ _ids = ListM.fold_leftM (fun ids {member;ct;_} ->
-           let@ () = WellTyped.check_ct (Loc.other __LOC__) ct in
-           assert (not (IdSet.mem member ids));
-           return (IdSet.add member ids)
-           ) IdSet.empty ud
+         let@ _ids =
+           ListM.fold_leftM
+             (fun ids { member; ct; _ } ->
+                let@ () = WellTyped.check_ct (Loc.other __LOC__) ct in
+                assert (not (IdSet.mem member ids));
+                return (IdSet.add member ids))
+             IdSet.empty
+             ud
          in
          return ()
        | StructDef (members, fam) ->

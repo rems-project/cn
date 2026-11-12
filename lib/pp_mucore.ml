@@ -33,6 +33,7 @@ module Pp_typ = struct
   let pp_rt = ReturnTypes.pp
 
   let pp_st _ = Pp.string "todo: implement struct type printer"
+
   let pp_un _ = Pp.string "todo: implement union type printer"
 end
 
@@ -603,7 +604,7 @@ module Make (Config : CONFIG) = struct
   let pp_tagDefinitions tagDefs =
     let tagDefs = Pmap.bindings_list tagDefs in
     let pp (sym, tagDef) =
-      let what, pped_def = 
+      let what, pped_def =
         match tagDef with
         | StructDef sd -> ("struct", pp_st sd)
         | UnionDef ud -> ("union", pp_un ud)

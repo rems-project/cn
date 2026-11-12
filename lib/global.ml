@@ -44,6 +44,12 @@ let get_struct_decl global sym = Sym.Map.find_opt sym global.struct_decls
 
 let get_union_decl global sym = Sym.Map.find_opt sym global.union_decls
 
+let get_struct_or_union_decl global sym =
+  match get_struct_decl global sym with
+  | Some sd -> Some (`Struct sd)
+  | None -> Option.map (fun ud -> `Union ud) (get_union_decl global sym)
+
+
 let get_datatype global sym = Sym.Map.find_opt sym global.datatypes
 
 let get_datatype_constr global sym = Sym.Map.find_opt sym global.datatype_constrs
@@ -102,12 +108,19 @@ module type Lifted = sig
 
   val get_union_decl : Locations.t -> Sym.t -> Memory.union_decl t
 
+  val get_struct_or_union_decl
+    :  Locations.t ->
+    Sym.t ->
+    [ `Struct of Memory.struct_decl | `Union of Memory.union_decl ] t
+
   val get_struct_member_type
     :  fam_permitted:bool ->
     Locations.t ->
     Id.t ->
     Memory.struct_layout ->
     Sctypes.ctype t
+
+  val get_union_member_type : Locations.t -> Id.t -> Memory.union_decl -> Sctypes.ctype t
 
   val get_datatype : Locations.t -> Sym.t -> BaseTypes.dt_info t
 
@@ -143,6 +156,10 @@ module Lift (M : ErrorReader) : Lifted with type 'a t := 'a M.t = struct
 
   let get_union_decl loc tag = lift get_union_decl loc tag (fun _ -> Unknown_union tag)
 
+  let get_struct_or_union_decl loc tag =
+    lift get_struct_or_union_decl loc tag (fun _ -> Unknown_struct_or_union tag)
+
+
   let get_struct_member_type ~fam_permitted loc member layout =
     let member_types, fam_type = Memory.struct_member_types layout in
     match List.assoc_opt Id.equal member member_types with
@@ -151,6 +168,15 @@ module Lift (M : ErrorReader) : Lifted with type 'a t := 'a M.t = struct
       (match fam_type with
        | Some (member', ct) when fam_permitted && Id.equal member member' -> M.return ct
        | _ -> M.fail loc (Unexpected_member (List.map fst member_types, member)))
+
+
+  let get_union_member_type loc member' ud =
+    let open Memory in
+    match List.find_opt (fun { member; _ } -> Id.equal member member') ud with
+    | Some m -> M.return m.ct
+    | None ->
+      let members = List.map (fun { member; _ } -> member) ud in
+      M.fail loc (Unexpected_member (members, member'))
 
 
   let get_datatype loc tag =

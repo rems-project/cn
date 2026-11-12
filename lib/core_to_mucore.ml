@@ -1452,14 +1452,15 @@ let normalise_tag_definition =
       return (Mu.StructDef (make_struct_decl loc fields tag, fam))
     | UnionDef members ->
       let union_size = Memory.size_of_ctype (Union tag) in
-      let union_decl = 
-        List.map (fun (member, (_attr, _align, _qs, ct)) ->
-          let ct = convert_ct loc ct in
-          let size = Memory.size_of_ctype ct in
-          let padding = union_size - size in
-          assert (padding >= 0);
-          Memory.{ member; ct; size; padding;}
-        ) members
+      let union_decl =
+        List.map
+          (fun (member, (_attr, _align, _qs, ct)) ->
+             let ct = convert_ct loc ct in
+             let size = Memory.size_of_ctype ct in
+             let padding = union_size - size in
+             assert (padding >= 0);
+             Memory.{ member; ct; size; padding })
+          members
       in
       return (Mu.UnionDef union_decl)
 

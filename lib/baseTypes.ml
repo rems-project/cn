@@ -166,7 +166,7 @@ let rec of_sct loc is_signed size_of ct =
     Map (uintptr_bt loc is_signed size_of, of_sct loc is_signed size_of sct)
   | Pointer sct -> Loc (loc sct)
   | Struct tag -> Struct tag
-  | Union tag -> 
+  | Union tag ->
     let byte = of_sct loc is_signed size_of Byte in
     let n = size_of (Union tag) in
     Tuple (List.init n (fun _ -> byte))

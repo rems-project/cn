@@ -3034,8 +3034,7 @@ let cn_to_ail_resource
   =
   let calculate_resource_return_type (preds : (Sym.t * Definition.Predicate.t) list) loc
     = function
-    | Request.Owned (sct, _) ->
-      ( Sctypes.to_ctype sct, Memory.bt_of_sct sct )
+    | Request.Owned (sct, _) -> (Sctypes.to_ctype sct, Memory.bt_of_sct sct)
     | PName pname ->
       if Sym.equal pname Alloc.Predicate.sym then (
         Cerb_colour.with_colour
@@ -3108,7 +3107,7 @@ let cn_to_ail_resource
           IT
             ( Apply
                 (Sym.fresh owned_fn_name, [ p.pointer; enum_val_get; loop_ownership_arg ]),
-              Memory.bt_of_sct  sct,
+              Memory.bt_of_sct sct,
               Cerb_location.unknown )
         in
         let bs', ss', e' =
@@ -3239,7 +3238,7 @@ let cn_to_ail_resource
             ( Apply
                 ( Sym.fresh owned_or_deref_fn_name,
                   [ ptr_add_it; enum_val_get; loop_ownership_arg ] ),
-              Memory.bt_of_sct  sct,
+              Memory.bt_of_sct sct,
               Cerb_location.unknown )
         in
         let bs', ss', e' =
@@ -4157,7 +4156,7 @@ let rec cn_to_ail_cnprog ~without_lemma_checks filename dts globals spec_mode_op
         AilEcall
           (mk_expr (AilEident cn_ptr_deref_sym), [ e; mk_expr (AilEident ctype_sym) ]))
     in
-    let bt = Memory.bt_of_sct  ct in
+    let bt = Memory.bt_of_sct ct in
     let ctype = bt_to_ail_ctype bt in
     let binding = create_binding name ctype in
     let ail_stat_ =
@@ -4233,7 +4232,7 @@ let rec cn_to_ail_cnprog_ghost_arg filename dts globals spec_mode_opt i = functi
         AilEcall
           (mk_expr (AilEident cn_ptr_deref_sym), [ e; mk_expr (AilEident ctype_sym) ]))
     in
-    let bt = Memory.bt_of_sct  ct in
+    let bt = Memory.bt_of_sct ct in
     let ctype = bt_to_ail_ctype bt in
     let binding = create_binding name ctype in
     let ail_stat_ =
@@ -4814,9 +4813,7 @@ let rec cn_to_ail_lat_2
         let sct =
           match sct_opt with Some t -> t | None -> failwith "No sctype conversion"
         in
-        let bt =
-          Memory.bt_of_sct  sct
-        in
+        let bt = Memory.bt_of_sct sct in
         let real_return_ctype = bt_to_ail_ctype bt in
         let return_cn_binding = create_binding return_cn_sym real_return_ctype in
         let cn_ret_ail_expr_ = A.(AilEident (Sym.fresh "__cn_ret")) in
@@ -5274,7 +5271,7 @@ let generate_assume_ownership_function ~without_ownership_checking ctype
       failwith
         (__LOC__ ^ ": Bad sctype when trying to generate ownership assuming function")
   in
-  let bt = Memory.bt_of_sct  sct in
+  let bt = Memory.bt_of_sct sct in
   let ret_type = bt_to_ail_ctype bt in
   let return_stmt = A.(AilSreturn (mk_expr (wrap_with_convert_to ~sct deref_expr_ bt))) in
   (* Generating function declaration *)
@@ -5311,9 +5308,7 @@ let cn_to_ail_assume_resource
       without_ownership_checking
   =
   let calculate_return_type = function
-    | Request.Owned (sct, _) ->
-      ( Sctypes.to_ctype sct,
-        Memory.bt_of_sct  sct )
+    | Request.Owned (sct, _) -> (Sctypes.to_ctype sct, Memory.bt_of_sct sct)
     | PName pname ->
       if Sym.equal pname Alloc.Predicate.sym then (
         Cerb_colour.with_colour
@@ -5382,7 +5377,7 @@ let cn_to_ail_assume_resource
                         BT.Unit,
                         Locations.other __LOC__ )
                   ] ),
-              Memory.bt_of_sct  sct,
+              Memory.bt_of_sct sct,
               Cerb_location.unknown )
         in
         let bs', ss', e' =
@@ -5498,7 +5493,7 @@ let cn_to_ail_assume_resource
                         BT.Unit,
                         Locations.other __LOC__ )
                   ] ),
-              Memory.bt_of_sct  sct,
+              Memory.bt_of_sct sct,
               Cerb_location.unknown )
         in
         let bs', ss', e' =

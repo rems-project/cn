@@ -235,9 +235,11 @@ module Global = struct
     let@ global = get_global () in
     set_global { global with struct_decls = Sym.Map.add tag layout global.struct_decls }
 
+
   let add_union_decl tag ud : unit m =
     let@ global = get_global () in
     set_global { global with union_decls = Sym.Map.add tag ud global.union_decls }
+
 
   let add_fun_decl fname entry =
     let@ global = get_global () in

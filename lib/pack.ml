@@ -52,19 +52,18 @@ let packing_ft ~full loc global provable ret =
        let at = LAT.Resource ((o_s, (qpred, T.get_bt o)), (loc, None), LAT.I o) in
        Some at
      | Owned (Union tag, init) ->
-       let resources = 
+       let resources =
          List.init (Memory.size_of_ctype (Union tag)) (fun i ->
            let index = MT.num_lit_ (Z.of_int i) Memory.uintptr_bt loc in
            let pointer = MT.arrayShift_ ~base:ret.pointer ~index Byte loc in
            let value_s = Sym.fresh "byte_value" in
            let pred = P { name = Owned (Byte, init); pointer; iargs = [] } in
-           ((value_s, (pred, Memory.bt_of_sct Byte)), (loc, None))           
-         )
+           ((value_s, (pred, Memory.bt_of_sct Byte)), (loc, None)))
        in
-       let values = 
-         List.map (fun ((value_s, _), _) ->
-           MT.sym_ (value_s, Memory.bt_of_sct Byte, loc)
-         ) resources
+       let values =
+         List.map
+           (fun ((value_s, _), _) -> MT.sym_ (value_s, Memory.bt_of_sct Byte, loc))
+           resources
        in
        let o = MT.tuple_ values loc in
        Some (LAT.mResources resources (LAT.I o))
@@ -126,14 +125,13 @@ let unpack_owned loc global (ct, init) pointer (O o) =
   | Void | Integer _ | Pointer _ | Function _ | Byte -> None
   | Array (ict, olength) -> Some [ (unfolded_array loc init (ict, olength) pointer, O o) ]
   | Union _tag ->
-    let resources = 
+    let resources =
       List.init (Memory.size_of_ctype ct) (fun i ->
         let index = MT.num_lit_ (Z.of_int i) Memory.uintptr_bt loc in
         let pointer = MT.arrayShift_ ~base:pointer ~index Byte loc in
         let item_bt = Memory.bt_of_sct Byte in
         let value = MT.nthTuple_ ~item_bt (i, o) loc in
-        (P { name = Owned (Byte, init); pointer; iargs = [] }, O value)
-      )
+        (P { name = Owned (Byte, init); pointer; iargs = [] }, O value))
     in
     Some resources
   | Struct tag ->

@@ -161,8 +161,7 @@ let add_records_to_map_from_struct (tag_def : Mucore.tag_definition) =
     List.iter
       (fun (sp : Memory.struct_piece) ->
          match sp.member_or_padding with
-         | Some (_, sct) ->
-           populate (Memory.bt_of_sct sct)
+         | Some (_, sct) -> populate (Memory.bt_of_sct sct)
          | None -> ())
       sl
   | UnionDef _ -> ()

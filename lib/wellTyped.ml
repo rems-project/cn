@@ -109,6 +109,12 @@ module NoSolver = struct
     return ty
 
 
+  let get_union_member_type loc tag member =
+    let@ decl = get_union_decl loc tag in
+    let@ ty = get_union_member_type loc member decl in
+    return ty
+
+
   let pure x s = match x s with Ok (y, _) -> Ok (y, s) | Error err -> Error err
 
   let update f s = Ok ((), f s)
@@ -875,15 +881,20 @@ module WT = struct
         in
         return (IT (Cast (target_bt, t), target_bt, loc))
       | MemberShift (t, tag, member) ->
-        let@ _ty = get_struct_member_type ~fam_permitted:true loc tag member in
         let@ t = check loc (Loc ()) t in
-        let@ decl = get_struct_decl loc tag in
+        let@ su = get_struct_or_union_decl loc tag in
         let@ () =
-          if !cnBV then (
-            let o = Option.get (Memory.struct_member_offset decl member) in
-            let rs = Option.get (BT.is_bits_bt Memory.uintptr_bt) in
-            ensure_z_fits_bits_type loc rs (Z.of_int o))
-          else
+          match su with
+          | `Struct decl ->
+            let@ _ty = get_struct_member_type ~fam_permitted:true loc tag member in
+            if !cnBV then (
+              let o = Option.get (Memory.struct_member_offset decl member) in
+              let rs = Option.get (BT.is_bits_bt Memory.uintptr_bt) in
+              ensure_z_fits_bits_type loc rs (Z.of_int o))
+            else
+              return ()
+          | `Union _decl ->
+            let@ _ty = get_union_member_type loc tag member in
             return ()
         in
         (* looking at solver mapping *)
@@ -1858,6 +1869,12 @@ module BaseTyping = struct
           return (Loc (), PEarray_shift (pe1, ct, pe2))
         | PEmember_shift (pe, tag, member) ->
           let@ pe = check_pexpr (Loc ()) pe in
+          let@ su = get_struct_or_union_decl loc tag in
+          let@ _ty =
+            match su with
+            | `Struct _decl -> get_struct_member_type ~fam_permitted:true loc tag member
+            | `Union _decl -> get_union_member_type loc tag member
+          in
           return (Loc (), PEmember_shift (pe, tag, member))
         | PEcall
             (Sym (Symbol (_, _, SD_Id ("conv_int" | "conv_loaded_int"))), [ ct_pe; pe ])
@@ -1963,17 +1980,29 @@ module BaseTyping = struct
           let@ pe2 = check_pexpr CType pe2 in
           return (BT.Bool, PEare_compatible (pe1, pe2))
         | PEconstrained _ -> todo ()
-        | PEunion (_tag, _member, _pe) -> failwith "todo: PEunion is being changed in Core"
+        | PEunion (_tag, _member, _pe) ->
+          failwith "todo: PEunion is being changed in Core"
         | PEmemberof (tag, member, pe) ->
-          let@ pe = check_pexpr (Struct tag) pe in
-          let@ field_ct = get_struct_member_type ~fam_permitted:false loc tag member in
-          return (Memory.bt_of_sct field_ct, PEmemberof (tag, member, pe))
+          let@ su = get_struct_or_union_decl loc tag in
+          let@ pe_bt, member_bt =
+            match su with
+            | `Struct _sd ->
+              let@ member_ct =
+                get_struct_member_type ~fam_permitted:false loc tag member
+              in
+              return (Struct tag, Memory.bt_of_sct member_ct)
+            | `Union _ud ->
+              let@ member_ct = get_union_member_type loc tag member in
+              return (Memory.bt_of_sct (Union tag), Memory.bt_of_sct member_ct)
+          in
+          let@ pe = check_pexpr pe_bt pe in
+          return (member_bt, PEmemberof (tag, member, pe))
         (* reaching these cases should be prevented by the `is_unreachable` used in
            inferring types of PEif *)
         | PEerror (_, _) -> todo ()
         | PEundef (loc, ub) ->
-            (* In the absence of polymorphism, arbitrarily use Unit *)
-            return (Unit, PEundef (loc, ub))
+          (* In the absence of polymorphism, arbitrarily use Unit *)
+          return (Unit, PEundef (loc, ub))
       in
       return (Pexpr (loc, annots, bty, pe_))
 

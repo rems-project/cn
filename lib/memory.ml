@@ -113,17 +113,16 @@ let struct_member_offset ((pieces, fam) : struct_layout) member : int option =
   | _ -> None
 
 
-type union_member = 
+type union_member =
   { member : Id.t;
     ct : Sctypes.t;
     size : int;
-    padding : int }
+    padding : int
+  }
 
 type union_decl = union_member list
 
 type union_decls = union_decl Sym.Map.t
-
-
 
 (* tries to implement all_values_representable_in from runtime std.core *)
 let all_values_representable_in (ity1, ity2) =
