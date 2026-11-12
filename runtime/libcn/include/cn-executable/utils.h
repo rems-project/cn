@@ -15,9 +15,6 @@
     printf(__VA_ARGS__);                                                                 \
   }
 
-// XXX: things used by injected code
-#define true  1
-#define false 0
 
 enum spec_mode {
   PRE = 1,
@@ -702,6 +699,7 @@ static inline void cn_postfix(void* ptr, size_t size) {
   #undef int64_t
   #undef intptr_t
   #undef alignof
+  #undef bool
 #endif
 
 #endif  // CN_UTILS

@@ -12,7 +12,7 @@
 
   // We define this just for the declarations in this file.
   // We also ensure that this is the first #include in the instrumented files.
-  // See also the end of `rts.h` where these are undefined.
+  // See also the end of `utils.h` where these are undefined.
 
   #define size_t    __cerbty_size_t
   #define uint8_t   __cerbty_uint8_t
