@@ -50,10 +50,8 @@ let compile_assumes
           in
          !CtA.ownership_ctypes |> CtypeSet.of_list |> CtypeSet.to_seq |> List.of_seq)
        @ CtA.cn_to_ail_assume_predicates
-           filename
+           (CtA.env_of ~filename sigma prog5)
            prog5.resource_predicates
-           sigma.cn_datatypes
-           (CtA.extract_global_variables prog5)
            prog5.resource_predicates
            without_ownership_checking
        @ ESpecInternal.generate_c_assume_pres_internal

@@ -435,28 +435,13 @@ let compile_sct (sct : Sctypes.t)
   (decl, def)
 
 
-let rec extract_global_variables = function
-  | [] -> []
-  | (sym, globs) :: ds ->
-    (match globs with
-     | Mucore.GlobalDef (ctype, _) ->
-       (sym, Sctypes.to_ctype ctype) :: extract_global_variables ds
-     | GlobalDecl ctype -> (sym, Sctypes.to_ctype ctype) :: extract_global_variables ds)
-
-
 let compile_it
       filename
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
       (it : T.t)
   =
-  CtA.cn_to_ail_expr_toplevel
-    filename
-    sigma.cn_datatypes
-    (extract_global_variables prog5.globs)
-    None
-    None
-    it
+  CtA.cn_to_ail_expr_toplevel (CtA.env_of ~filename sigma prog5) None None it
 
 
 let owned_sct_call

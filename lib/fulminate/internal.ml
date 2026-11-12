@@ -136,8 +136,7 @@ let generate_fn_call_ghost_args_injs
       (sigm : _ CF.AilSyntax.sigma)
       (prog5 : unit Mucore.file)
   =
-  let globals = Cn_to_ail.extract_global_variables prog5 in
-  let dts = sigm.cn_datatypes in
+  let env = Cn_to_ail.env_of ~filename sigm prog5 in
   List.concat
     (List.map
        (fun (loc, ghost_args) ->
@@ -145,12 +144,7 @@ let generate_fn_call_ghost_args_injs
               [ "(" ]
               @ Utils.remove_last_semicolon
                   (generate_ail_stat_strs
-                     (Cn_to_ail.cn_to_ail_cnprog_ghost_args
-                        filename
-                        dts
-                        globals
-                        None
-                        ghost_args))
+                     (Cn_to_ail.cn_to_ail_cnprog_ghost_args env None ghost_args))
               @ [ ", " ] );
             (get_end_loc loc, [ ")" ])
           ])
@@ -180,14 +174,13 @@ let generate_c_specs_from_cn_internal
       (prog5 : unit Mucore.file)
   : cn_spec_inj_info
   =
-  let dts = sigm.cn_datatypes in
+  let env = Cn_to_ail.env_of ~filename sigm prog5 in
   let preds = prog5.resource_predicates in
   let c_return_type =
     match List.assoc CF.Symbol.equal_sym instrumentation.fn sigm.A.declarations with
     | _, _, A.Decl_function (_, (_, ret_ty), _, _, _, _) -> ret_ty
     | _ -> failwith (__LOC__ ^ ": C function to be instrumented not found in Ail AST")
   in
-  let globals = Cn_to_ail.extract_global_variables prog5 in
   let ail_executable_spec =
     Cn_to_ail.cn_to_ail_pre_post
       ~without_ownership_checking
@@ -196,10 +189,8 @@ let generate_c_specs_from_cn_internal
       ~disable_ghost_arg_failure
       ~is_lemma:false
       ~without_inline_statements
-      filename
-      dts
+      env
       preds
-      globals
       c_return_type
       instrumentation.internal
   in
@@ -294,7 +285,7 @@ let generate_c_assume_pres_internal
       (prog5 : unit Mucore.file)
   =
   let aux ((is_static, inst) : bool * Extract.instrumentation) =
-    let dts = sigma.cn_datatypes in
+    let env = Cn_to_ail.env_of ~filename sigma prog5 in
     let preds = prog5.resource_predicates in
     let args =
       match List.assoc Sym.equal inst.fn sigma.declarations with
@@ -304,7 +295,6 @@ let generate_c_assume_pres_internal
         List.map (fun ((x, bt), ct) -> (x, (bt, ct))) (List.combine arg_names arg_cts)
       | _ -> failwith ("unreachable @ " ^ __LOC__)
     in
-    let globals = Cn_to_ail.extract_global_variables prog5 in
     let fsym =
       if is_static then
         Sym.fresh (Utils.static_prefix filename ^ "_" ^ Sym.pp_string inst.fn)
@@ -312,11 +302,9 @@ let generate_c_assume_pres_internal
         inst.fn
     in
     Cn_to_ail.cn_to_ail_assume_pre
-      filename
-      dts
+      env
       fsym
       args
-      globals
       preds
       without_ownership_checking
       (AT.get_lat (Option.get inst.internal))
@@ -551,10 +539,8 @@ let generate_c_functions
          (fun r -> (cn_f, r))
            (Cn_to_ail.cn_to_ail_function
               ~accept_uninterp
-              filename
+              (Cn_to_ail.env_of ~filename sigm prog5)
               cn_f
-              prog5
-              sigm.cn_datatypes
               sigm.cn_functions))
       cn_funs
   in
@@ -607,9 +593,7 @@ let generate_c_predicates
     Cn_to_ail.cn_to_ail_predicates
       ~accept_uninterp
       cn_preds
-      filename
-      sigm.cn_datatypes
-      (Cn_to_ail.extract_global_variables prog5)
+      (Cn_to_ail.env_of ~filename sigm prog5)
       sigm.cn_predicates
       without_ownership_checking
   in
@@ -639,21 +623,14 @@ let generate_c_lemmas
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
       (prog5 : unit Mucore.file)
   =
-  let globals = Cn_to_ail.extract_global_variables prog5 in
+  let env = Cn_to_ail.env_of ~filename sigm prog5 in
   let cn_lemmas =
     if remove_uninterp then
       Uninterp.remove_uninterp_lemmas prog5.lemmata
     else
       prog5.lemmata
   in
-  let ail_funs =
-    Cn_to_ail.cn_to_ail_lemmas
-      filename
-      sigm.cn_datatypes
-      prog5.resource_predicates
-      globals
-      cn_lemmas
-  in
+  let ail_funs = Cn_to_ail.cn_to_ail_lemmas env prog5.resource_predicates cn_lemmas in
   let decls, defs = List.split ail_funs in
   let defs_doc, decls_doc =
     generate_defined_fun_def_and_decl_docs (List.combine decls defs)
@@ -709,7 +686,10 @@ let generate_conversion_and_equality_functions
     List.map Cn_to_ail.generate_struct_equality_function sigm.tag_definitions
   in
   let datatype_equality_funs =
-    List.map (Cn_to_ail.generate_datatype_equality_function filename) sigm.cn_datatypes
+    List.map
+      (Cn_to_ail.generate_datatype_equality_function
+         (Cn_to_ail.env_of_sigma ~filename sigm))
+      sigm.cn_datatypes
   in
   let struct_map_get_funs =
     List.map Cn_to_ail.generate_struct_map_get sigm.tag_definitions

@@ -68,6 +68,17 @@ type ail_executable_spec =
     loops : loop_info list
   }
 
+type env =
+  { filename : string;
+    dts : AilSyntax.sigma_cn_datatype list;
+    globals : (Ctype.union_tag * Ctype.ctype) list;
+    funs : Sym.Set.t
+  }
+
+val env_of : filename:string -> _ AilSyntax.sigma -> _ Mucore.file -> env
+
+val env_of_sigma : filename:string -> _ AilSyntax.sigma -> env
+
 val extract_global_variables
   :  ?prune_unused:bool ->
   _ Mucore.file ->
@@ -86,7 +97,7 @@ val generate_assume_ownership_function
   * GenTypes.genTypeCategory AilSyntax.sigma_function_definition
 
 val generate_datatype_equality_function
-  :  string ->
+  :  env ->
   AilSyntax.sigma_cn_datatype ->
   (AilSyntax.sigma_declaration
   * GenTypes.genTypeCategory AilSyntax.sigma_function_definition)
@@ -160,9 +171,7 @@ val generate_record_map_get
     list
 
 val cn_to_ail_expr_toplevel
-  :  string ->
-  AilSyntax.sigma_cn_datatype list ->
-  (Ctype.union_tag * Ctype.ctype) list ->
+  :  env ->
   Sym.t option ->
   spec_mode option ->
   Terms.Normal.t ->
@@ -171,9 +180,7 @@ val cn_to_ail_expr_toplevel
   * GenTypes.genTypeCategory AilSyntax.expression
 
 val cn_to_ail_logical_constraint
-  :  string ->
-  AilSyntax.sigma_cn_datatype list ->
-  (Ctype.union_tag * Ctype.ctype) list ->
+  :  env ->
   spec_mode option ->
   LogicalConstraints.t ->
   AilSyntax.bindings
@@ -195,10 +202,8 @@ val cn_to_ail_records
 
 val cn_to_ail_function
   :  accept_uninterp:bool ->
-  string ->
+  env ->
   Sym.t * Definition.Function.t ->
-  _ Mucore.file ->
-  AilSyntax.sigma_cn_datatype list ->
   AilSyntax.sigma_cn_function list ->
   ((Locations.t * AilSyntax.sigma_declaration)
   * GenTypes.genTypeCategory AilSyntax.sigma_function_definition option)
@@ -207,9 +212,7 @@ val cn_to_ail_function
 val cn_to_ail_predicates
   :  accept_uninterp:bool ->
   (Sym.t * Definition.Predicate.t) list ->
-  string ->
-  AilSyntax.sigma_cn_datatype list ->
-  (Sym.t * Ctype.ctype) list ->
+  env ->
   AilSyntax.sigma_cn_predicate list ->
   bool ->
   ((Locations.t * AilSyntax.sigma_declaration)
@@ -218,10 +221,8 @@ val cn_to_ail_predicates
   * AilSyntax.sigma_tag_definition option list
 
 val cn_to_ail_lemmas
-  :  string ->
-  AilSyntax.sigma_cn_datatype list ->
+  :  env ->
   (Sym.t * Definition.Predicate.t) list ->
-  (Sym.t * Ctype.ctype) list ->
   (Sym.t * (Cerb_location.t * ArgumentTypes.lemmat)) list ->
   (AilSyntax.sigma_declaration
   * GenTypes.genTypeCategory AilSyntax.sigma_function_definition)
@@ -234,10 +235,8 @@ val cn_to_ail_pre_post
   disable_ghost_arg_failure:bool ->
   is_lemma:bool ->
   without_inline_statements:bool ->
-  string ->
-  AilSyntax.sigma_cn_datatype list ->
+  env ->
   (Sym.t * Definition.Predicate.t) list ->
-  (Sym.t * Ctype.ctype) list ->
   Ctype.ctype ->
   Extract.fn_args_and_body option ->
   ail_executable_spec
@@ -245,10 +244,8 @@ val cn_to_ail_pre_post
 val has_cn_spec : Extract.instrumentation -> bool
 
 val cn_to_ail_assume_predicates
-  :  string ->
+  :  env ->
   (Sym.t * Definition.Predicate.t) list ->
-  AilSyntax.sigma_cn_datatype list ->
-  (Sym.t * Ctype.ctype) list ->
   (Sym.t * Definition.Predicate.t) list ->
   bool ->
   (AilSyntax.sigma_declaration
@@ -256,11 +253,9 @@ val cn_to_ail_assume_predicates
     list
 
 val cn_to_ail_assume_pre
-  :  string ->
-  AilSyntax.sigma_cn_datatype list ->
+  :  env ->
   Ctype.union_tag ->
   (Ctype.union_tag * (BaseTypes.t * Ctype.ctype)) list ->
-  (Ctype.union_tag * Ctype.ctype) list ->
   (Ctype.union_tag * Definition.Predicate.t) list ->
   bool ->
   'a LogicalArgumentTypes.t ->
@@ -273,9 +268,7 @@ val cn_to_ail_ghost_enum
   AilSyntax.sigma_tag_definition
 
 val cn_to_ail_cnprog_ghost_args
-  :  string ->
-  AilSyntax.sigma_cn_datatype list ->
-  (Sym.t * Ctype.ctype) list ->
+  :  env ->
   spec_mode option ->
   Terms.Normal.t Cnprog.t list ->
   AilSyntax.bindings * GenTypes.genTypeCategory AilSyntax.statement_ list
