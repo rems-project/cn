@@ -73,12 +73,13 @@ let pp_executable_spec pp_loc =
   let open Pp in
   let rec aux bt =
     match bt with
-    | Unit | Bool | Integer | MemByte | Bits _ | Real | Loc _ | Alloc_id | CType
-    | Struct _ | Datatype _ ->
-      pp pp_loc bt
+    | Unit | Bool | Integer | MemByte | Bits _ | Real | Alloc_id | CType -> pp pp_loc bt
+    | Loc _ -> !^"pointer"
+    | Struct sym -> !^"struct" ^^ underscore ^^ Sym.pp sym
+    | Datatype sym -> !^"datatype" ^^ underscore ^^ Sym.pp sym
     | Record members ->
       flow_map underscore (fun (s, bt) -> aux bt ^^ underscore ^^ Id.pp s) members
-    | Map (abt, rbt) -> !^"map" ^^ underscores (aux abt ^^ underscore ^^^ aux rbt)
+    | Map (abt, rbt) -> !^"map" ^^ underscores (aux abt ^^ underscore ^^ aux rbt)
     | List bt -> !^"cn_list" ^^ underscores (aux bt)
     | Tuple nbts -> !^"cn_tuple" ^^ underscores (flow_map underscore aux nbts)
     | Set t -> !^"cn_set" ^^ underscores (aux t)
