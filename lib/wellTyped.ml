@@ -934,7 +934,8 @@ module WT = struct
         return (IT (SizeOf ct, Memory.size_bt, loc))
       | OffsetOf (tag, member) ->
         let@ def = get_struct_or_union_decl loc tag in
-        let@ o = match def with
+        let@ o =
+          match def with
           | `Struct decl ->
             let@ _ty = get_struct_member_type ~fam_permitted:true loc tag member in
             return (Option.get (Memory.struct_member_offset decl member))

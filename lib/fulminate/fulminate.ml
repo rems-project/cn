@@ -8,6 +8,8 @@ module Records = Records
 module Ownership = Ownership
 module Utils = Utils
 
+let experimental_unions = Cn_to_ail.experimental_unions
+
 let rec group_toplevel_defs new_list = function
   | [] -> new_list
   | loc :: ls ->

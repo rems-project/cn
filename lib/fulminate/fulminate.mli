@@ -6,6 +6,8 @@ module Ownership = Ownership
 module Records = Records
 module Utils = Utils
 
+val experimental_unions : bool ref
+
 val get_instrumented_filename : string -> string
 
 val get_uninterp_filename : string -> string

@@ -1,5 +1,7 @@
 open Cerb_frontend
 
+val experimental_unions : bool ref
+
 val getter_str : string -> Sym.t -> string
 
 val setter_str : string -> Sym.t -> string
