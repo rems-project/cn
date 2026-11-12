@@ -285,7 +285,7 @@ let separate_decls_and_assigns stats =
       sym_expr_pairs
   in
   let rec separate_decls_and_assigns_aux = function
-    | [] -> (!decls, !modified_stats)
+    | [] -> ()
     | s :: ss ->
       let () =
         match s with
@@ -309,4 +309,5 @@ let separate_decls_and_assigns stats =
       in
       separate_decls_and_assigns_aux ss
   in
-  separate_decls_and_assigns_aux stats
+  separate_decls_and_assigns_aux stats;
+  (!decls, !modified_stats)
