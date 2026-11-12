@@ -4982,6 +4982,7 @@ let rec cn_to_ail_pre_post_aux
         c_return_type
         lat
     in
+    let ail_executable_spec = wrap_spec_with_fulm_on_checks ail_executable_spec in
     let ail_executable_spec =
       if disable_ghost_arg_failure then
         ail_executable_spec
@@ -5089,7 +5090,6 @@ let cn_to_ail_pre_post
     let bump_alloc_binding, bump_alloc_start_stat_, bump_alloc_end_stat_ =
       gen_bump_alloc_bs_and_ss ()
     in
-    let ail_executable_spec = wrap_spec_with_fulm_on_checks ail_executable_spec in
     (* Add auxilliary statements: bump allocator, stack depth incr and decr, postcondition leak check *)
     let ail_executable_spec' =
       prepend_to_precondition
