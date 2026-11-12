@@ -54,12 +54,7 @@ module Make (AD : Domain.T) = struct
     name_of_bt bt |> String.split_on_char ' ' |> String.concat "_"
 
 
-  let transform_it
-        filename
-        (sigma : CF.GenTypes.genTypeCategory A.sigma)
-        (name : Sym.t)
-        (it : T.t)
-    =
+  let transform_it (env : CtA.env) (name : Sym.t) (it : T.t) =
     let var = Sym.fresh_anon () in
     let it_bt = T.get_bt it in
     let bs, ss, e =
@@ -67,8 +62,7 @@ module Make (AD : Domain.T) = struct
       | BT.Unit ->
         (* For unit types, return NULL directly *)
         ([], [], mk_expr (AilEconst ConstantNull))
-      | _ ->
-        CtA.cn_to_ail_expr_toplevel (CtA.env_of_sigma ~filename sigma) (Some name) None it
+      | _ -> CtA.cn_to_ail_expr_toplevel env (Some name) None it
     in
     ( [ Utils.create_binding var (bt_to_ctype_for_binding it_bt) ],
       A.
@@ -83,11 +77,9 @@ module Make (AD : Domain.T) = struct
       mk_expr (AilEident var) )
 
 
-  let transform_lc filename (sigma : CF.GenTypes.genTypeCategory A.sigma) (lc : LC.t) =
+  let transform_lc (env : CtA.env) (lc : LC.t) =
     let var = Sym.fresh_anon () in
-    let bs, ss, e =
-      CtA.cn_to_ail_logical_constraint (CtA.env_of_sigma ~filename sigma) None lc
-    in
+    let bs, ss, e = CtA.cn_to_ail_logical_constraint env None lc in
     ( [ Utils.create_binding var (bt_to_ctype_for_binding BT.Bool) ],
       A.
         [ AilSdeclaration
@@ -115,17 +107,10 @@ module Make (AD : Domain.T) = struct
   module Smt = Symbolic.Smt.Make (AD)
 
   (** Generate a cn_term value read for an IT expression (substituting with actual runtime value) *)
-  let generate_value_read
-        filename
-        (sigma : CF.GenTypes.genTypeCategory A.sigma)
-        (it : T.t)
-    : Pp.document
-    =
+  let generate_value_read (env : CtA.env) (it : T.t) : Pp.document =
     let open Pp in
     let bt = T.get_bt it in
-    let bs, ss, e =
-      CtA.cn_to_ail_expr_toplevel (CtA.env_of_sigma ~filename sigma) None None it
-    in
+    let bs, ss, e = CtA.cn_to_ail_expr_toplevel env None None it in
     let e_cn =
       if List.is_empty bs && List.is_empty ss then
         e
@@ -168,7 +153,7 @@ module Make (AD : Domain.T) = struct
   (* Optimize concrete subterms: replace compound subterms not containing [sym]
        with a fresh MT.sym_ whose name is the SMT-wrapped C expression. *)
   let rec optimize_concrete_terms
-            filename
+            (env : CtA.env)
             (sigma : CF.GenTypes.genTypeCategory A.sigma)
             (protected : Sym.Set.t)
             (it : T.t)
@@ -183,7 +168,7 @@ module Make (AD : Domain.T) = struct
       | _ ->
         (* Compound term not containing target: compile via CtA and wrap as SMT value *)
         let bt = T.get_bt it in
-        let smt_doc = generate_value_read filename sigma it in
+        let smt_doc = generate_value_read env it in
         MT.sym_ (Sym.fresh (Pp.plain smt_doc), bt, Locations.other __LOC__))
     else (
       let bt = T.get_bt it in
@@ -191,142 +176,136 @@ module Make (AD : Domain.T) = struct
       match T.get_term it with
       | Sym _ | Const _ -> it
       | Unop (op, t) ->
-        IT (Unop (op, optimize_concrete_terms filename sigma protected t), bt, loc)
+        IT (Unop (op, optimize_concrete_terms env sigma protected t), bt, loc)
       | Binop (op, t1, t2) ->
         IT
           ( Binop
               ( op,
-                optimize_concrete_terms filename sigma protected t1,
-                optimize_concrete_terms filename sigma protected t2 ),
+                optimize_concrete_terms env sigma protected t1,
+                optimize_concrete_terms env sigma protected t2 ),
             bt,
             loc )
       | ITE (cond, t2, t3) ->
         IT
           ( ITE
-              ( optimize_concrete_terms filename sigma protected cond,
-                optimize_concrete_terms filename sigma protected t2,
-                optimize_concrete_terms filename sigma protected t3 ),
+              ( optimize_concrete_terms env sigma protected cond,
+                optimize_concrete_terms env sigma protected t2,
+                optimize_concrete_terms env sigma protected t3 ),
             bt,
             loc )
       | Cast (cast_bt, t) ->
-        IT (Cast (cast_bt, optimize_concrete_terms filename sigma protected t), bt, loc)
+        IT (Cast (cast_bt, optimize_concrete_terms env sigma protected t), bt, loc)
       | Tuple ts ->
-        IT
-          (Tuple (List.map (optimize_concrete_terms filename sigma protected) ts), bt, loc)
+        IT (Tuple (List.map (optimize_concrete_terms env sigma protected) ts), bt, loc)
       | NthTuple (n, t) ->
-        IT (NthTuple (n, optimize_concrete_terms filename sigma protected t), bt, loc)
+        IT (NthTuple (n, optimize_concrete_terms env sigma protected t), bt, loc)
       | Struct (tag, members) ->
         IT
           ( Struct
               ( tag,
                 List.map
-                  (fun (id, t) ->
-                     (id, optimize_concrete_terms filename sigma protected t))
+                  (fun (id, t) -> (id, optimize_concrete_terms env sigma protected t))
                   members ),
             bt,
             loc )
       | StructMember (t, m) ->
-        IT (StructMember (optimize_concrete_terms filename sigma protected t, m), bt, loc)
+        IT (StructMember (optimize_concrete_terms env sigma protected t, m), bt, loc)
       | StructUpdate ((t1, m), t2) ->
         IT
           ( StructUpdate
-              ( (optimize_concrete_terms filename sigma protected t1, m),
-                optimize_concrete_terms filename sigma protected t2 ),
+              ( (optimize_concrete_terms env sigma protected t1, m),
+                optimize_concrete_terms env sigma protected t2 ),
             bt,
             loc )
       | Record members ->
         IT
           ( Record
               (List.map
-                 (fun (id, t) -> (id, optimize_concrete_terms filename sigma protected t))
+                 (fun (id, t) -> (id, optimize_concrete_terms env sigma protected t))
                  members),
             bt,
             loc )
       | RecordMember (t, m) ->
-        IT (RecordMember (optimize_concrete_terms filename sigma protected t, m), bt, loc)
+        IT (RecordMember (optimize_concrete_terms env sigma protected t, m), bt, loc)
       | RecordUpdate ((t1, m), t2) ->
         IT
           ( RecordUpdate
-              ( (optimize_concrete_terms filename sigma protected t1, m),
-                optimize_concrete_terms filename sigma protected t2 ),
+              ( (optimize_concrete_terms env sigma protected t1, m),
+                optimize_concrete_terms env sigma protected t2 ),
             bt,
             loc )
       | MemberShift (t, tag, id) ->
-        IT
-          ( MemberShift (optimize_concrete_terms filename sigma protected t, tag, id),
-            bt,
-            loc )
+        IT (MemberShift (optimize_concrete_terms env sigma protected t, tag, id), bt, loc)
       | ArrayShift { base; ct; index } ->
         IT
           ( ArrayShift
-              { base = optimize_concrete_terms filename sigma protected base;
+              { base = optimize_concrete_terms env sigma protected base;
                 ct;
-                index = optimize_concrete_terms filename sigma protected index
+                index = optimize_concrete_terms env sigma protected index
               },
             bt,
             loc )
       | CopyAllocId { addr; loc = loc_copy } ->
         IT
           ( CopyAllocId
-              { addr = optimize_concrete_terms filename sigma protected addr;
-                loc = optimize_concrete_terms filename sigma protected loc_copy
+              { addr = optimize_concrete_terms env sigma protected addr;
+                loc = optimize_concrete_terms env sigma protected loc_copy
               },
             bt,
             loc )
       | HasAllocId l ->
-        IT (HasAllocId (optimize_concrete_terms filename sigma protected l), bt, loc)
+        IT (HasAllocId (optimize_concrete_terms env sigma protected l), bt, loc)
       | Aligned { t; align } ->
         IT
           ( Aligned
-              { t = optimize_concrete_terms filename sigma protected t;
-                align = optimize_concrete_terms filename sigma protected align
+              { t = optimize_concrete_terms env sigma protected t;
+                align = optimize_concrete_terms env sigma protected align
               },
             bt,
             loc )
       | WrapI (ity, t) ->
-        IT (WrapI (ity, optimize_concrete_terms filename sigma protected t), bt, loc)
+        IT (WrapI (ity, optimize_concrete_terms env sigma protected t), bt, loc)
       | MapConst (mbt, t) ->
-        IT (MapConst (mbt, optimize_concrete_terms filename sigma protected t), bt, loc)
+        IT (MapConst (mbt, optimize_concrete_terms env sigma protected t), bt, loc)
       | MapSet (t1, t2, t3) ->
         IT
           ( MapSet
-              ( optimize_concrete_terms filename sigma protected t1,
-                optimize_concrete_terms filename sigma protected t2,
-                optimize_concrete_terms filename sigma protected t3 ),
+              ( optimize_concrete_terms env sigma protected t1,
+                optimize_concrete_terms env sigma protected t2,
+                optimize_concrete_terms env sigma protected t3 ),
             bt,
             loc )
       | MapGet (t1, t2) ->
         IT
           ( MapGet
-              ( optimize_concrete_terms filename sigma protected t1,
-                optimize_concrete_terms filename sigma protected t2 ),
+              ( optimize_concrete_terms env sigma protected t1,
+                optimize_concrete_terms env sigma protected t2 ),
             bt,
             loc )
       | MapDef ((s, s_bt), t) ->
         IT
           ( MapDef
-              ( (s, s_bt),
-                optimize_concrete_terms filename sigma (Sym.Set.add s protected) t ),
+              ((s, s_bt), optimize_concrete_terms env sigma (Sym.Set.add s protected) t),
             bt,
             loc )
       | EachI ((i1, (s, s_bt), i2), t) ->
         IT
           ( EachI
               ( (i1, (s, s_bt), i2),
-                optimize_concrete_terms filename sigma (Sym.Set.add s protected) t ),
+                optimize_concrete_terms env sigma (Sym.Set.add s protected) t ),
             bt,
             loc )
       | Let ((nm, t1), t2) ->
         IT
           ( Let
-              ( (nm, optimize_concrete_terms filename sigma protected t1),
-                optimize_concrete_terms filename sigma (Sym.Set.add nm protected) t2 ),
+              ( (nm, optimize_concrete_terms env sigma protected t1),
+                optimize_concrete_terms env sigma (Sym.Set.add nm protected) t2 ),
             bt,
             loc )
       | Match (scrutinee, cases) ->
         IT
           ( Match
-              ( optimize_concrete_terms filename sigma protected scrutinee,
+              ( optimize_concrete_terms env sigma protected scrutinee,
                 List.map
                   (fun (pat, body) ->
                      let pat_syms =
@@ -335,54 +314,45 @@ module Make (AD : Domain.T) = struct
                          protected
                          (T.bound_by_pattern pat)
                      in
-                     (pat, optimize_concrete_terms filename sigma pat_syms body))
+                     (pat, optimize_concrete_terms env sigma pat_syms body))
                   cases ),
             bt,
             loc )
       | Apply (f, args) ->
         IT
-          ( Apply (f, List.map (optimize_concrete_terms filename sigma protected) args),
-            bt,
-            loc )
+          (Apply (f, List.map (optimize_concrete_terms env sigma protected) args), bt, loc)
       | Constructor (c, args) ->
         IT
           ( Constructor
               ( c,
                 List.map
-                  (fun (id, t) ->
-                     (id, optimize_concrete_terms filename sigma protected t))
+                  (fun (id, t) -> (id, optimize_concrete_terms env sigma protected t))
                   args ),
             bt,
             loc )
-      | CN_Some t ->
-        IT (CN_Some (optimize_concrete_terms filename sigma protected t), bt, loc)
-      | IsSome t ->
-        IT (IsSome (optimize_concrete_terms filename sigma protected t), bt, loc)
-      | GetOpt t ->
-        IT (GetOpt (optimize_concrete_terms filename sigma protected t), bt, loc)
+      | CN_Some t -> IT (CN_Some (optimize_concrete_terms env sigma protected t), bt, loc)
+      | IsSome t -> IT (IsSome (optimize_concrete_terms env sigma protected t), bt, loc)
+      | GetOpt t -> IT (GetOpt (optimize_concrete_terms env sigma protected t), bt, loc)
       | Cons (t1, t2) ->
         IT
           ( Cons
-              ( optimize_concrete_terms filename sigma protected t1,
-                optimize_concrete_terms filename sigma protected t2 ),
+              ( optimize_concrete_terms env sigma protected t1,
+                optimize_concrete_terms env sigma protected t2 ),
             bt,
             loc )
-      | Head t -> IT (Head (optimize_concrete_terms filename sigma protected t), bt, loc)
-      | Tail t -> IT (Tail (optimize_concrete_terms filename sigma protected t), bt, loc)
+      | Head t -> IT (Head (optimize_concrete_terms env sigma protected t), bt, loc)
+      | Tail t -> IT (Tail (optimize_concrete_terms env sigma protected t), bt, loc)
       | Representable (sct, t) ->
-        IT
-          ( Representable (sct, optimize_concrete_terms filename sigma protected t),
-            bt,
-            loc )
+        IT (Representable (sct, optimize_concrete_terms env sigma protected t), bt, loc)
       | Good (sct, t) ->
-        IT (Good (sct, optimize_concrete_terms filename sigma protected t), bt, loc)
+        IT (Good (sct, optimize_concrete_terms env sigma protected t), bt, loc)
       | _ -> it)
 
 
   (** Generate cn_term construction code for a constraint, substituting free variables
       (except the target) with their runtime values *)
   let generate_constraint_term
-        filename
+        (env : CtA.env)
         (sigma : CF.GenTypes.genTypeCategory A.sigma)
         ~(target : Sym.t)
         ~(target_bt : BT.t)
@@ -393,7 +363,7 @@ module Make (AD : Domain.T) = struct
     let free_vars_bts = T.free_vars_bts constraint_it in
     (* First, optimize compound concrete subterms *)
     let optimized_it =
-      optimize_concrete_terms filename sigma (Sym.Set.singleton target) constraint_it
+      optimize_concrete_terms env sigma (Sym.Set.singleton target) constraint_it
     in
     (* Substitute remaining free variables (except target) with value reads *)
     let substituted_it =
@@ -404,7 +374,7 @@ module Make (AD : Domain.T) = struct
            else (
              (* Generate a symbolic term that represents reading the runtime value *)
              let sym_it = MT.sym_ (sym, bt, Locations.other __LOC__) in
-             let value_read_str = Pp.plain (generate_value_read filename sigma sym_it) in
+             let value_read_str = Pp.plain (generate_value_read env sym_it) in
              (* Create a fresh symbol that will be printed as the value read expression *)
              let value_sym = Sym.fresh value_read_str in
              T.subst (T.make_rename ~from:sym ~to_:value_sym) acc))
@@ -437,7 +407,7 @@ module Make (AD : Domain.T) = struct
   (** Generate cn_term construction code for an address expression, keeping ALL
       free variables symbolic as cn_smt_sym references. *)
   let generate_addr_term
-        filename
+        (env : CtA.env)
         (sigma : CF.GenTypes.genTypeCategory A.sigma)
         (it_addr : T.t)
     : Pp.document
@@ -445,7 +415,7 @@ module Make (AD : Domain.T) = struct
     let open Pp in
     let free_vars_bts = T.free_vars_bts it_addr in
     let all_protected = Sym.Set.of_seq (Sym.Map.to_seq free_vars_bts |> Seq.map fst) in
-    let optimized_it = optimize_concrete_terms filename sigma all_protected it_addr in
+    let optimized_it = optimize_concrete_terms env sigma all_protected it_addr in
     let final_it =
       Sym.Map.fold
         (fun sym bt acc ->
@@ -474,7 +444,7 @@ module Make (AD : Domain.T) = struct
   (** Generate pre-declarations for backward abstract interpretation blame in ALSO mode.
       Returns (pre_decl_stmts, num_other_vars, addr_term_name, ids_name, syms_name). *)
   let generate_bwd_blame_parts
-        filename
+        (env : CtA.env)
         (sigma : CF.GenTypes.genTypeCategory A.sigma)
         (it_addr : T.t)
         (ptr_sym : Sym.t)
@@ -491,7 +461,7 @@ module Make (AD : Domain.T) = struct
     let addr_term_name = "_bwd_addr_term_" ^ string_of_int unique_id in
     let ids_name = "_bwd_other_ids_" ^ string_of_int unique_id in
     let syms_name = "_bwd_other_syms_" ^ string_of_int unique_id in
-    let addr_term_expr = generate_addr_term filename sigma it_addr in
+    let addr_term_expr = generate_addr_term env sigma it_addr in
     let decl_addr_str =
       plain (!^"cn_term*" ^^^ !^addr_term_name ^^^ !^"=" ^^^ addr_term_expr)
     in
@@ -588,7 +558,7 @@ module Make (AD : Domain.T) = struct
 
   (** Generate BENNET_REFINE_ASSIGNMENT calls for ArbitraryDomain pointer codegen *)
   let generate_assignment_refinements
-        (filename : string)
+        (env : CtA.env)
         (sigma : CF.GenTypes.genTypeCategory A.sigma)
         ~(var_sym : Sym.t)
         ~(last_var : Sym.t)
@@ -603,7 +573,7 @@ module Make (AD : Domain.T) = struct
          match pointer_opt with
          | Some (p, _) when Sym.equal p var_sym ->
            let offset_it = compute_offset_it var_sym it_addr in
-           let b_off, s_off, e_off = transform_it filename sigma name offset_it in
+           let b_off, s_off, e_off = transform_it env name offset_it in
            let (A.AnnotatedExpression (_, _, _, e_off_)) = e_off in
            let raw_offset_expr =
              mk_expr (CtA.wrap_with_convert_from e_off_ Memory.size_bt)
@@ -620,9 +590,7 @@ module Make (AD : Domain.T) = struct
                  MT.mul_ (MT.cast_ Memory.size_bt it_max loc, MT.sizeOf_ sct loc) loc
                in
                let range_size_it = MT.sub_ (end_bytes_it, offset_it) loc in
-               let b_range, s_range, e_range =
-                 transform_it filename sigma name range_size_it
-               in
+               let b_range, s_range, e_range = transform_it env name range_size_it in
                let (A.AnnotatedExpression (_, _, _, e_range_)) = e_range in
                let raw_range_expr =
                  mk_expr (CtA.wrap_with_convert_from e_range_ Memory.size_bt)
@@ -648,7 +616,7 @@ module Make (AD : Domain.T) = struct
              |> concat_map (fun v -> !^(", " ^ plain (Sym.pp v)))
            in
            let bwd_stmts, num_other, addr_term_name, ids_name, syms_name =
-             generate_bwd_blame_parts filename sigma it_addr var_sym
+             generate_bwd_blame_parts env sigma it_addr var_sym
            in
            let macro_call =
              !^"BENNET_REFINE_ASSIGNMENT"
@@ -685,7 +653,7 @@ module Make (AD : Domain.T) = struct
   (** Generate cn_term construction code for a constraint with two symbolic variables:
       the target variable and one additional variable kept symbolic. *)
   let generate_constraint_term_two_syms
-        filename
+        (env : CtA.env)
         (sigma : CF.GenTypes.genTypeCategory A.sigma)
         ~(target : Sym.t)
         ~(target_bt : BT.t)
@@ -697,7 +665,7 @@ module Make (AD : Domain.T) = struct
     let open Pp in
     let free_vars_bts = T.free_vars_bts constraint_it in
     let protected = Sym.Set.of_list [ target; also_sym ] in
-    let optimized_it = optimize_concrete_terms filename sigma protected constraint_it in
+    let optimized_it = optimize_concrete_terms env sigma protected constraint_it in
     (* Substitute free variables except target and also_sym with value reads *)
     let substituted_it =
       Sym.Map.fold
@@ -706,7 +674,7 @@ module Make (AD : Domain.T) = struct
              acc
            else (
              let sym_it = MT.sym_ (sym, bt, Locations.other __LOC__) in
-             let value_read_str = plain (generate_value_read filename sigma sym_it) in
+             let value_read_str = plain (generate_value_read env sym_it) in
              let value_sym = Sym.fresh value_read_str in
              T.subst (T.make_rename ~from:sym ~to_:value_sym) acc))
         free_vars_bts
@@ -743,7 +711,7 @@ module Make (AD : Domain.T) = struct
       inside the [if (_refine_is_bottom)] guard. Uses the pre-refine domain (var_cs)
       and _refine_bt that are in scope from the BEGIN macro. *)
   let generate_constraint_backward_refinements
-        filename
+        (env : CtA.env)
         (sigma : CF.GenTypes.genTypeCategory A.sigma)
         ~(var_sym : Sym.t)
         (constraint_it : T.t)
@@ -771,7 +739,7 @@ module Make (AD : Domain.T) = struct
           let v_base_type_expr = Smt.convert_basetype v_bt in
           let constraint_term =
             generate_constraint_term_two_syms
-              filename
+              env
               sigma
               ~target:v
               ~target_bt:v_bt
@@ -809,7 +777,7 @@ module Make (AD : Domain.T) = struct
 
   (** Generate BENNET_REFINE_CONSTRAINT calls for a list of constraints *)
   let generate_constraint_refinements
-        filename
+        (env : CtA.env)
         (sigma : CF.GenTypes.genTypeCategory A.sigma)
         ~(var_sym : Sym.t)
         ~(var_bt : BT.t)
@@ -824,12 +792,7 @@ module Make (AD : Domain.T) = struct
     constraints
     |> List.concat_map (fun constraint_it ->
       let constraint_term =
-        generate_constraint_term
-          filename
-          sigma
-          ~target:var_sym
-          ~target_bt:var_bt
-          constraint_it
+        generate_constraint_term env sigma ~target:var_sym ~target_bt:var_bt constraint_it
       in
       let blame_vars =
         T.free_vars constraint_it
@@ -867,7 +830,7 @@ module Make (AD : Domain.T) = struct
           [ A.AilSexpr (mk_expr (AilEident (Sym.fresh (plain macro_begin)))) ]
         in
         let s_backward =
-          generate_constraint_backward_refinements filename sigma ~var_sym constraint_it
+          generate_constraint_backward_refinements env sigma ~var_sym constraint_it
         in
         let macro_end =
           !^"BENNET_REFINE_CONSTRAINT_END"
@@ -926,8 +889,7 @@ module Make (AD : Domain.T) = struct
 
   (** Generate BENNET_ASSERT_DOMAIN_EVAL_CONSTRAINT calls for blame-first phase *)
   let generate_eval_constraints
-        filename
-        (sigma : CF.GenTypes.genTypeCategory A.sigma)
+        (env : CtA.env)
         (name : Sym.t)
         ~(free_vars : (Sym.t * BT.t) list)
         (constraints : T.t list)
@@ -938,7 +900,7 @@ module Make (AD : Domain.T) = struct
     in
     List.fold_right
       (fun constraint_it (acc_b, acc_s) ->
-         let b_cond, s_cond, e_cond = transform_it filename sigma name constraint_it in
+         let b_cond, s_cond, e_cond = transform_it env name constraint_it in
          let blame_syms =
            T.free_vars constraint_it
            |> Sym.Set.inter free_var_set
@@ -961,7 +923,7 @@ module Make (AD : Domain.T) = struct
 
   (** Generate BENNET_ASSERT_DOMAIN_EVAL_ASSIGNMENT calls for blame-first phase *)
   let generate_eval_assignments
-        (filename : string)
+        (env : CtA.env)
         (sigma : CF.GenTypes.genTypeCategory A.sigma)
         (name : Sym.t)
         ~(free_vars : (Sym.t * BT.t) list)
@@ -982,7 +944,7 @@ module Make (AD : Domain.T) = struct
               let pointer_opt = try Some (pointer_of it_addr) with _ -> None in
               match pointer_opt with
               | Some (p, _) when Sym.equal p var_sym ->
-                let b_addr, s_addr, e_addr = transform_it filename sigma name it_addr in
+                let b_addr, s_addr, e_addr = transform_it env name it_addr in
                 let addr_sym =
                   match e_addr with
                   | A.AnnotatedExpression (_, _, _, A.AilEident sym) -> sym
@@ -1003,9 +965,7 @@ module Make (AD : Domain.T) = struct
                     in
                     let start_offset_it = compute_offset_it var_sym it_addr in
                     let range_size_it = MT.sub_ (end_bytes_it, start_offset_it) loc in
-                    let b_range, s_range, e_range =
-                      transform_it filename sigma name range_size_it
-                    in
+                    let b_range, s_range, e_range = transform_it env name range_size_it in
                     let (A.AnnotatedExpression (_, _, _, e_range_)) = e_range in
                     let raw_range_expr =
                       mk_expr (CtA.wrap_with_convert_from e_range_ Memory.size_bt)
@@ -1017,7 +977,7 @@ module Make (AD : Domain.T) = struct
                   | _ -> ([], [], "sizeof(" ^ sct_to_c_type_string sct ^ ")")
                 in
                 let bwd_stmts, num_other, addr_term_name, ids_name, syms_name =
-                  generate_bwd_blame_parts filename sigma it_addr var_sym
+                  generate_bwd_blame_parts env sigma it_addr var_sym
                 in
                 let macro_call =
                   !^"BENNET_ASSERT_DOMAIN_EVAL_ASSIGNMENT"
@@ -1056,7 +1016,7 @@ module Make (AD : Domain.T) = struct
 
   (** Generate BENNET_ASSERT_DOMAIN_REFINE_ASSIGNMENT calls for AssertDomainElab context *)
   let generate_assert_domain_assignment_refinements
-        (filename : string)
+        (env : CtA.env)
         (sigma : CF.GenTypes.genTypeCategory A.sigma)
         ~(var_sym : Sym.t)
         ~(backtrack_var : Sym.t)
@@ -1070,7 +1030,7 @@ module Make (AD : Domain.T) = struct
          let pointer_opt = try Some (pointer_of it_addr) with _ -> None in
          match pointer_opt with
          | Some (p, _) when Sym.equal p var_sym ->
-           let b_addr, s_addr, e_addr = transform_it filename sigma name it_addr in
+           let b_addr, s_addr, e_addr = transform_it env name it_addr in
            let addr_sym =
              match e_addr with
              | A.AnnotatedExpression (_, _, _, A.AilEident sym) -> sym
@@ -1094,9 +1054,7 @@ module Make (AD : Domain.T) = struct
                in
                let start_offset_it = compute_offset_it var_sym it_addr in
                let range_size_it = MT.sub_ (end_bytes_it, start_offset_it) loc in
-               let b_range, s_range, e_range =
-                 transform_it filename sigma name range_size_it
-               in
+               let b_range, s_range, e_range = transform_it env name range_size_it in
                let (A.AnnotatedExpression (_, _, _, e_range_)) = e_range in
                let raw_range_expr =
                  mk_expr (CtA.wrap_with_convert_from e_range_ Memory.size_bt)
@@ -1108,7 +1066,7 @@ module Make (AD : Domain.T) = struct
              | _ -> ([], [], "sizeof(" ^ sct_to_c_type_string sct ^ ")")
            in
            let bwd_stmts, num_other, addr_term_name, ids_name, syms_name =
-             generate_bwd_blame_parts filename sigma it_addr var_sym
+             generate_bwd_blame_parts env sigma it_addr var_sym
            in
            let macro_call =
              !^"BENNET_ASSERT_DOMAIN_REFINE_ASSIGNMENT"
@@ -1144,7 +1102,7 @@ module Make (AD : Domain.T) = struct
 
   (** Generate BENNET_ASSERT_DOMAIN_REFINE_CONSTRAINT calls for assert_domain context *)
   let generate_assert_domain_constraint_refinements
-        filename
+        (env : CtA.env)
         (sigma : CF.GenTypes.genTypeCategory A.sigma)
         ~(var_sym : Sym.t)
         ~(var_bt : BT.t)
@@ -1158,12 +1116,7 @@ module Make (AD : Domain.T) = struct
     constraints
     |> List.map (fun constraint_it ->
       let constraint_term =
-        generate_constraint_term
-          filename
-          sigma
-          ~target:var_sym
-          ~target_bt:var_bt
-          constraint_it
+        generate_constraint_term env sigma ~target:var_sym ~target_bt:var_bt constraint_it
       in
       let blame_vars =
         T.free_vars constraint_it
@@ -1199,7 +1152,7 @@ module Make (AD : Domain.T) = struct
 
 
   let generate_let_return_backward_refinements
-        filename
+        (env : CtA.env)
         (sigma : CF.GenTypes.genTypeCategory A.sigma)
         ~(x_sym : Sym.t)
         ~(x_bt : BT.t)
@@ -1221,7 +1174,7 @@ module Make (AD : Domain.T) = struct
           Some
             (let v_base_type_expr = Smt.convert_basetype v_bt in
              let constraint_term =
-               generate_constraint_term filename sigma ~target:v ~target_bt:v_bt expr_it
+               generate_constraint_term env sigma ~target:v ~target_bt:v_bt expr_it
              in
              braces
                (nest
@@ -1300,7 +1253,7 @@ module Make (AD : Domain.T) = struct
 
 
   let rec transform_term
-            (filename : string)
+            (env : CtA.env)
             (sigma : CF.GenTypes.genTypeCategory A.sigma)
             (ctx : Stage6.Ctx.t)
             (name : Sym.t)
@@ -1368,7 +1321,7 @@ module Make (AD : Domain.T) = struct
       let mk_bound_arg = function
         | None -> mk_expr (AilEconst ConstantNull)
         | Some it ->
-          let bs, ss, e = transform_it filename sigma name it in
+          let bs, ss, e = transform_it env name it in
           mk_expr (AilEgcc_statement (bs, List.map mk_stmt (ss @ [ A.AilSexpr e ])))
       in
       let free_vars_from_bounds =
@@ -1399,7 +1352,7 @@ module Make (AD : Domain.T) = struct
         List.split
           (List.mapi
              (fun i (_, gr) ->
-                let bs, ss, e = transform_term filename sigma ctx name gr in
+                let bs, ss, e = transform_term env sigma ctx name gr in
                 ( bs,
                   A.(
                     [ AilSexpr
@@ -1465,7 +1418,7 @@ module Make (AD : Domain.T) = struct
       let bs, ss, es =
         iargs
         |> List.map (fun x ->
-          let bs, ss, e = transform_it filename sigma name x in
+          let bs, ss, e = transform_it env name x in
           (bs, ss, e))
         |> List.fold_left
              (fun (bs, ss, es) (b, s, e) -> (bs @ b, ss @ s, es @ [ e ]))
@@ -1517,7 +1470,7 @@ module Make (AD : Domain.T) = struct
       let bs, ss, es =
         iargs
         |> List.map (fun x ->
-          let bs, ss, e = transform_it filename sigma name x in
+          let bs, ss, e = transform_it env name x in
           (bs, ss, e))
         |> List.fold_left
              (fun (bs, ss, es) (b, s, e) -> (bs @ b, ss @ s, es @ [ e ]))
@@ -1576,9 +1529,9 @@ module Make (AD : Domain.T) = struct
                               ] ))))
                ] )) )
     | `AsgnElab (_, (((p_sym, p_bt), it_addr), sct), it_val, gt_rest) ->
-      let b_addr, s_addr, e_addr = transform_it filename sigma name it_addr in
+      let b_addr, s_addr, e_addr = transform_it env name it_addr in
       let b_value, s_value, AnnotatedExpression (_, _, _, e_value_) =
-        transform_it filename sigma name it_val
+        transform_it env name it_val
       in
       let ptr_ty =
         match p_bt with
@@ -1588,7 +1541,7 @@ module Make (AD : Domain.T) = struct
         | _ -> failwith ("Unsupported pointer type @ " ^ __LOC__)
       in
       let bwd_stmts, num_other, addr_term_name, ids_name, syms_name =
-        generate_bwd_blame_parts filename sigma it_addr p_sym
+        generate_bwd_blame_parts env sigma it_addr p_sym
       in
       let s_assign =
         A.
@@ -1601,8 +1554,7 @@ module Make (AD : Domain.T) = struct
                           (let b, s =
                              let b, s, e =
                                transform_it
-                                 filename
-                                 sigma
+                                 env
                                  name
                                  (MT.cast_
                                     (BT.Loc ())
@@ -1635,7 +1587,7 @@ module Make (AD : Domain.T) = struct
                       @ [ mk_expr (AilEconst ConstantNull) ] )))
           ]
       in
-      let b_rest, s_rest, e_rest = transform_term filename sigma ctx name gt_rest in
+      let b_rest, s_rest, e_rest = transform_term env sigma ctx name gt_rest in
       (b_addr @ b_value @ b_rest, s_addr @ s_value @ bwd_stmts @ s_assign @ s_rest, e_rest)
     | `LetStar
         ((x, GenTerms.Annot (`Arbitrary, _, (Bits (sign, bits) as x_bt), _)), gt_rest) ->
@@ -1665,7 +1617,7 @@ module Make (AD : Domain.T) = struct
                       ] )))
         ]
       in
-      let b_rest, s_rest, e_rest = transform_term filename sigma ctx name gt_rest in
+      let b_rest, s_rest, e_rest = transform_term env sigma ctx name gt_rest in
       (b_let @ b_rest, s_let @ s_rest, e_rest)
     | `LetStar ((_, GenTerms.Annot (`Symbolic, _, Bits (_, _), _)), _) ->
       failwith "TODO: LetStar Symbolic"
@@ -1687,7 +1639,7 @@ module Make (AD : Domain.T) = struct
         let mk_bound_arg = function
           | None -> mk_expr (AilEconst ConstantNull)
           | Some it ->
-            let bs, ss, e = transform_it filename sigma name it in
+            let bs, ss, e = transform_it env name it in
             mk_expr (AilEgcc_statement (bs, List.map mk_stmt (ss @ [ A.AilSexpr e ])))
         in
         let free_vars_from_bounds =
@@ -1725,7 +1677,7 @@ module Make (AD : Domain.T) = struct
                     @ [ mk_expr (AilEconst ConstantNull) ] )))
         ]
       in
-      let b_rest, s_rest, e_rest = transform_term filename sigma ctx name gt_rest in
+      let b_rest, s_rest, e_rest = transform_term env sigma ctx name gt_rest in
       (b_let @ b_rest, s_let @ s_rest, e_rest)
     | `LetStar
         ( ( x,
@@ -1774,7 +1726,7 @@ module Make (AD : Domain.T) = struct
           in
           let s_refine =
             generate_constraint_refinements
-              filename
+              env
               sigma
               ~var_sym:x
               ~var_bt:x_bt
@@ -1834,7 +1786,7 @@ module Make (AD : Domain.T) = struct
                         ] )))
           ])
       in
-      let b_rest, s_rest, e_rest = transform_term filename sigma ctx name gt_rest in
+      let b_rest, s_rest, e_rest = transform_term env sigma ctx name gt_rest in
       (b_let @ b_rest, s_let @ s_rest, e_rest)
     | `LetStar ((_, GenTerms.Annot (`Symbolic, _, Loc (), _)), _) ->
       failwith "TODO: LetStar Symbolic Loc"
@@ -1851,7 +1803,7 @@ module Make (AD : Domain.T) = struct
         let mk_bound_arg = function
           | None -> mk_expr (AilEconst ConstantNull)
           | Some it ->
-            let bs, ss, e = transform_it filename sigma name it in
+            let bs, ss, e = transform_it env name it in
             mk_expr (AilEgcc_statement (bs, List.map mk_stmt (ss @ [ A.AilSexpr e ])))
         in
         let free_vars_from_bounds =
@@ -1886,7 +1838,7 @@ module Make (AD : Domain.T) = struct
                     @ [ mk_expr (AilEconst ConstantNull) ] )))
         ]
       in
-      let b_rest, s_rest, e_rest = transform_term filename sigma ctx name gt_rest in
+      let b_rest, s_rest, e_rest = transform_term env sigma ctx name gt_rest in
       (b_let @ b_rest, s_let @ s_rest, e_rest)
     | `LetStar ((x, GenTerms.Annot (`Arbitrary, _, (Loc () as x_bt), _)), gt_rest) ->
       let b_let = [ Utils.create_binding x (bt_to_ctype_for_binding x_bt) ] in
@@ -1908,7 +1860,7 @@ module Make (AD : Domain.T) = struct
                       ] )))
         ]
       in
-      let b_rest, s_rest, e_rest = transform_term filename sigma ctx name gt_rest in
+      let b_rest, s_rest, e_rest = transform_term env sigma ctx name gt_rest in
       (b_let @ b_rest, s_let @ s_rest, e_rest)
     | `LetStar
         ( ( x,
@@ -1945,7 +1897,7 @@ module Make (AD : Domain.T) = struct
           in
           let s_refine =
             generate_constraint_refinements
-              filename
+              env
               sigma
               ~var_sym:x
               ~var_bt:x_bt
@@ -1969,7 +1921,7 @@ module Make (AD : Domain.T) = struct
           in
           let b_asgn, s_asgn =
             generate_assignment_refinements
-              filename
+              env
               sigma
               ~var_sym:x
               ~last_var
@@ -2016,7 +1968,7 @@ module Make (AD : Domain.T) = struct
                           ] )))
             ] )
       in
-      let b_rest, s_rest, e_rest = transform_term filename sigma ctx name gt_rest in
+      let b_rest, s_rest, e_rest = transform_term env sigma ctx name gt_rest in
       (b_let @ b_asgn @ b_rest, s_let @ s_rest, e_rest)
     | `LetStar ((_, GenTerms.Annot (`Arbitrary, _, bt, _)), _) ->
       failwith ("unreachable @ " ^ __LOC__ ^ " with type: " ^ Pp.plain (BT.pp bt))
@@ -2027,7 +1979,7 @@ module Make (AD : Domain.T) = struct
     | `LetStar ((_, GenTerms.Annot (`ArbitrarySpecialized _, _, bt, _)), _) ->
       failwith ("unreachable @ " ^ __LOC__ ^ " with type: " ^ Pp.plain (BT.pp bt))
     | `LetStar ((x, GenTerms.Annot (`Return it, _, x_bt, _)), gt_rest) ->
-      let b_value, s_value, e_value = transform_it filename sigma name it in
+      let b_value, s_value, e_value = transform_it env name it in
       let free_vars_set = T.free_vars it in
       let free_vars_list = List.of_seq (Sym.Set.to_seq free_vars_set) in
       let s_let =
@@ -2058,7 +2010,7 @@ module Make (AD : Domain.T) = struct
           (* Generate backward interpretation block as raw C *)
           let s_backward =
             generate_let_return_backward_refinements
-              filename
+              env
               sigma
               ~x_sym:x
               ~x_bt
@@ -2094,13 +2046,13 @@ module Make (AD : Domain.T) = struct
                        @ [ mk_expr (AilEconst ConstantNull) ])))
             ]
       in
-      let b_rest, s_rest, e_rest = transform_term filename sigma ctx name gt_rest in
+      let b_rest, s_rest, e_rest = transform_term env sigma ctx name gt_rest in
       (b_value @ b_rest, s_value @ s_let @ s_rest, e_rest)
     | `LetStar ((x, (GenTerms.Annot (`Call _, _, x_bt, _) as gt_inner)), gt_rest)
     | `LetStar ((x, (GenTerms.Annot (`CallSized _, _, x_bt, _) as gt_inner)), gt_rest)
     | `LetStar ((x, (GenTerms.Annot (`MapElab _, _, x_bt, _) as gt_inner)), gt_rest)
     | `LetStar ((x, (GenTerms.Annot (`LetStar _, _, x_bt, _) as gt_inner)), gt_rest) ->
-      let b_value, s_value, e_value = transform_term filename sigma ctx name gt_inner in
+      let b_value, s_value, e_value = transform_term env sigma ctx name gt_inner in
       let s_let =
         A.
           [ AilSexpr
@@ -2121,7 +2073,7 @@ module Make (AD : Domain.T) = struct
                     ]))
           ]
       in
-      let b_rest, s_rest, e_rest = transform_term filename sigma ctx name gt_rest in
+      let b_rest, s_rest, e_rest = transform_term env sigma ctx name gt_rest in
       (b_value @ b_rest, s_value @ s_let @ s_rest, e_rest)
     | `LetStar ((_, GenTerms.Annot (`PickSizedElab _, _, _, _)), _) ->
       failwith "Should be unreachable due to lifting of `pick`"
@@ -2136,10 +2088,10 @@ module Make (AD : Domain.T) = struct
     | `LetStar ((_, GenTerms.Annot (`SplitSizeElab _, _, _, _)), _) ->
       failwith "Should be unreachable due to lifting"
     | `Return it ->
-      let b, s, e = transform_it filename sigma name it in
+      let b, s, e = transform_it env name it in
       (b, s, e)
     | `Assert (lc, gt_rest) ->
-      let b1, s1, e1 = transform_lc filename sigma lc in
+      let b1, s1, e1 = transform_lc env lc in
       let s_assert =
         A.
           [ AilSexpr
@@ -2154,12 +2106,12 @@ module Make (AD : Domain.T) = struct
                       @ [ mk_expr (AilEconst ConstantNull) ] )))
           ]
       in
-      let b2, s2, e2 = transform_term filename sigma ctx name gt_rest in
+      let b2, s2, e2 = transform_term env sigma ctx name gt_rest in
       (b1 @ b2, s1 @ s_assert @ s2, e2)
     | `AssertDomainElab (backtrack_var, ad, its, asgns, gt_rest) ->
       if not (TestGenConfig.is_runtime_assert_domain ()) then
         (* Skip assert_domain, just process the rest *)
-        transform_term filename sigma ctx name gt_rest
+        transform_term env sigma ctx name gt_rest
       else (
         (* Get free variables from the abstract domain and from constraints *)
         let ad_free_vars = AD.free_vars_bts ad in
@@ -2195,11 +2147,9 @@ module Make (AD : Domain.T) = struct
         let b_eval, s_eval =
           if TestGenConfig.has_dynamic_assert_domain () then (
             let b_eval_a, s_eval_a =
-              generate_eval_assignments filename sigma name ~free_vars ~ad asgns
+              generate_eval_assignments env sigma name ~free_vars ~ad asgns
             in
-            let b_eval_c, s_eval_c =
-              generate_eval_constraints filename sigma name ~free_vars its
-            in
+            let b_eval_c, s_eval_c = generate_eval_constraints env name ~free_vars its in
             (b_eval_a @ b_eval_c, s_eval_a @ s_eval_c))
           else
             ([], [])
@@ -2242,7 +2192,7 @@ module Make (AD : Domain.T) = struct
                   List.filter (fun it -> Sym.Set.mem x (T.free_vars it)) its
                 in
                 generate_assert_domain_constraint_refinements
-                  filename
+                  env
                   sigma
                   ~var_sym:x
                   ~var_bt:x_bt
@@ -2257,7 +2207,7 @@ module Make (AD : Domain.T) = struct
               if TestGenConfig.has_dynamic_assert_domain () && BT.equal x_bt (BT.Loc ())
               then
                 generate_assert_domain_assignment_refinements
-                  filename
+                  env
                   sigma
                   ~var_sym:x
                   ~backtrack_var
@@ -2329,14 +2279,14 @@ module Make (AD : Domain.T) = struct
           else
             s_vars
         in
-        let b_rest, s_rest, e_rest = transform_term filename sigma ctx name gt_rest in
+        let b_rest, s_rest, e_rest = transform_term env sigma ctx name gt_rest in
         ( b_eval @ b_extra @ b_rest,
           s_begin @ s_eval @ s_vars_guarded @ s_end @ s_rest,
           e_rest ))
     | `ITE (it_if, gt_then, gt_else) ->
-      let b_if, s_if, e_if = transform_it filename sigma name it_if in
-      let b_then, s_then, e_then = transform_term filename sigma ctx name gt_then in
-      let b_else, s_else, e_else = transform_term filename sigma ctx name gt_else in
+      let b_if, s_if, e_if = transform_it env name it_if in
+      let b_then, s_then, e_then = transform_term env sigma ctx name gt_then in
+      let b_else, s_else, e_else = transform_term env sigma ctx name gt_else in
       let res_sym = Sym.fresh_anon () in
       let res_expr = mk_expr (AilEident res_sym) in
       let res_binding = Utils.create_binding res_sym (bt_to_ctype_for_binding bt) in
@@ -2358,8 +2308,8 @@ module Make (AD : Domain.T) = struct
       let sym_map = Sym.fresh_anon () in
       let b_map = Utils.create_binding sym_map (bt_to_ctype_for_binding bt) in
       let b_i = Utils.create_binding i (bt_to_ctype_for_binding i_bt) in
-      let b_min, s_min, e_min = transform_it filename sigma name it_min in
-      let b_max, s_max, e_max = transform_it filename sigma name it_max in
+      let b_min, s_min, e_min = transform_it env name it_min in
+      let b_max, s_max, e_max = transform_it env name it_max in
       let e_args =
         [ mk_expr (AilEident sym_map);
           mk_expr (AilEident i);
@@ -2367,7 +2317,7 @@ module Make (AD : Domain.T) = struct
         ]
       in
       let e_perm =
-        let b_perm, s_perm, e_perm = transform_it filename sigma name it_perm in
+        let b_perm, s_perm, e_perm = transform_it env name it_perm in
         A.(
           mk_expr
             (AilEgcc_statement (b_perm, List.map mk_stmt (s_perm @ [ AilSexpr e_perm ]))))
@@ -2389,7 +2339,7 @@ module Make (AD : Domain.T) = struct
                         @ [ mk_expr (AilEconst ConstantNull) ] )))
             ])
       in
-      let b_val, s_val, e_val = transform_term filename sigma ctx name gt_inner in
+      let b_val, s_val, e_val = transform_term env sigma ctx name gt_inner in
       let s_end =
         A.(
           s_val
@@ -2403,7 +2353,7 @@ module Make (AD : Domain.T) = struct
         s_begin @ s_end,
         mk_expr (AilEident sym_map) )
     | `SplitSizeElab (_, _, gt_rest) when not (TestGenConfig.is_random_size_splits ()) ->
-      transform_term filename sigma ctx name gt_rest
+      transform_term env sigma ctx name gt_rest
     | `SplitSizeElab (marker_var, syms, gt_rest) ->
       let e_tmp = mk_expr (AilEident marker_var) in
       let syms_l = syms |> Sym.Set.to_seq |> List.of_seq in
@@ -2432,12 +2382,13 @@ module Make (AD : Domain.T) = struct
                       @ [ mk_expr (AilEconst ConstantNull) ] )))
           ]
       in
-      let b', s', e' = transform_term filename sigma ctx name gt_rest in
+      let b', s', e' = transform_term env sigma ctx name gt_rest in
       (b @ b', s @ s', e')
 
 
   let transform_gen_def
         (sigma : CF.GenTypes.genTypeCategory A.sigma)
+        (prog5 : unit Mucore.file)
         (ctx : Stage6.Ctx.t)
         ((name, gr) : Sym.t * Stage6.Def.t)
     : A.sigma_declaration * 'a A.sigma_function_definition
@@ -2494,7 +2445,8 @@ module Make (AD : Domain.T) = struct
                           (if gr.recursive then "BENNET_INIT_SIZED" else "BENNET_INIT"))),
                   [] ))))
     in
-    let b2, s2, e2 = transform_term gr.filename sigma ctx name gr.body in
+    let env = CtA.env_of ~filename:gr.filename sigma prog5 in
+    let b2, s2, e2 = transform_term env sigma ctx name gr.body in
     let sigma_def : CF.GenTypes.genTypeCategory A.sigma_function_definition =
       ( name,
         ( loc,
@@ -2614,7 +2566,7 @@ module Make (AD : Domain.T) = struct
         ctx
     in
     let declarations, function_definitions =
-      defs |> List.map (transform_gen_def sigma ctx) |> List.split
+      defs |> List.map (transform_gen_def sigma prog5 ctx) |> List.split
     in
     let sigma : 'a A.sigma = { A.empty_sigma with declarations; function_definitions } in
     let record_defs = Records.generate_all_record_strs () in

@@ -677,6 +677,7 @@ let generate_ownership_functions without_ownership_checking ownership_ctypes =
 let generate_conversion_and_equality_functions
       filename
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
+      (prog5 : unit Mucore.file)
   =
   let struct_conversion_funs =
     List.map Cn_to_ail.generate_struct_conversion_to_function sigm.tag_definitions
@@ -688,7 +689,7 @@ let generate_conversion_and_equality_functions
   let datatype_equality_funs =
     List.map
       (Cn_to_ail.generate_datatype_equality_function
-         (Cn_to_ail.env_of_sigma ~filename sigm))
+         (Cn_to_ail.env_of ~filename sigm prog5))
       sigm.cn_datatypes
   in
   let struct_map_get_funs =

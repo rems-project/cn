@@ -652,7 +652,7 @@ let main
       generate_c_lemmas filename remove_uninterp sigm prog5
   in
   let conversion_function_defs, conversion_function_decls =
-    generate_conversion_and_equality_functions filename sigm
+    generate_conversion_and_equality_functions filename sigm prog5
   in
   let ownership_function_defs, ownership_function_decls =
     generate_ownership_functions without_ownership_checking !Cn_to_ail.ownership_ctypes

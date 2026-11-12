@@ -72,11 +72,6 @@ type env =
     funs : Sym.Set.t (* C functions *)
   }
 
-(* No globals or functions: struct/datatype helpers, generated tests *)
-let env_of_sigma ~filename (sigm : _ A.sigma) : env =
-  { filename; dts = sigm.cn_datatypes; globals = []; funs = Sym.Set.empty }
-
-
 type spec_mode =
   | Pre
   | Post

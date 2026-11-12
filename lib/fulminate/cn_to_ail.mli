@@ -77,8 +77,6 @@ type env =
 
 val env_of : filename:string -> _ AilSyntax.sigma -> _ Mucore.file -> env
 
-val env_of_sigma : filename:string -> _ AilSyntax.sigma -> env
-
 val extract_global_variables
   :  ?prune_unused:bool ->
   _ Mucore.file ->
