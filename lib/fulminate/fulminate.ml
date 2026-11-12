@@ -572,8 +572,8 @@ let main
       ~without_inline_statements
       ~source_locs_mode
       ~correct_missing_ownership_mode
-      ~remove_uninterp
       ~accept_uninterp
+      ~remove_uninterp
       ~experimental_ownership_stack_mode
       ~with_testing
       ~skip_and_only
@@ -589,9 +589,9 @@ let main
        ail_prog)
       prog5
   =
-  if remove_uninterp && accept_uninterp then (
+  if accept_uninterp && remove_uninterp then (
     print_endline
-      "Cannot supply both remove_uninterp and accept_uninterp -- please pick one";
+      "Cannot supply both accept_uninterp and remove_uninterp -- please pick one";
     exit 1);
   let out_filename = get_filename_with_prefix output_dir out_filename in
   (* disabled until fixed *)

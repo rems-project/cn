@@ -84,8 +84,8 @@ let run_seq_tests
              ~without_inline_statements:false
              ~source_locs_mode
              ~correct_missing_ownership_mode
-             ~remove_uninterp
              ~accept_uninterp:false
+             ~remove_uninterp
              ~experimental_ownership_stack_mode
              ~with_testing:true
              ~skip_and_only:([], [])
