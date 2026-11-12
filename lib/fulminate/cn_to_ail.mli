@@ -200,10 +200,9 @@ val cn_to_ail_function
   _ Mucore.file ->
   AilSyntax.sigma_cn_datatype list ->
   AilSyntax.sigma_cn_function list ->
-  (((Locations.t * AilSyntax.sigma_declaration)
-   * GenTypes.genTypeCategory AilSyntax.sigma_function_definition option)
-  * AilSyntax.sigma_tag_definition option)
-    option
+  ((Locations.t * AilSyntax.sigma_declaration)
+  * GenTypes.genTypeCategory AilSyntax.sigma_function_definition option)
+  * AilSyntax.sigma_tag_definition option
 
 val cn_to_ail_predicates
   :  accept_uninterp:bool ->

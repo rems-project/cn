@@ -546,10 +546,9 @@ let generate_c_functions
       prog5.logical_predicates
   in
   let ail_funs_and_records =
-    List.filter_map
+    List.map
       (fun cn_f ->
-         Option.map
-           (fun r -> (cn_f, r))
+         (fun r -> (cn_f, r))
            (Cn_to_ail.cn_to_ail_function
               ~accept_uninterp
               filename

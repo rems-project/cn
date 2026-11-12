@@ -3628,10 +3628,9 @@ let cn_to_ail_function
       (prog5 : _ Mucore.file)
       (cn_datatypes : A.sigma_cn_datatype list)
       (cn_functions : A.sigma_cn_function list)
-  : (((Locations.t * A.sigma_declaration)
-     * CF.GenTypes.genTypeCategory A.sigma_function_definition option)
-    * A.sigma_tag_definition option)
-      option
+  : ((Locations.t * A.sigma_declaration)
+    * CF.GenTypes.genTypeCategory A.sigma_function_definition option)
+    * A.sigma_tag_definition option
   =
   let ret_type = bt_to_ail_ctype ~pred_sym:(Some fn_sym) lf_def.return_bt in
   let ail_record_opt = generate_record_opt fn_sym lf_def.return_bt in
@@ -3702,7 +3701,7 @@ let cn_to_ail_function
       exit 2
   in
   let def = generate_fun_def (body_bs, body_ss) in
-  Some (((loc, decl), Some def), ail_record_opt)
+  (((loc, decl), Some def), ail_record_opt)
 
 
 (* only used in cn_to_ail_predicate *)
