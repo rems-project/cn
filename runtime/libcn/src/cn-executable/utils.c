@@ -20,6 +20,8 @@ struct cn_error_message_info* no_error_msg_info = 0;
 
 signed long cn_stack_depth;
 
+_Bool fulminate_on;
+
 signed long nr_owned_predicates;
 
 _Bool source_locs_mode;
@@ -47,6 +49,7 @@ void fulminate_destroy(_Bool with_ghost_args) {
   free_error_msg_info();
 
   fulminate_initialized = false;
+  fulminate_on = false;
 }
 
 void fulminate_init_bump_alloc(size_t max_bump_blocks, size_t bump_block_size) {
@@ -78,6 +81,15 @@ void fulminate_init(struct fulm_init_config config) {
   fulminate_init_global_flags(config.flags);
 
   fulminate_initialized = true;
+  fulminate_on = true;
+}
+
+void enable_fulminate(void) {
+  fulminate_on = true;
+}
+
+void disable_fulminate(void) {
+  fulminate_on = false;
 }
 
 static enum cn_logging_level logging_level = CN_LOGGING_INFO;

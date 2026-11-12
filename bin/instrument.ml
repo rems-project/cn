@@ -294,8 +294,7 @@ module Flags = struct
 
   let output =
     let doc =
-      "output a version of the translation unit decorated with C runtime\n\
-      \  translations of the CN annotations to FILE in the output directory; if\n\
+      "output instrumented source to FILE. If\n\
       \  FILE's prefix is a directory, and --output-dir is provided, these directories\n\
       \  must be the same."
     in

@@ -50,6 +50,15 @@ struct fulm_init_config {
 void fulminate_destroy(bool with_ghost_args);
 void fulminate_init(struct fulm_init_config flags);
 
+extern _Bool fulminate_on;
+
+static inline _Bool is_fulminate_on(void) {
+  return fulminate_on;
+}
+
+void enable_fulminate(void);
+void disable_fulminate(void);
+
 /* Error handlers */
 enum cn_logging_level {
   CN_LOGGING_NONE = 0,
@@ -637,11 +646,13 @@ static inline void cn_postfix(void* ptr, size_t size) {
 #define CN_LOAD(LV)                                                                      \
   ({                                                                                     \
     typeof(LV)* __tmp = &(LV);                                                           \
-    update_cn_error_message_info_access_check(0);                                        \
-    c_ownership_check(                                                                   \
-        "Load", __tmp, sizeof(typeof(LV)), get_cn_stack_depth(), C_ACCESS);              \
-    cn_load(__tmp, sizeof(typeof(LV)));                                                  \
-    cn_pop_msg_info();                                                                   \
+    if (is_fulminate_on()) {                                                             \
+      update_cn_error_message_info_access_check(0);                                      \
+      c_ownership_check(                                                                 \
+          "Load", __tmp, sizeof(typeof(LV)), get_cn_stack_depth(), C_ACCESS);            \
+      cn_load(__tmp, sizeof(typeof(LV)));                                                \
+      cn_pop_msg_info();                                                                 \
+    }                                                                                    \
     *__tmp;                                                                              \
   })
 
@@ -649,11 +660,13 @@ static inline void cn_postfix(void* ptr, size_t size) {
   ({                                                                                     \
     typeof(LV)* __tmp;                                                                   \
     __tmp = &(LV);                                                                       \
-    update_cn_error_message_info_access_check(0);                                        \
-    c_ownership_check(                                                                   \
-        "Store", __tmp, sizeof(typeof(LV)), get_cn_stack_depth(), C_ACCESS);             \
-    cn_store(__tmp, sizeof(typeof(LV)));                                                 \
-    cn_pop_msg_info();                                                                   \
+    if (is_fulminate_on()) {                                                             \
+      update_cn_error_message_info_access_check(0);                                      \
+      c_ownership_check(                                                                 \
+          "Store", __tmp, sizeof(typeof(LV)), get_cn_stack_depth(), C_ACCESS);           \
+      cn_store(__tmp, sizeof(typeof(LV)));                                               \
+      cn_pop_msg_info();                                                                 \
+    }                                                                                    \
     *__tmp op## = (X);                                                                   \
   })
 
@@ -663,11 +676,16 @@ static inline void cn_postfix(void* ptr, size_t size) {
   ({                                                                                     \
     typeof(LV)* __tmp;                                                                   \
     __tmp = &(LV);                                                                       \
-    update_cn_error_message_info_access_check(0);                                        \
-    c_ownership_check(                                                                   \
-        "Postfix operation", __tmp, sizeof(typeof(LV)), get_cn_stack_depth(), C_ACCESS); \
-    cn_postfix(__tmp, sizeof(typeof(LV)));                                               \
-    cn_pop_msg_info();                                                                   \
+    if (is_fulminate_on()) {                                                             \
+      update_cn_error_message_info_access_check(0);                                      \
+      c_ownership_check("Postfix operation",                                             \
+          __tmp,                                                                         \
+          sizeof(typeof(LV)),                                                            \
+          get_cn_stack_depth(),                                                          \
+          C_ACCESS);                                                                     \
+      cn_postfix(__tmp, sizeof(typeof(LV)));                                             \
+      cn_pop_msg_info();                                                                 \
+    }                                                                                    \
     (*__tmp) OP;                                                                         \
   })
 
