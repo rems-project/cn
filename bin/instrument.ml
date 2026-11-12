@@ -101,6 +101,7 @@ let generate_executable_specs
       no_debug_info
       source_locs_mode
       correct_missing_ownership_mode
+      accept_uninterp
       remove_uninterp
       experimental_ownership_stack_mode
       experimental_unions
@@ -205,6 +206,7 @@ let generate_executable_specs
                 ~without_inline_statements
                 ~source_locs_mode
                 ~correct_missing_ownership_mode
+                ~accept_uninterp
                 ~remove_uninterp
                 ~experimental_ownership_stack_mode
                 ~with_testing
@@ -424,10 +426,21 @@ module Flags = struct
     Arg.(value & flag & info ~docs:s_fulminate [ "correct-missing-ownership" ] ~doc)
 
 
+  let accept_uninterp =
+    let doc =
+      "Support uninterpreted functions+predicates at runtime, by providing function \
+       stubs that the user can fill in. These return the default value for the\n\
+      \       function/predicate return type unless overwritten (using \
+       CN_STUB_<fn_or_pred_name>, in a new file assumed to be called \
+       \"<input>.uninterp.c\")."
+    in
+    Arg.(value & flag & info ~docs:s_fulminate [ "accept-uninterp" ] ~doc)
+
+
   let remove_uninterp =
     let doc =
-      "Support uninterpreted functions+predicates at runtime, by removing any assertions \
-       containing uninterpreted values from the output"
+      "Remove any specifications containing uninterpreted values or calls to \
+       uninterpreted functions/predicates from the output"
     in
     Arg.(value & flag & info ~docs:s_fulminate [ "remove-uninterp" ] ~doc)
 end
@@ -472,6 +485,7 @@ let cmd =
     $ Flags.no_debug_info
     $ Flags.source_locs_mode
     $ Flags.correct_missing_ownership_mode
+    $ Flags.accept_uninterp
     $ Flags.remove_uninterp
     $ Flags.experimental_ownership_stack_mode ~docs:s_fulminate
     $ Flags.experimental_unions

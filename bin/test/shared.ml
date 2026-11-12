@@ -208,6 +208,7 @@ let run
            ~without_inline_statements:false
            ~source_locs_mode
            ~correct_missing_ownership_mode
+           ~accept_uninterp:false
            ~remove_uninterp
            ~experimental_ownership_stack_mode
            ~with_testing:true

@@ -194,18 +194,19 @@ val cn_to_ail_records
   AilSyntax.sigma_tag_definition list
 
 val cn_to_ail_function
-  :  string ->
+  :  accept_uninterp:bool ->
+  string ->
   Sym.t * Definition.Function.t ->
   _ Mucore.file ->
   AilSyntax.sigma_cn_datatype list ->
   AilSyntax.sigma_cn_function list ->
-  (((Locations.t * AilSyntax.sigma_declaration)
-   * GenTypes.genTypeCategory AilSyntax.sigma_function_definition option)
-  * AilSyntax.sigma_tag_definition option)
-    option
+  ((Locations.t * AilSyntax.sigma_declaration)
+  * GenTypes.genTypeCategory AilSyntax.sigma_function_definition option)
+  * AilSyntax.sigma_tag_definition option
 
 val cn_to_ail_predicates
-  :  (Sym.t * Definition.Predicate.t) list ->
+  :  accept_uninterp:bool ->
+  (Sym.t * Definition.Predicate.t) list ->
   string ->
   AilSyntax.sigma_cn_datatype list ->
   (Sym.t * Ctype.ctype) list ->

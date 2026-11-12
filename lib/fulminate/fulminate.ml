@@ -520,8 +520,17 @@ let output_to_oc oc str_list = List.iter (Stdlib.output_string oc) str_list
 
 open Internal
 
+let get_filename_with_extension ~ext filename =
+  Filename.(remove_extension (basename filename)) ^ ext
+
+
 let get_instrumented_filename filename =
-  Filename.(remove_extension (basename filename)) ^ ".exec.c"
+  get_filename_with_extension ~ext:".exec.c" filename
+
+
+(* For accept-uninterp *)
+let get_uninterp_filename filename =
+  get_filename_with_extension ~ext:".uninterp.c" filename
 
 
 let get_filename_with_prefix output_dir filename = Filename.concat output_dir filename
@@ -563,6 +572,7 @@ let main
       ~without_inline_statements
       ~source_locs_mode
       ~correct_missing_ownership_mode
+      ~accept_uninterp
       ~remove_uninterp
       ~experimental_ownership_stack_mode
       ~with_testing
@@ -579,6 +589,10 @@ let main
        ail_prog)
       prog5
   =
+  if accept_uninterp && remove_uninterp then (
+    print_endline
+      "Cannot supply both accept_uninterp and remove_uninterp -- please pick one";
+    exit 1);
   let out_filename = get_filename_with_prefix output_dir out_filename in
   (* disabled until fixed *)
   (* _gen_compile_commands_json cc output_dir out_filename; *)
@@ -620,10 +634,16 @@ let main
   in
   let c_datatype_defs = generate_c_datatypes sigm in
   let c_function_defs, c_function_decls, _c_function_locs =
-    generate_c_functions filename remove_uninterp prog5 sigm
+    generate_c_functions ~accept_uninterp ~remove_uninterp filename prog5 sigm
   in
   let c_predicate_defs, c_predicate_decls, _c_predicate_locs =
-    generate_c_predicates filename without_ownership_checking remove_uninterp prog5 sigm
+    generate_c_predicates
+      ~accept_uninterp
+      ~remove_uninterp
+      filename
+      without_ownership_checking
+      prog5
+      sigm
   in
   let c_lemma_defs, c_lemma_decls =
     if without_lemma_checks then
@@ -685,6 +705,9 @@ let main
           cn_ghost_enum
         ]
       ]
+  in
+  let uninterp_filename =
+    get_filename_with_prefix output_dir (get_uninterp_filename filename)
   in
   (* Definitions for CN helper functions *)
   (* TODO: Topological sort *)
@@ -822,6 +845,13 @@ let main
      (* TODO(Christopher/Rini): maybe lift this error to the exception monad? *)
      prerr_endline str);
   output_to_oc oc [ Globals.accessors_str filename prog5 ];
+  if accept_uninterp && Sys.file_exists uninterp_filename then
+    output_to_oc
+      oc
+      [ "/* Include user-provided bodies for (some subset of) uninterpreted \
+         functions/predicates */\n";
+        "#include \"" ^ get_uninterp_filename filename ^ "\"\n"
+      ];
   output_to_oc oc cn_defs_list;
   close_out oc;
   Stdlib.Sys.remove in_filename

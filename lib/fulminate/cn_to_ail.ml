@@ -3606,28 +3606,73 @@ let extract_global_variables ?(prune_unused = false) (prog5 : _ Mucore.file) =
     | Mucore.GlobalDef (sct, _) | GlobalDecl sct -> (sym, Sctypes.to_ctype sct))
 
 
+let predicate_params (rp_def : Definition.Predicate.t) =
+  let pred_params =
+    List.map
+      (fun (sym, bt) -> (sym, bt_to_ail_ctype bt))
+      ((rp_def.pointer, BT.(Loc ())) :: rp_def.iargs)
+  in
+  let auxilliary_fulm_params =
+    [ (spec_mode_sym, spec_mode_enum_type);
+      (loop_ownership_sym, loop_ownership_struct_ptr_ctype)
+    ]
+  in
+  pred_params @ auxilliary_fulm_params
+
+
 (* TODO: Finish with rest of function - maybe header file with A.Decl_function (cn.h?) *)
 let cn_to_ail_function
+      ~accept_uninterp
       (filename : string)
       (fn_sym, (lf_def : Definition.Function.t))
       (prog5 : _ Mucore.file)
       (cn_datatypes : A.sigma_cn_datatype list)
       (cn_functions : A.sigma_cn_function list)
-  : (((Locations.t * A.sigma_declaration)
-     * CF.GenTypes.genTypeCategory A.sigma_function_definition option)
-    * A.sigma_tag_definition option)
-      option
+  : ((Locations.t * A.sigma_declaration)
+    * CF.GenTypes.genTypeCategory A.sigma_function_definition option)
+    * A.sigma_tag_definition option
   =
   let ret_type = bt_to_ail_ctype ~pred_sym:(Some fn_sym) lf_def.return_bt in
-  let cn_to_ail_function_aux
-        (it : TN.t)
-        (filename : string)
-        (fn_sym, (lf_def : Definition.Function.t))
-        (prog5 : _ Mucore.file)
-        (cn_datatypes : A.sigma_cn_datatype list)
-        (cn_functions : A.sigma_cn_function list)
-    =
-    let bs, ss =
+  let ail_record_opt = generate_record_opt fn_sym lf_def.return_bt in
+  let params = List.map (fun (sym, bt) -> (sym, bt_to_ail_ctype bt)) lf_def.args in
+  let param_syms, param_types = List.split params in
+  let param_types = List.map (fun t -> (C.no_qualifiers, t, false)) param_types in
+  let matched_cn_functions =
+    List.filter
+      (fun (cn_fun : (CF.Symbol.sym, C.ctype) CF.Cn.cn_function) ->
+         Sym.equal cn_fun.cn_func_name fn_sym)
+      cn_functions
+  in
+  (* If the function is user defined, grab its location from the cn_function associated with it.
+     Otherwise, the location is builtin *)
+  let loc =
+    (* RB: This was changed as part of the rebase for commit "Fix some error messages".
+       Is it fine as is, or do you want it to print and exit like with predicates? *)
+    match List.nth_opt matched_cn_functions 0 with
+    | Some fn -> fn.cn_func_magic_loc
+    | None -> Builtins.loc
+  in
+  (* Generating function declaration *)
+  let decl =
+    ( fn_sym,
+      ( lf_def.loc,
+        empty_attributes,
+        A.(
+          Decl_function
+            (false, (C.no_qualifiers, ret_type), param_types, false, false, false)) ) )
+  in
+  (* Generating function definition *)
+  let generate_fun_def (bs, ss) =
+    ( fn_sym,
+      ( lf_def.loc,
+        0,
+        empty_attributes,
+        param_syms,
+        mk_stmt A.(AilSblock (bs, List.map mk_stmt ss)) ) )
+  in
+  let body_bs, body_ss =
+    match lf_def.body with
+    | Def it | Rec_Def it ->
       cn_to_ail_expr_with_pred_name
         filename
         (Some fn_sym)
@@ -3636,68 +3681,27 @@ let cn_to_ail_function
         None
         it
         Return
-    in
-    let bs, ail_func_body_opt = (bs, Some (List.map mk_stmt ss)) in
-    let ail_record_opt = generate_record_opt fn_sym lf_def.return_bt in
-    let params = List.map (fun (sym, bt) -> (sym, bt_to_ail_ctype bt)) lf_def.args in
-    let param_syms, param_types = List.split params in
-    let param_types = List.map (fun t -> (C.no_qualifiers, t, false)) param_types in
-    let matched_cn_functions =
-      List.filter
-        (fun (cn_fun : (CF.Symbol.sym, C.ctype) CF.Cn.cn_function) ->
-           Sym.equal cn_fun.cn_func_name fn_sym)
-        cn_functions
-    in
-    (* If the function is user defined, grab its location from the cn_function associated with it.
-     Otherwise, the location is builtin *)
-    let loc =
-      (* RB: This was changed as part of the rebase for commit "Fix some error messages".
-       Is it fine as is, or do you want it to print and exit like with predicates? *)
-      match List.nth_opt matched_cn_functions 0 with
-      | Some fn -> fn.cn_func_magic_loc
-      | None -> Builtins.loc
-    in
-    (* Generating function declaration *)
-    let decl =
-      ( fn_sym,
-        ( lf_def.loc,
-          empty_attributes,
-          A.(
-            Decl_function
-              (false, (C.no_qualifiers, ret_type), param_types, false, false, false)) ) )
-    in
-    (* Generating function definition *)
-    let def =
-      match ail_func_body_opt with
-      | Some ail_func_body ->
-        Some
-          ( fn_sym,
-            ( lf_def.loc,
-              0,
-              empty_attributes,
-              param_syms,
-              mk_stmt A.(AilSblock (bs, ail_func_body)) ) )
-      | None -> None
-    in
-    Some (((loc, decl), def), ail_record_opt)
+    | Uninterp when accept_uninterp ->
+      (* When accept_uninterp enabled and function is uninterpreted, return default value 
+      for return type as body *)
+      ([], [ A.(AilSreturn (mk_expr (cn_to_ail_default lf_def.return_bt))) ])
+    | Uninterp ->
+      Cerb_colour.with_colour
+        (fun () ->
+           print_endline
+             Pp.(
+               plain
+                 (Pp.item
+                    "Uninterpreted CN functions not supported at runtime. Please provide \
+                     a concrete function definition for"
+                    (squotes (Definition.Function.pp_sig (Sym.pp fn_sym) lf_def)
+                     ^^^ !^"at"
+                     ^^^ Locations.pp lf_def.loc))))
+        ();
+      exit 2
   in
-  match lf_def.body with
-  | Def it | Rec_Def it ->
-    cn_to_ail_function_aux it filename (fn_sym, lf_def) prog5 cn_datatypes cn_functions
-  | Uninterp ->
-    Cerb_colour.with_colour
-      (fun () ->
-         print_endline
-           Pp.(
-             plain
-               (Pp.item
-                  "Uninterpreted CN functions not supported at runtime. Please provide a \
-                   concrete function definition for"
-                  (squotes (Definition.Function.pp_sig (Sym.pp fn_sym) lf_def)
-                   ^^^ !^"at"
-                   ^^^ Locations.pp lf_def.loc))))
-      ();
-    exit 2
+  let def = generate_fun_def (body_bs, body_ss) in
+  (((loc, decl), Some def), ail_record_opt)
 
 
 (* only used in cn_to_ail_predicate *)
@@ -3806,6 +3810,7 @@ let rec cn_to_ail_lat
 
 
 let cn_to_ail_predicate
+      ~accept_uninterp
       filename
       dts
       globals
@@ -3814,7 +3819,8 @@ let cn_to_ail_predicate
       without_ownership_checking
       (pred_sym, (rp_def : Definition.Predicate.t))
   =
-  let ret_type = bt_to_ail_ctype ~pred_sym:(Some pred_sym) (snd rp_def.oarg) in
+  let return_bt = snd rp_def.oarg in
+  let ret_type = bt_to_ail_ctype ~pred_sym:(Some pred_sym) return_bt in
   let clause_translate (pred_sym, (rp_def : Definition.Predicate.t)) =
     let rec clause_translate_aux (clauses : Definition.Clause.t list) =
       match clauses with
@@ -3861,8 +3867,12 @@ let cn_to_ail_predicate
     in
     function
     | Some clauses -> clause_translate_aux clauses
+    (* None => uninterpreted *)
+    | None when accept_uninterp ->
+      (* When accept_uninterp enabled and predicate is uninterpreted, return default value 
+      for return type as body *)
+      ([], [ A.(AilSreturn (mk_expr (cn_to_ail_default return_bt))) ])
     | None ->
-      (* Uninterpreted predicate *)
       Cerb_colour.with_colour
         (fun () ->
            print_endline
@@ -3878,17 +3888,8 @@ let cn_to_ail_predicate
       exit 2
   in
   let bs, ss = clause_translate (pred_sym, rp_def) rp_def.clauses in
-  let pred_body = List.map mk_stmt ss in
   let ail_record_opt = generate_record_opt pred_sym (snd rp_def.oarg) in
-  let params =
-    List.map
-      (fun (sym, bt) -> (sym, bt_to_ail_ctype bt))
-      ((rp_def.pointer, BT.(Loc ())) :: rp_def.iargs)
-  in
-  let enum_param = (spec_mode_sym, spec_mode_enum_type) in
-  let loop_ownership_param = (loop_ownership_sym, loop_ownership_struct_ptr_ctype) in
-  let params = params @ [ enum_param; loop_ownership_param ] in
-  let param_syms, param_types = List.split params in
+  let param_syms, param_types = List.split (predicate_params rp_def) in
   let param_types = List.map (fun t -> (C.no_qualifiers, t, false)) param_types in
   (* Generating function declaration *)
   let decl =
@@ -3902,8 +3903,11 @@ let cn_to_ail_predicate
   (* Generating function definition *)
   let def =
     ( pred_sym,
-      (rp_def.loc, 0, empty_attributes, param_syms, mk_stmt A.(AilSblock (bs, pred_body)))
-    )
+      ( rp_def.loc,
+        0,
+        empty_attributes,
+        param_syms,
+        mk_stmt A.(AilSblock (bs, List.map mk_stmt ss)) ) )
   in
   let matched_cn_preds =
     List.filter
@@ -3930,7 +3934,14 @@ let cn_to_ail_predicate
   (((loc, decl), def), ail_record_opt)
 
 
-let cn_to_ail_predicates preds filename dts globals cn_preds without_ownership_checking
+let cn_to_ail_predicates
+      ~accept_uninterp
+      preds
+      filename
+      dts
+      globals
+      cn_preds
+      without_ownership_checking
   : ((Locations.t * A.sigma_declaration)
     * CF.GenTypes.genTypeCategory A.sigma_function_definition)
       list
@@ -3939,6 +3950,7 @@ let cn_to_ail_predicates preds filename dts globals cn_preds without_ownership_c
   List.split
     (List.map
        (cn_to_ail_predicate
+          ~accept_uninterp
           filename
           dts
           globals
