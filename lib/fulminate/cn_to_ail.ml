@@ -534,7 +534,13 @@ let wrap_in_stmt_with_fulm_on_check in_stmt =
 
 
 let wrap_spec_with_fulm_on_checks (ail_executable_spec : ail_executable_spec) =
-  { pre = wrap_with_fulm_on_check ail_executable_spec.pre;
+  (* Need to separate declarations and assignments for precondition -- vars used later in spec *)
+  let pre_bs, pre_ss = ail_executable_spec.pre in
+  let pre_decls = ref [] in
+  let pre_modified_stats = ref [] in
+  Utils.separate_decls_and_assigns pre_decls pre_modified_stats pre_ss;
+  { pre =
+      (pre_bs, !pre_decls @ snd (wrap_with_fulm_on_check (pre_bs, !pre_modified_stats)));
     post = wrap_with_fulm_on_check ail_executable_spec.post;
     in_stmt = wrap_in_stmt_with_fulm_on_check ail_executable_spec.in_stmt;
     loops = List.map wrap_loop_with_fulm_on_check ail_executable_spec.loops
@@ -4516,37 +4522,6 @@ let rec cn_to_ail_loop_inv_aux
   | AT.Ghost _ ->
     failwith "TODO Fulminate: Ghost arguments for loops not yet supported at runtime"
   | L lat ->
-    let rec modify_decls_for_loop decls modified_stats =
-      let rec collect_initialised_syms_and_exprs = function
-        | [] -> []
-        | (sym, Some expr) :: xs -> (sym, expr) :: collect_initialised_syms_and_exprs xs
-        | (_, None) :: xs -> collect_initialised_syms_and_exprs xs
-      in
-      function
-      | [] -> (decls, modified_stats)
-      | s :: ss ->
-        (match s with
-         (*
-            Separate initialised variable declarations into declaration and initialisation (assignment).
-            Needed so that CN invariant ghost variables are in scope for assertions in the loop body.
-         *)
-         | A.(AilSdeclaration syms_and_exprs) ->
-           let sym_some_expr_pairs = collect_initialised_syms_and_exprs syms_and_exprs in
-           let none_pairs = List.map (fun (sym, _) -> (sym, None)) syms_and_exprs in
-           let none_decl = A.(AilSdeclaration none_pairs) in
-           let assign_stats =
-             List.map
-               (fun (sym, rhs_expr) ->
-                  let ident = mk_expr A.(AilEident sym) in
-                  A.(AilSexpr (mk_expr (AilEassign (ident, rhs_expr)))))
-               sym_some_expr_pairs
-           in
-           modify_decls_for_loop
-             (decls @ [ none_decl ])
-             (modified_stats @ assign_stats)
-             ss
-         | _ -> modify_decls_for_loop decls (modified_stats @ [ s ]) ss)
-    in
     let bs, ss =
       cn_to_ail_lat_internal_loop
         ~without_lemma_checks
@@ -4560,10 +4535,13 @@ let rec cn_to_ail_loop_inv_aux
         spec_mode_opt
         lat
     in
-    let decls, modified_stats = modify_decls_for_loop [] [] ss in
-    { cond = (cond_loc, (bs, modified_stats));
+    (* Needed so that CN invariant ghost variables are in scope for assertions in the loop body. *)
+    let decls = ref [] in
+    let modified_stats = ref [] in
+    Utils.separate_decls_and_assigns decls modified_stats ss;
+    { cond = (cond_loc, (bs, !modified_stats));
       loop_loc;
-      loop_entry = (bs, decls);
+      loop_entry = (bs, !decls);
       loop_exit = ([], [])
     }
 
@@ -5117,9 +5095,6 @@ let cn_to_ail_pre_post
     let bump_alloc_binding, bump_alloc_start_stat_, bump_alloc_end_stat_ =
       gen_bump_alloc_bs_and_ss ()
     in
-    (* TODO: hoist declarations out of spec block, for pres and inline statements 
-    Loops should already be taken care of, and no future spec needs to refer to
-     postcondition ghost variables) *)
     let ail_executable_spec = wrap_spec_with_fulm_on_checks ail_executable_spec in
     (* Add auxilliary statements: bump allocator, stack depth incr and decr, postcondition leak check *)
     let ail_executable_spec' =
