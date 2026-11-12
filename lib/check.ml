@@ -175,7 +175,7 @@ let rec check_mem_value (loc : Locations.t) ~(expect : BT.t) (mem : mem_value) :
          List.map (fun (id, ct, mv) -> (id, Sctypes.of_ctype_unsafe loc ct, mv)) mvals
        in
        check_struct loc tag mvals)
-    (fun tag id mv -> check_union loc tag id mv)
+    (fun _tag _id _mv -> failwith "todo: union values are being changed in Core")
 
 
 and check_struct
@@ -199,11 +199,6 @@ and check_struct
       member_values
   in
   return (MT.struct_ (tag, member_its) loc)
-
-
-and check_union (_loc : Locations.t) (_tag : Sym.t) (_id : Id.t) (_mv : mem_value) : T.t m
-  =
-  Cerb_diagnostic.fatal "todo: union types"
 
 
 let ensure_bitvector_type (loc : Locations.t) ~(expect : BT.t) : (BT.sign * int) m =
@@ -253,7 +248,7 @@ let rec check_object_value (loc : Locations.t) (Mu.OV (expect, ov)) : T.t m =
   | OVstruct (tag, fields) ->
     let@ () = WellTyped.ensure_base_type loc ~expect (Struct tag) in
     check_struct loc tag fields
-  | OVunion (tag, id, mv) -> check_union loc tag id mv
+  | OVunion _ -> failwith "todo: OVunion is being changed in Core"
   | OVfloating _iv -> unsupported loc !^"floats"
 
 
@@ -1023,7 +1018,7 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : T.t m =
     let@ vs = ListM.mapM (check_pexpr path_cs) (List.map snd xs) in
     let members = List.map2 (fun (nm, _) v -> (nm, v)) xs vs in
     return (struct_ (tag, members) loc)
-  | PEunion _ -> Cerb_diagnostic.fatal "todo: PEunion"
+  | PEunion _ -> failwith "todo: PEunion is being changed in Core"
   | PEcfunction pe2 ->
     let@ () =
       WellTyped.ensure_base_type loc ~expect (Tuple [ CType; List CType; Bool; Bool ])

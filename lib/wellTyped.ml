@@ -1622,8 +1622,8 @@ module BaseTyping = struct
       | OVarray xs ->
         let@ _xs = ListM.mapM (infer_loaded_value loc) xs in
         todo ()
-      | OVstruct (nm, xs) -> return (Struct nm, Mu.OVstruct (nm, xs))
-      | OVunion _ -> todo ()
+      | OVstruct _ -> todo ()
+      | OVunion _ -> failwith "todo: OVunion is being changed in Core"
     in
     return (Mu.OV (bt, ov))
 
