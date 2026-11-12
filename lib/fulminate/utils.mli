@@ -69,7 +69,7 @@ val line_and_column_numbers : Cerb_location.t -> ((int * int) * (int * int)) opt
 val from_same_file : Cerb_location.t * Cerb_location.t -> bool
 
 val separate_decls_and_assigns
-  :  'a AilSyntax.statement_ list ref ->
+  :  GenTypes.genTypeCategory AilSyntax.statement_ list ref ->
   GenTypes.genTypeCategory AilSyntax.statement_ list ref ->
   GenTypes.genTypeCategory AilSyntax.statement_ list ->
   unit
