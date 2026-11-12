@@ -922,7 +922,6 @@ let rec cn_to_ail_expr_aux
   : type a.
     string ->
     _ option ->
-    _ option ->
     _ CF.Cn.cn_datatype list ->
     (C.union_tag * C.ctype) list ->
     spec_mode option ->
@@ -930,14 +929,7 @@ let rec cn_to_ail_expr_aux
     a dest ->
     a
   =
-  fun filename
-    const_prop
-    pred_name
-    dts
-    globals
-    spec_mode_opt
-    (IT (term_, basetype, _loc))
-    d ->
+  fun filename pred_name dts globals spec_mode_opt (IT (term_, basetype, _loc)) d ->
   match term_ with
   | Const const ->
     let ail_expr, is_unit = cn_to_ail_const const basetype in
@@ -949,17 +941,7 @@ let rec cn_to_ail_expr_aux
       else
         sym
     in
-    let ail_expr_ =
-      match const_prop with
-      | Some (sym2, cn_const) ->
-        if CF.Symbol.equal_sym sym sym2 then (
-          let ail_const, _ = cn_to_ail_const cn_const basetype in
-          ail_const)
-        else
-          A.(AilEident sym)
-      | None -> A.(AilEident sym)
-      (* TODO: Check. Need to do more work if this is only a CN var *)
-    in
+    let ail_expr_ = A.(AilEident sym) in
     let ail_expr_ =
       if is_sym_obj_address sym then
         if List.exists (fun (x, _) -> Sym.equal x sym) globals then
@@ -978,26 +960,10 @@ let rec cn_to_ail_expr_aux
     dest d spec_mode_opt ([], [], mk_expr ail_expr_)
   | Binop (bop, t1, t2) ->
     let b1, s1, e1 =
-      cn_to_ail_expr_aux
-        filename
-        const_prop
-        pred_name
-        dts
-        globals
-        spec_mode_opt
-        t1
-        PassBack
+      cn_to_ail_expr_aux filename pred_name dts globals spec_mode_opt t1 PassBack
     in
     let b2, s2, e2 =
-      cn_to_ail_expr_aux
-        filename
-        const_prop
-        pred_name
-        dts
-        globals
-        spec_mode_opt
-        t2
-        PassBack
+      cn_to_ail_expr_aux filename pred_name dts globals spec_mode_opt t2 PassBack
     in
     let annot = cn_to_ail_binop (TN.get_bt t1) (TN.get_bt t2) bop in
     let str =
@@ -1016,15 +982,7 @@ let rec cn_to_ail_expr_aux
     dest d spec_mode_opt (b1 @ b2, s1 @ s2, mk_expr ail_expr_)
   | Unop (unop, t) ->
     let b, s, e =
-      cn_to_ail_expr_aux
-        filename
-        const_prop
-        pred_name
-        dts
-        globals
-        spec_mode_opt
-        t
-        PassBack
+      cn_to_ail_expr_aux filename pred_name dts globals spec_mode_opt t PassBack
     in
     let annot = cn_to_ail_unop (TN.get_bt t) unop in
     let str =
@@ -1049,15 +1007,7 @@ let rec cn_to_ail_expr_aux
     let result_binding = create_binding result_sym (bt_to_ail_ctype (TN.get_bt t2)) in
     let result_decl = A.(AilSdeclaration [ (result_sym, None) ]) in
     let b1, s1, e1 =
-      cn_to_ail_expr_aux
-        filename
-        const_prop
-        pred_name
-        dts
-        globals
-        spec_mode_opt
-        t1
-        PassBack
+      cn_to_ail_expr_aux filename pred_name dts globals spec_mode_opt t1 PassBack
     in
     let wrapped_cond =
       A.(AilEcall (mk_expr (AilEident (Sym.fresh "convert_from_cn_bool")), [ e1 ]))
@@ -1065,7 +1015,6 @@ let rec cn_to_ail_expr_aux
     let b2, s2 =
       cn_to_ail_expr_aux
         filename
-        const_prop
         pred_name
         dts
         globals
@@ -1076,7 +1025,6 @@ let rec cn_to_ail_expr_aux
     let b3, s3 =
       cn_to_ail_expr_aux
         filename
-        const_prop
         pred_name
         dts
         globals
@@ -1126,7 +1074,6 @@ let rec cn_to_ail_expr_aux
     let _, _, start_int_const =
       cn_to_ail_expr_aux
         filename
-        const_prop
         pred_name
         dts
         globals
@@ -1137,7 +1084,6 @@ let rec cn_to_ail_expr_aux
     let _, _, end_int_const =
       cn_to_ail_expr_aux
         filename
-        const_prop
         pred_name
         dts
         globals
@@ -1149,7 +1095,6 @@ let rec cn_to_ail_expr_aux
     let _, _, while_cond =
       cn_to_ail_expr_aux
         filename
-        const_prop
         pred_name
         dts
         globals
@@ -1158,15 +1103,7 @@ let rec cn_to_ail_expr_aux
         PassBack
     in
     let translated_t =
-      cn_to_ail_expr_aux
-        filename
-        const_prop
-        pred_name
-        dts
-        globals
-        spec_mode_opt
-        t
-        PassBack
+      cn_to_ail_expr_aux filename pred_name dts globals spec_mode_opt t PassBack
     in
     let bs, ss, e =
       gen_bool_while_loop
@@ -1187,15 +1124,7 @@ let rec cn_to_ail_expr_aux
     let cn_struct_tag = generate_sym_with_suffix ~suffix:"_cn" tag in
     let generate_ail_stat (id, it) =
       let b, s, e =
-        cn_to_ail_expr_aux
-          filename
-          const_prop
-          pred_name
-          dts
-          globals
-          spec_mode_opt
-          it
-          PassBack
+        cn_to_ail_expr_aux filename pred_name dts globals spec_mode_opt it PassBack
       in
       let ail_memberof = A.(AilEmemberofptr (mk_expr res_ident, id)) in
       let assign_stat = A.(AilSexpr (mk_expr (AilEassign (mk_expr ail_memberof, e)))) in
@@ -1214,28 +1143,12 @@ let rec cn_to_ail_expr_aux
   | RecordMember (t, m) ->
     (* Currently assuming records only exist *)
     let b, s, e =
-      cn_to_ail_expr_aux
-        filename
-        const_prop
-        pred_name
-        dts
-        globals
-        spec_mode_opt
-        t
-        PassBack
+      cn_to_ail_expr_aux filename pred_name dts globals spec_mode_opt t PassBack
     in
     dest d spec_mode_opt (b, s, mk_expr A.(AilEmemberofptr (e, m)))
   | StructMember (t, m) ->
     let b, s, e =
-      cn_to_ail_expr_aux
-        filename
-        const_prop
-        pred_name
-        dts
-        globals
-        spec_mode_opt
-        t
-        PassBack
+      cn_to_ail_expr_aux filename pred_name dts globals spec_mode_opt t PassBack
     in
     let ail_expr_ = A.(AilEmemberofptr (e, m)) in
     dest d spec_mode_opt (b, s, mk_expr ail_expr_)
@@ -1260,7 +1173,6 @@ let rec cn_to_ail_expr_aux
        let b1, s1, e1 =
          cn_to_ail_expr_aux
            filename
-           const_prop
            pred_name
            dts
            globals
@@ -1269,15 +1181,7 @@ let rec cn_to_ail_expr_aux
            PassBack
        in
        let b2, s2, e2 =
-         cn_to_ail_expr_aux
-           filename
-           const_prop
-           pred_name
-           dts
-           globals
-           spec_mode_opt
-           new_val
-           PassBack
+         cn_to_ail_expr_aux filename pred_name dts globals spec_mode_opt new_val PassBack
        in
        let res_sym = Sym.fresh_anon () in
        let res_ident = mk_expr A.(AilEident res_sym) in
@@ -1313,15 +1217,7 @@ let rec cn_to_ail_expr_aux
     let res_ident = A.(AilEident res_sym) in
     let generate_ail_stat (id, it) =
       let b, s, e =
-        cn_to_ail_expr_aux
-          filename
-          const_prop
-          pred_name
-          dts
-          globals
-          spec_mode_opt
-          it
-          PassBack
+        cn_to_ail_expr_aux filename pred_name dts globals spec_mode_opt it PassBack
       in
       let ail_memberof = A.(AilEmemberofptr (mk_expr res_ident, id)) in
       let assign_stat = A.(AilSexpr (mk_expr (AilEassign (mk_expr ail_memberof, e)))) in
@@ -1386,15 +1282,7 @@ let rec cn_to_ail_expr_aux
     let e_' = A.(AilEmemberof (mk_expr e_, create_id_from_sym lc_constr_sym)) in
     let generate_ail_stat (id, it) =
       let b, s, e =
-        cn_to_ail_expr_aux
-          filename
-          const_prop
-          pred_name
-          dts
-          globals
-          spec_mode_opt
-          it
-          PassBack
+        cn_to_ail_expr_aux filename pred_name dts globals spec_mode_opt it PassBack
       in
       let ail_memberof =
         if Id.equal id (Id.make here "tag") then
@@ -1442,15 +1330,7 @@ let rec cn_to_ail_expr_aux
   | MemberShift (it, tag, member) ->
     let membershift_macro_sym = Sym.fresh "cn_member_shift" in
     let bs, ss, e =
-      cn_to_ail_expr_aux
-        filename
-        const_prop
-        pred_name
-        dts
-        globals
-        spec_mode_opt
-        it
-        PassBack
+      cn_to_ail_expr_aux filename pred_name dts globals spec_mode_opt it PassBack
     in
     let ail_fcall =
       A.(
@@ -1464,26 +1344,10 @@ let rec cn_to_ail_expr_aux
     dest d spec_mode_opt (bs, ss, mk_expr ail_fcall)
   | ArrayShift { base; ct; index } ->
     let b1, s1, e1 =
-      cn_to_ail_expr_aux
-        filename
-        const_prop
-        pred_name
-        dts
-        globals
-        spec_mode_opt
-        base
-        PassBack
+      cn_to_ail_expr_aux filename pred_name dts globals spec_mode_opt base PassBack
     in
     let b2, s2, e2 =
-      cn_to_ail_expr_aux
-        filename
-        const_prop
-        pred_name
-        dts
-        globals
-        spec_mode_opt
-        index
-        PassBack
+      cn_to_ail_expr_aux filename pred_name dts globals spec_mode_opt index PassBack
     in
     let sizeof_expr = mk_expr A.(AilEsizeof (C.no_qualifiers, Sctypes.to_ctype ct)) in
     let ail_expr_ =
@@ -1498,15 +1362,7 @@ let rec cn_to_ail_expr_aux
   | Cons (_x, _xs) -> failwith (__LOC__ ^ ": TODO Cons")
   | Head xs ->
     let b, s, e =
-      cn_to_ail_expr_aux
-        filename
-        const_prop
-        pred_name
-        dts
-        globals
-        spec_mode_opt
-        xs
-        PassBack
+      cn_to_ail_expr_aux filename pred_name dts globals spec_mode_opt xs PassBack
     in
     (* dereference to get first value, where xs is assumed to be a pointer *)
     let ail_expr_ = A.(AilEunary (Indirection, e)) in
@@ -1517,20 +1373,11 @@ let rec cn_to_ail_expr_aux
     (* `representable` and `good` both need to be fixed *)
   | Good (_ct, _t) -> dest d spec_mode_opt ([], [], cn_bool_true_expr)
   | Aligned _t_and_align -> failwith (__LOC__ ^ ": TODO Aligned")
-  | WrapI (_ct, t) ->
-    cn_to_ail_expr_aux filename const_prop pred_name dts globals spec_mode_opt t d
+  | WrapI (_ct, t) -> cn_to_ail_expr_aux filename pred_name dts globals spec_mode_opt t d
   | MapConst (_bt, _t) -> failwith (__LOC__ ^ ": TODO MapConst")
   | MapSet (m, key, value) ->
     let b1, s1, e1 =
-      cn_to_ail_expr_aux
-        filename
-        const_prop
-        pred_name
-        dts
-        globals
-        spec_mode_opt
-        m
-        PassBack
+      cn_to_ail_expr_aux filename pred_name dts globals spec_mode_opt m PassBack
     in
     let key_term =
       if TN.get_bt key == BT.Integer then
@@ -1539,26 +1386,10 @@ let rec cn_to_ail_expr_aux
         IT (Cast (BT.Integer, key), BT.Integer, Cerb_location.unknown)
     in
     let b2, s2, e2 =
-      cn_to_ail_expr_aux
-        filename
-        const_prop
-        pred_name
-        dts
-        globals
-        spec_mode_opt
-        key_term
-        PassBack
+      cn_to_ail_expr_aux filename pred_name dts globals spec_mode_opt key_term PassBack
     in
     let b3, s3, e3 =
-      cn_to_ail_expr_aux
-        filename
-        const_prop
-        pred_name
-        dts
-        globals
-        spec_mode_opt
-        value
-        PassBack
+      cn_to_ail_expr_aux filename pred_name dts globals spec_mode_opt value PassBack
     in
     let new_map_sym = Sym.fresh_anon () in
     let new_map_binding = create_binding new_map_sym (bt_to_ail_ctype (TN.get_bt m)) in
@@ -1583,15 +1414,7 @@ let rec cn_to_ail_expr_aux
   | MapGet (m, key) ->
     (* Only works when index is a cn_integer *)
     let b1, s1, e1 =
-      cn_to_ail_expr_aux
-        filename
-        const_prop
-        pred_name
-        dts
-        globals
-        spec_mode_opt
-        m
-        PassBack
+      cn_to_ail_expr_aux filename pred_name dts globals spec_mode_opt m PassBack
     in
     let key_term =
       if TN.get_bt key == BT.Integer then
@@ -1600,15 +1423,7 @@ let rec cn_to_ail_expr_aux
         IT (Cast (BT.Integer, key), BT.Integer, Cerb_location.unknown)
     in
     let b2, s2, e2 =
-      cn_to_ail_expr_aux
-        filename
-        const_prop
-        pred_name
-        dts
-        globals
-        spec_mode_opt
-        key_term
-        PassBack
+      cn_to_ail_expr_aux filename pred_name dts globals spec_mode_opt key_term PassBack
     in
     let is_record =
       match BT.map_bt (TN.get_bt m) with _, Record _ -> true | _ -> false
@@ -1631,15 +1446,7 @@ let rec cn_to_ail_expr_aux
     let bs_ss_es =
       List.map
         (fun e ->
-           cn_to_ail_expr_aux
-             filename
-             const_prop
-             pred_name
-             dts
-             globals
-             spec_mode_opt
-             e
-             PassBack)
+           cn_to_ail_expr_aux filename pred_name dts globals spec_mode_opt e PassBack)
         ts
     in
     let bs, ss, es = list_split_three bs_ss_es in
@@ -1648,15 +1455,7 @@ let rec cn_to_ail_expr_aux
     dest d spec_mode_opt (List.concat bs, List.concat ss, mk_expr ail_expr_)
   | Let ((var, t1), body) ->
     let b1, s1, e1 =
-      cn_to_ail_expr_aux
-        filename
-        const_prop
-        pred_name
-        dts
-        globals
-        spec_mode_opt
-        t1
-        PassBack
+      cn_to_ail_expr_aux filename pred_name dts globals spec_mode_opt t1 PassBack
     in
     let ctype = bt_to_ail_ctype (TN.get_bt t1) in
     let binding = create_binding var ctype in
@@ -1664,7 +1463,7 @@ let rec cn_to_ail_expr_aux
     prefix
       d
       (b1 @ [ binding ], s1 @ [ ail_assign ])
-      (cn_to_ail_expr_aux filename const_prop pred_name dts globals spec_mode_opt body d)
+      (cn_to_ail_expr_aux filename pred_name dts globals spec_mode_opt body d)
   | Match (t, ps) ->
     (* PATTERN COMPILER *)
     let mk_pattern pattern_ bt loc = T.(Pat (pattern_, bt, loc)) in
@@ -1713,7 +1512,6 @@ let rec cn_to_ail_expr_aux
             | Assert loc ->
               cn_to_ail_expr_aux
                 filename
-                const_prop
                 pred_name
                 dts
                 globals
@@ -1721,19 +1519,10 @@ let rec cn_to_ail_expr_aux
                 t
                 (Assert loc)
             | Return ->
-              cn_to_ail_expr_aux
-                filename
-                const_prop
-                pred_name
-                dts
-                globals
-                spec_mode_opt
-                t
-                Return
+              cn_to_ail_expr_aux filename pred_name dts globals spec_mode_opt t Return
             | AssignVar x ->
               cn_to_ail_expr_aux
                 filename
-                const_prop
                 pred_name
                 dts
                 globals
@@ -1743,7 +1532,6 @@ let rec cn_to_ail_expr_aux
             | PassBack ->
               cn_to_ail_expr_aux
                 filename
-                const_prop
                 pred_name
                 dts
                 globals
@@ -1768,7 +1556,6 @@ let rec cn_to_ail_expr_aux
                let b1, s1, e1 =
                  cn_to_ail_expr_aux
                    filename
-                   const_prop
                    pred_name
                    dts
                    globals
@@ -1900,15 +1687,7 @@ let rec cn_to_ail_expr_aux
         (wrap_with_convert_to ail_const_expr_ BT.Alloc_id, [], [])
       | _ ->
         let b, s, e =
-          cn_to_ail_expr_aux
-            filename
-            const_prop
-            pred_name
-            dts
-            globals
-            spec_mode_opt
-            t
-            PassBack
+          cn_to_ail_expr_aux filename pred_name dts globals spec_mode_opt t PassBack
         in
         let ail_expr_ =
           match
@@ -1940,7 +1719,7 @@ let cn_to_ail_expr
     a
   =
   fun filename dts globals spec_mode_opt cn_expr d ->
-  cn_to_ail_expr_aux filename None None dts globals spec_mode_opt cn_expr d
+  cn_to_ail_expr_aux filename None dts globals spec_mode_opt cn_expr d
 
 
 let cn_to_ail_expr_toplevel
@@ -1954,7 +1733,7 @@ let cn_to_ail_expr_toplevel
     * CF.GenTypes.genTypeCategory A.statement_ list
     * CF.GenTypes.genTypeCategory A.expression
   =
-  cn_to_ail_expr_aux filename None pred_sym_opt dts globals spec_mode_opt it PassBack
+  cn_to_ail_expr_aux filename pred_sym_opt dts globals spec_mode_opt it PassBack
 
 
 let cn_to_ail_expr_with_pred_name
@@ -1969,7 +1748,7 @@ let cn_to_ail_expr_with_pred_name
     a
   =
   fun filename pred_name_opt dts globals spec_mode_opt cn_expr d ->
-  cn_to_ail_expr_aux filename None pred_name_opt dts globals spec_mode_opt cn_expr d
+  cn_to_ail_expr_aux filename pred_name_opt dts globals spec_mode_opt cn_expr d
 
 
 let create_member (ctype, id) = (id, (empty_attributes, None, C.no_qualifiers, ctype))
