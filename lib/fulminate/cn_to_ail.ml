@@ -521,14 +521,6 @@ let wrap_with_fulm_on_check (bs, ss) =
     ] )
 
 
-let wrap_loop_with_fulm_on_check (loop : loop_info) =
-  { loop with
-    cond = (fst loop.cond, wrap_with_fulm_on_check (snd loop.cond));
-    loop_entry = wrap_with_fulm_on_check loop.loop_entry;
-    loop_exit = wrap_with_fulm_on_check loop.loop_exit
-  }
-
-
 let wrap_in_stmt_with_fulm_on_check in_stmt =
   List.map (fun (loc, (bs, ss)) -> (loc, wrap_with_fulm_on_check (bs, ss))) in_stmt
 
@@ -543,7 +535,7 @@ let wrap_spec_with_fulm_on_checks (ail_executable_spec : ail_executable_spec) =
       (pre_bs, !pre_decls @ snd (wrap_with_fulm_on_check (pre_bs, !pre_modified_stats)));
     post = wrap_with_fulm_on_check ail_executable_spec.post;
     in_stmt = wrap_in_stmt_with_fulm_on_check ail_executable_spec.in_stmt;
-    loops = List.map wrap_loop_with_fulm_on_check ail_executable_spec.loops
+    loops = ail_executable_spec.loops (* Loops handled separately in cn_to_ail_loop_inv *)
   }
 
 
@@ -4648,7 +4640,10 @@ let cn_to_ail_loop_inv
            [])
       @ [ cn_loop_put_call; dummy_expr_as_stat ]
     in
-    let ail_gcc_stat_as_expr = A.(AilEgcc_statement ([], List.map mk_stmt stats)) in
+    let _, wrapped_stats = wrap_with_fulm_on_check ([], stats) in
+    let ail_gcc_stat_as_expr =
+      A.(AilEgcc_statement ([], List.map mk_stmt wrapped_stats))
+    in
     let ail_stat_as_expr_stat = A.(AilSexpr (mk_expr ail_gcc_stat_as_expr)) in
     Some
       { cond = (cond_loc, (cond_bs, [ ail_stat_as_expr_stat ]));
