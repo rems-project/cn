@@ -524,9 +524,9 @@ let generate_fun_def_and_decl_docs ~uninterps funs =
   (defs_doc, decls_doc)
 
 
-let generate_defined_fun_def_and_decl_docs funs =
+let generate_defined_fun_def_and_decl_docs ?(uninterps = Sym.Set.empty) funs =
   generate_fun_def_and_decl_docs
-    ~uninterps:Sym.Set.empty
+    ~uninterps
     (List.map (fun (decl, def) -> (decl, Some def)) funs)
 
 
@@ -629,7 +629,7 @@ let generate_c_predicates
       Sym.Set.empty
   in
   let defs_doc, decls_doc =
-    generate_fun_def_and_decl_docs ~uninterps (List.combine decls defs)
+    generate_defined_fun_def_and_decl_docs ~uninterps (List.combine decls defs)
   in
   ( "\n/* CN PREDICATES */\n\n" ^ doc_to_pretty_string defs_doc,
     doc_to_pretty_string decls_doc,

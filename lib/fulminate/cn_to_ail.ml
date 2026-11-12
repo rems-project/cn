@@ -3944,7 +3944,7 @@ let cn_to_ail_predicates
       cn_preds
       without_ownership_checking
   : ((Locations.t * A.sigma_declaration)
-    * CF.GenTypes.genTypeCategory A.sigma_function_definition option)
+    * CF.GenTypes.genTypeCategory A.sigma_function_definition)
       list
     * A.sigma_tag_definition option list
   =
