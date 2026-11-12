@@ -4633,7 +4633,7 @@ let cn_to_ail_loop_inv
     let loop_leak_upd_s = generate_error_msg_info_update_stats () in
     let loop_leak_pop_s = generate_cn_pop_msg_info () in
     let inv_stats =
-      cond_ss
+      (loop_ownership_state.assign :: cond_ss)
       @ (if with_loop_leak_checks then
            loop_leak_upd_s @ (cn_ownership_leak_check_call :: loop_leak_pop_s)
          else
@@ -4641,10 +4641,7 @@ let cn_to_ail_loop_inv
       @ [ cn_loop_put_call ]
     in
     let _, wrapped_stats = wrap_with_fulm_on_check ([], inv_stats) in
-    let stats =
-      (bump_alloc_assign :: loop_ownership_state.assign :: wrapped_stats)
-      @ [ dummy_expr_as_stat ]
-    in
+    let stats = (bump_alloc_assign :: wrapped_stats) @ [ dummy_expr_as_stat ] in
     let ail_gcc_stat_as_expr = A.(AilEgcc_statement ([], List.map mk_stmt stats)) in
     let ail_stat_as_expr_stat = A.(AilSexpr (mk_expr ail_gcc_stat_as_expr)) in
     Some
