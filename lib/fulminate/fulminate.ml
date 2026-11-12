@@ -812,12 +812,6 @@ let main
   (* Save things *)
   let oc = Stdlib.open_out out_filename in
   output_to_oc oc [ "#define __CN_INSTRUMENT\n"; "#include <cn-executable/utils.h>\n" ];
-  if accept_uninterp && Sys.file_exists uninterp_filename then
-    output_to_oc
-      oc
-      [ "/* Include user-provided bodies for (some) uninterpreted functions/predicates */\n";
-        "#include \"" ^ get_uninterp_filename filename ^ "\"\n"
-      ];
   output_to_oc oc cn_header_decls_list;
   output_to_oc
     oc
@@ -851,6 +845,12 @@ let main
      (* TODO(Christopher/Rini): maybe lift this error to the exception monad? *)
      prerr_endline str);
   output_to_oc oc [ Globals.accessors_str filename prog5 ];
+  if accept_uninterp && Sys.file_exists uninterp_filename then
+    output_to_oc
+      oc
+      [ "/* Include user-provided bodies for (some) uninterpreted functions/predicates */\n";
+        "#include \"" ^ get_uninterp_filename filename ^ "\"\n"
+      ];
   output_to_oc oc cn_defs_list;
   close_out oc;
   Stdlib.Sys.remove in_filename
