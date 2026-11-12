@@ -587,8 +587,6 @@ let[@warning "-32" (* unused-value-declaration *)] rec remove_duplicates eq_fun 
       t :: remove_duplicates eq_fun ts
 
 
-(* The fourth component: as for generate_c_functions, the uninterpreted predicates'
-   declarations with their default stubs and comments *)
 let generate_c_predicates
       ~accept_uninterp
       ~remove_uninterp
