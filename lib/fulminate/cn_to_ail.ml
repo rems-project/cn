@@ -3686,7 +3686,6 @@ let cn_to_ail_function
       (* When accept_uninterp enabled and function is uninterpreted, return default value 
       for return type as body *)
       ([], [ A.(AilSreturn (mk_expr (cn_to_ail_default lf_def.return_bt))) ])
-      (* Some (((loc, decl), None), ail_record_opt) *)
     | Uninterp ->
       Cerb_colour.with_colour
         (fun () ->
@@ -3868,12 +3867,12 @@ let cn_to_ail_predicate
            (bs', ss' @ [ ail_if_stat ]))
     in
     function
-    | Some clauses -> Some (clause_translate_aux clauses)
+    | Some clauses -> clause_translate_aux clauses
     (* None => uninterpreted *)
     | None when accept_uninterp ->
       (* When accept_uninterp enabled and predicate is uninterpreted, return default value 
       for return type as body *)
-      Some ([], [ A.(AilSreturn (mk_expr (cn_to_ail_default return_bt))) ])
+      ([], [ A.(AilSreturn (mk_expr (cn_to_ail_default return_bt))) ])
     | None ->
       Cerb_colour.with_colour
         (fun () ->
@@ -3889,7 +3888,7 @@ let cn_to_ail_predicate
         ();
       exit 2
   in
-  let bs_ss_opt = clause_translate (pred_sym, rp_def) rp_def.clauses in
+  let bs, ss = clause_translate (pred_sym, rp_def) rp_def.clauses in
   let ail_record_opt = generate_record_opt pred_sym (snd rp_def.oarg) in
   let param_syms, param_types = List.split (predicate_params rp_def) in
   let param_types = List.map (fun t -> (C.no_qualifiers, t, false)) param_types in
@@ -3903,17 +3902,13 @@ let cn_to_ail_predicate
             (false, (C.no_qualifiers, ret_type), param_types, false, false, false)) ) )
   in
   (* Generating function definition *)
-  (* None case is where predicate is uninterpreted and accept_uninterp is enabled *)
   let def =
-    Option.map
-      (fun (bs, ss) ->
-         ( pred_sym,
-           ( rp_def.loc,
-             0,
-             empty_attributes,
-             param_syms,
-             mk_stmt A.(AilSblock (bs, List.map mk_stmt ss)) ) ))
-      bs_ss_opt
+    ( pred_sym,
+      ( rp_def.loc,
+        0,
+        empty_attributes,
+        param_syms,
+        mk_stmt A.(AilSblock (bs, List.map mk_stmt ss)) ) )
   in
   let matched_cn_preds =
     List.filter
