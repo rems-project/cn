@@ -55,7 +55,12 @@ let setter_str filename sym =
   "cn_test_set_" ^ Utils.static_prefix filename ^ "_" ^ Sym.pp_string sym
 
 
-let true_const = A.AilEconst (ConstantPredefined PConstantTrue)
+(* Need to output as int rather than bool to make runtime dependencies and includes happy *)
+let ail_int_const n =
+  A.AilEconst (ConstantInteger (IConstant (Z.of_int n, Decimal, None)))
+
+
+let true_const = ail_int_const 1
 
 let ownership_ctypes = ref []
 
@@ -202,6 +207,7 @@ let generate_cn_assert ail_expr spec_mode_opt =
       if String.equal (Sym.pp_string sym) "convert_to_cn_bool" && List.non_empty args then (
         match rm_expr (List.hd args) with
         | A.(AilEconst (ConstantPredefined PConstantTrue)) -> true
+        | A.(AilEconst (ConstantInteger (IConstant (z, _, _)))) -> Z.equal z Z.one
         | _ -> false)
       else
         false
@@ -725,9 +731,7 @@ let cn_to_ail_const const basetype =
       in
       wrap (A.AilEunary (Address, mk_expr ail_const'))
     | Alloc_id _ -> failwith (__LOC__ ^ ": TODO Alloc_id")
-    | Bool b ->
-      wrap
-        (A.AilEconst (ConstantPredefined (if b then PConstantTrue else PConstantFalse)))
+    | Bool b -> wrap (ail_int_const (if b then 1 else 0))
     | Unit -> wrap ail_null (* Gets overridden by dest_with_unit_check *)
     | Null -> wrap ail_null
     | CType_const _ -> failwith (__LOC__ ^ ": TODO CType_const")
