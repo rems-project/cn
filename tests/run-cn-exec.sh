@@ -56,7 +56,6 @@ SUCCESS=$(find cn -name '*.c' \
     ! -path "tree16/as_mutual_dt/tree16.c" \
     ! -name "mod.c" \
     ! -name "mod_precedence.c" \
-    ! -name "fun_ptr_three_opts.c" \
     ! -name "inconsistent2.c" \
     ! -name "block_type.c" \
     ! -name "division_with_constants.c" \
@@ -132,7 +131,6 @@ NO_MAIN="\
 
 BUGGY="\
        cn/forloop_with_decl.c \
-       cn/fun_ptr_three_opts.c \
        cn/get_from_arr.c \
        cn/split_case.c \
        cn/tag_defs.c \

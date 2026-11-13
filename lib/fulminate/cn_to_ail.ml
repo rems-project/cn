@@ -958,9 +958,9 @@ let rec cn_to_ail_expr_aux
         if List.exists (fun (x, _) -> Sym.equal x sym) env.globals then
           wrap_with_getter env sym basetype
         else
-          wrap_with_addr_of ail_expr_ basetype (* Check if symbol is C function symbol *)
+          wrap_with_addr_of ail_expr_ basetype
       else if is_sym_c_function_symbol env sym then
-        wrap_with_addr_of ail_expr_ basetype
+        wrap_with_addr_of ail_expr_ basetype (* Check if symbol is C function symbol *)
       else
         ail_expr_
     in
