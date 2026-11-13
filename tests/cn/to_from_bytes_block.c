@@ -3,7 +3,11 @@
 void from_bytes(int *p)
 /*@ 
 requires 
-    take X = each (integer i; 0 <= i && i < sizeof<int>) { W(array_shift<byte>(p, i)) };
+    good<int*>(p);
+    take X0 = W(array_shift<byte>(p, 0));
+    take X1 = W(array_shift<byte>(p, 1));
+    take X2 = W(array_shift<byte>(p, 2));
+    take X3 = W(array_shift<byte>(p, 3));
 ensures
     take Y = W(p);
 @*/
@@ -16,7 +20,10 @@ void to_bytes(int *p)
 requires 
     take Y = W(p);
 ensures
-    take X = each (integer i; 0 <= i && i < sizeof<int>) { W(array_shift<byte>(p, i)) };
+    take X0 = W(array_shift<byte>(p, 0));
+    take X1 = W(array_shift<byte>(p, 1));
+    take X2 = W(array_shift<byte>(p, 2));
+    take X3 = W(array_shift<byte>(p, 3));
 @*/
 {
     /*@ to_bytes W(p); @*/

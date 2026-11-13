@@ -23,6 +23,9 @@ tests/cn_vip_testsuite/provenance_tag_bits_via_repr_byte_1.pass.c:23:33: warning
 tests/cn_vip_testsuite/provenance_tag_bits_via_repr_byte_1.pass.c:32:5: warning: Treating bitwise operation on integers as uninterpreted.
     x & 3 == 0;
     ~~^~~ 
+tests/cn_vip_testsuite/provenance_tag_bits_via_repr_byte_1.pass.c:39:7: warning: focus: index added, no effect on existing resources (yet).
+  /*@ focus RW<byte>, 0; @*/
+      ^~~~~~~~~~~~~~~~~~ 
 tests/cn_vip_testsuite/provenance_tag_bits_via_repr_byte_1.pass.c:44:20: warning: Treating bitwise operation on integers as uninterpreted.
   assert((i & 3u) == 0u);
                    ^~~~~~~~ 

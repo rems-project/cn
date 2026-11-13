@@ -13,6 +13,7 @@ int main()
   int *r = p + offset;
   /*CN_VIP*//*@ to_bytes RW<int*>(&r); @*/
   /*CN_VIP*//*@ to_bytes RW<int*>(&q); @*/
+  /*CN_VIP*//*@ focus RW<byte>, 0,1,2,3,4,5,6,7; @*/
   /*CN_VIP*/int result = _memcmp((byte*)&r, (byte*)&q, sizeof(r));
   /*CN_VIP*//*@ from_bytes RW<int*>(&r); @*/
   /*CN_VIP*//*@ from_bytes RW<int*>(&q); @*/

@@ -2,11 +2,14 @@ return code: 1
 tests/cn_vip_testsuite/pointer_from_int_disambiguation_3.error.c:17:17: warning: experimental keyword 'to_bytes' (use of experimental features is discouraged)
   /*CN_VIP*//*@ to_bytes RW<int*>(&p); @*/
                 ^~~~~~~~ 
-tests/cn_vip_testsuite/pointer_from_int_disambiguation_3.error.c:22:17: warning: experimental keyword 'from_bytes' (use of experimental features is discouraged)
+tests/cn_vip_testsuite/pointer_from_int_disambiguation_3.error.c:23:17: warning: experimental keyword 'from_bytes' (use of experimental features is discouraged)
   /*CN_VIP*//*@ from_bytes RW<int*>(&p); @*/
                 ^~~~~~~~~~ 
+tests/cn_vip_testsuite/pointer_from_int_disambiguation_3.error.c:19:17: warning: focus: index added, no effect on existing resources (yet).
+  /*CN_VIP*//*@ focus RW<byte>, 0,1,2,3,4,5,6,7; @*/
+                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
 [1/1]: main -- fail
-tests/cn_vip_testsuite/pointer_from_int_disambiguation_3.error.c:31:7: error: `&copy_alloc_id((integer)&&x[1], value)[0 - 1]` out of bounds
+tests/cn_vip_testsuite/pointer_from_int_disambiguation_3.error.c:32:7: error: `&copy_alloc_id((integer)&&x[1], value)[0 - 1]` out of bounds
     r=r-1;  // CN VIP UB if  ANNOT
       ~^~ 
 (UB missing short message): UB_CERB004_unspecified__pointer_add

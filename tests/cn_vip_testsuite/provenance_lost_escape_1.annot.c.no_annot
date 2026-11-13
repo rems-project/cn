@@ -2,7 +2,7 @@ return code: 1
 tests/cn_vip_testsuite/provenance_lost_escape_1.annot.c:25:17: warning: experimental keyword 'to_bytes' (use of experimental features is discouraged)
   /*CN_VIP*//*@ to_bytes RW<uintptr_t>(&i1); @*/
                 ^~~~~~~~ 
-tests/cn_vip_testsuite/provenance_lost_escape_1.annot.c:29:17: warning: experimental keyword 'from_bytes' (use of experimental features is discouraged)
+tests/cn_vip_testsuite/provenance_lost_escape_1.annot.c:30:17: warning: experimental keyword 'from_bytes' (use of experimental features is discouraged)
   /*CN_VIP*//*@ from_bytes RW<uintptr_t>(&i1); @*/
                 ^~~~~~~~~~ 
 tests/cn_vip_testsuite/provenance_lost_escape_1.annot.c:14:18: warning: Treating bitwise operation on integers as uninterpreted.
@@ -23,8 +23,11 @@ tests/cn_vip_testsuite/provenance_lost_escape_1.annot.c:14:18: warning: Treating
 tests/cn_vip_testsuite/provenance_lost_escape_1.annot.c:15:18: warning: Treating bitwise operation on integers as uninterpreted.
   uintptr_t i3 = i2 & 0xFFFFFFFF00000000;// (@1,0x0)
                  ~~~^~~~~~~~~~~~~~~~~~~~ 
+tests/cn_vip_testsuite/provenance_lost_escape_1.annot.c:27:17: warning: focus: index added, no effect on existing resources (yet).
+  /*CN_VIP*//*@ focus RW<byte>, 0,1,2,3,4,5,6,7; @*/
+                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
 [1/1]: main -- fail
-tests/cn_vip_testsuite/provenance_lost_escape_1.annot.c:32:5: error: Missing resource for writing
+tests/cn_vip_testsuite/provenance_lost_escape_1.annot.c:33:5: error: Missing resource for writing
     *q = 11;  // CN VIP UB (no annot)
     ~~~^~~~ 
 Resource needed: W<signed int>(intToPtr)

@@ -2408,7 +2408,7 @@ module BaseTyping = struct
       in
       let@ it = WT.infer it in
       return (Instantiate (to_instantiate, it))
-    | Extract (attrs, to_extract, it) ->
+    | Extract (attrs, to_extract, its) ->
       let@ () =
         match to_extract with
         | E_Pred (CN_owned None) -> return ()
@@ -2420,10 +2420,12 @@ module BaseTyping = struct
           return ()
         | E_Everything -> return ()
       in
-      let@ it = WT.infer it in
+      let@ its = ListM.mapM WT.infer its in
       if warn then
-        warn_when_not_quantifier_bt "focus" (T.get_loc it) (T.get_bt it) (T.pp it);
-      return (Extract (attrs, to_extract, it))
+        List.iter (fun it ->
+          warn_when_not_quantifier_bt "focus" (T.get_loc it) (T.get_bt it) (T.pp it)
+        ) its;
+      return (Extract (attrs, to_extract, its))
     | Unfold (f, its) ->
       let@ def = get_logical_function_def loc f in
       if Definition.Function.is_recursive def then

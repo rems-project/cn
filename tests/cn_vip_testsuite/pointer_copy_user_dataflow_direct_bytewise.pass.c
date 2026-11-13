@@ -7,6 +7,7 @@ int  x=1;
 void user_memcpy(byte *dest, byte *src, size_t n)
 /*@
 requires
+    !is_null(src); !is_null(dest);
     take Src = each (integer i; 0 <= i && i < n ) { RW(array_shift(src, i)) };
     take Dest = each (integer i; 0 <= i && i < n ) { W(array_shift(dest, i)) };
 
@@ -24,6 +25,7 @@ ensures
     let dest_start = {dest}@start;
     let n_start = {n}@start;
     0 <= n; n <= n_start;
+    !is_null(src); !is_null(dest);
     src == array_shift<unsigned char>(src_start, n_start - n);
     dest == array_shift<unsigned char>(dest_start, n_start - n);
     take S = each (integer i; 0 <= i && i < n_start ) { RW(array_shift(src_start, i)) };
@@ -47,6 +49,7 @@ int main()
   int *q;
   /*CN_VIP*//*@ to_bytes RW<int*>(&p); @*/
   /*CN_VIP*//*@ to_bytes W<int*>(&q); @*/
+  /*CN_VIP*//*@ focus RW<byte>, 0,1,2,3,4,5,6,7; @*/
   user_memcpy((byte*)&q, (byte*)&p, sizeof(int *));
   /*CN_VIP*//*@ apply byte_arrays_equal(&q, &p, sizeof<int*>); @*/
   /*CN_VIP*//*@ from_bytes RW<int*>(&q); @*/

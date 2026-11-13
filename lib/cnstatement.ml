@@ -9,7 +9,7 @@ type have_show =
   | Have
   | Show
 
-type extract = Id.t list * (Sym.t, Sctypes.t) CF.Cn.cn_to_extract * T.t
+type extract = Id.t list * (Sym.t, Sctypes.t) CF.Cn.cn_to_extract * T.t list
 
 type predicate_or_predicate_name =
   | Predicate of Request.Predicate.t
@@ -47,7 +47,7 @@ let rec subst substitution = function
     (* o_s is not a (option) binder *)
     Instantiate (o_s, T.subst substitution it)
   | Split_case lc -> Split_case (LC.subst substitution lc)
-  | Extract (attrs, to_extract, it) -> Extract (attrs, to_extract, T.subst substitution it)
+  | Extract (attrs, to_extract, its) -> Extract (attrs, to_extract, List.map (T.subst substitution) its)
   | Unfold (fsym, args) ->
     (* fsym is a function symbol *)
     Unfold (fsym, List.map (T.subst substitution) args)
@@ -89,7 +89,7 @@ let free_vars = function
     (* o_s is not a (option) binder *)
     T.free_vars it
   | Split_case lc -> LC.free_vars lc
-  | Extract (_attrs, _to_extract, it) -> T.free_vars it
+  | Extract (_attrs, _to_extract, its) -> T.free_vars_list its
   | Unfold (_fsym, args) ->
     (* fsym is a function symbol *)
     T.free_vars_list args
@@ -153,10 +153,10 @@ let dtree =
   | Extract (attrs, to_extract, it) ->
     Dnode
       ( pp_ctor "Extract",
-        [ Dnode (pp_ctor "Attrs", List.map (fun s -> Dleaf (Id.pp s)) attrs);
-          dtree_of_to_extract to_extract;
-          T.dtree it
-        ] )
+        ( Dnode (pp_ctor "Attrs", List.map (fun s -> Dleaf (Id.pp s)) attrs) ::
+          dtree_of_to_extract to_extract ::
+          List.map T.dtree it
+        ) )
   | Unfold (s, args) -> Dnode (pp_ctor "Unfold", Dleaf (Sym.pp s) :: List.map T.dtree args)
   | Apply (s, args) -> Dnode (pp_ctor "Apply", Dleaf (Sym.pp s) :: List.map T.dtree args)
   | Assert lc -> Dnode (pp_ctor "Assert", [ LC.dtree lc ])

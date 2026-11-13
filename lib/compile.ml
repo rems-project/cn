@@ -651,6 +651,7 @@ module C_vars = struct
   let warn_if_ct_mismatch loc context ~annot ~inferred ~ptr =
     match (inferred, annot) with
     | Sctypes.Void, _ (* this case will error later in the checks *)
+    | _, Sctypes.Byte
     | _, Sctypes.(Integer IntegerTypes.Char)
     | _, Sctypes.(Integer (Signed Ichar))
     | _, Sctypes.(Integer (Unsigned Ichar)) ->
@@ -1388,9 +1389,9 @@ module C_vars = struct
     | CN_split_case e ->
       let@ e = cn_assrt env (loc, e) in
       return (Split_case e)
-    | CN_extract (attrs, to_extract, expr) ->
-      let@ expr = cn_expr Sym.Set.empty env expr in
-      let expr = Terms.Surface.proj expr in
+    | CN_extract (attrs, to_extract, exprs) ->
+      let@ exprs = ListM.mapM (cn_expr Sym.Set.empty env) exprs in
+      let exprs = List.map Terms.Surface.proj exprs in
       let to_extract =
         match to_extract with
         | Cn.E_Everything -> Cn.E_Everything
@@ -1400,7 +1401,7 @@ module C_vars = struct
           E_Pred (CN_block (Option.map (Sctypes.of_ctype_unsafe loc) oty))
         | E_Pred (CN_named pn) -> E_Pred (CN_named pn)
       in
-      return (Extract (attrs, to_extract, expr))
+      return (Extract (attrs, to_extract, exprs))
     | CN_unfold (s, args) ->
       let@ args = ListM.mapM (cn_expr Sym.Set.empty env) args in
       let args = List.map Terms.Surface.proj args in
