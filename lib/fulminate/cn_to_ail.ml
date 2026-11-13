@@ -943,21 +943,22 @@ let rec cn_to_ail_expr_aux
     in
     let ail_expr_ = A.(AilEident sym) in
     let ail_expr_ =
-      (* Check sym actually means &sym here *)
+      (* Check if sym actually means &sym here *)
       if is_sym_obj_address sym then
+        (* If accessed global, wrap with bespoke accessor function *)
         if List.exists (fun (x, _) -> Sym.equal x sym) env.globals then
           wrap_with_convert
             ~convert_from:false
             A.(
               AilEcall (mk_expr (AilEident (Sym.fresh (getter_str env.filename sym))), []))
             basetype
-        else
+        else (* Otherwise, wrap `sym` as `convert_to_cn_pointer(&sym)` *)
           wrap_with_convert
             ~convert_from:false
             (A.AilEunary (Address, mk_expr ail_expr_))
             basetype
       else if is_sym_c_function_symbol env sym then
-        (* Wrap with `convert_to_cn_pointer` if sym is C function symbol *)
+        (* Wrap `sym` as `convert_to_cn_pointer(sym)` if `sym` is C function symbol *)
         wrap_with_convert ~convert_from:false ail_expr_ basetype
       else
         ail_expr_
