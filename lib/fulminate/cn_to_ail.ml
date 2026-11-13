@@ -924,6 +924,8 @@ let is_sym_obj_address sym =
   match Sym.description sym with SD_ObjectAddress _ -> true | _ -> false
 
 
+let is_sym_c_function_symbol env sym = Sym.Set.mem sym env.funs
+
 let rec cn_to_ail_expr_aux
   : type a. env -> spec_mode:spec_mode option -> TN.t -> a dest -> a
   =
@@ -941,18 +943,23 @@ let rec cn_to_ail_expr_aux
     in
     let ail_expr_ = A.(AilEident sym) in
     let ail_expr_ =
+      (* Check if sym actually means &sym here *)
       if is_sym_obj_address sym then
+        (* If accessed global, wrap with bespoke accessor function *)
         if List.exists (fun (x, _) -> Sym.equal x sym) env.globals then
           wrap_with_convert
             ~convert_from:false
             A.(
               AilEcall (mk_expr (AilEident (Sym.fresh (getter_str env.filename sym))), []))
             basetype
-        else
+        else (* Otherwise, wrap `sym` as `convert_to_cn_pointer(&sym)` *)
           wrap_with_convert
             ~convert_from:false
-            A.(AilEunary (Address, mk_expr ail_expr_))
+            (A.AilEunary (Address, mk_expr ail_expr_))
             basetype
+      else if is_sym_c_function_symbol env sym then
+        (* Wrap `sym` as `convert_to_cn_pointer(sym)` if `sym` is C function symbol *)
+        wrap_with_convert ~convert_from:false ail_expr_ basetype
       else
         ail_expr_
     in
