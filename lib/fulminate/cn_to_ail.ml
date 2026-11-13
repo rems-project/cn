@@ -68,7 +68,7 @@ let ownership_ctypes = ref []
 type env =
   { filename : string; (* For accessor names *)
     datatypes : A.sigma_cn_datatype list;
-    globals : (C.union_tag * C.ctype) list;
+    globals : (C.union_tag * C.ctype) list; (* Globals accessed in spec *)
     funs : Sym.Set.t (* C functions *)
   }
 
