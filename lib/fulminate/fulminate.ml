@@ -611,6 +611,7 @@ let main
   in
   let filtered_ail_prog = (startup_sym_opt, filtered_sigm) in
   Records.populate_record_map filtered_instrumentation prog5;
+  let env = Cn_to_ail.env_of ~filename sigm prog5 in
   let filtered_instrumentation =
     if remove_uninterp then (
       Uninterp.get_uninterp_closure prog5.logical_predicates prog5.resource_predicates;
@@ -627,20 +628,20 @@ let main
       with_loop_leak_checks
       without_lemma_checks
       without_inline_statements
-      filename
+      env
       filtered_instrumentation
       sigm
       prog5
   in
   let c_datatype_defs = generate_c_datatypes sigm in
   let c_function_defs, c_function_decls, _c_function_locs =
-    generate_c_functions ~accept_uninterp ~remove_uninterp filename prog5 sigm
+    generate_c_functions ~accept_uninterp ~remove_uninterp env prog5 sigm
   in
   let c_predicate_defs, c_predicate_decls, _c_predicate_locs =
     generate_c_predicates
       ~accept_uninterp
       ~remove_uninterp
-      filename
+      env
       without_ownership_checking
       prog5
       sigm
@@ -649,10 +650,10 @@ let main
     if without_lemma_checks then
       ("", "")
     else
-      generate_c_lemmas filename remove_uninterp sigm prog5
+      generate_c_lemmas env remove_uninterp prog5
   in
   let conversion_function_defs, conversion_function_decls =
-    generate_conversion_and_equality_functions filename sigm prog5
+    generate_conversion_and_equality_functions env sigm
   in
   let ownership_function_defs, ownership_function_decls =
     generate_ownership_functions without_ownership_checking !Cn_to_ail.ownership_ctypes
@@ -662,7 +663,7 @@ let main
   let cn_converted_struct_defs = generate_cn_versions_of_structs ordered_ail_tag_defs in
   let record_fun_defs, record_fun_decls = Records.generate_c_record_funs sigm in
   let record_defs = Records.generate_all_record_strs () in
-  let fn_call_ghost_args_injs = generate_fn_call_ghost_args_injs filename sigm prog5 in
+  let fn_call_ghost_args_injs = generate_fn_call_ghost_args_injs env prog5 in
   let cn_ghost_enum = generate_ghost_enum prog5 in
   (* Forward declarations and CN types *)
   let cn_header_decls_list =

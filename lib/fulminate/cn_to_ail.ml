@@ -3452,7 +3452,7 @@ let cn_to_ail_predicate
   (((loc, decl), def), ail_record_opt)
 
 
-let cn_to_ail_predicates ~accept_uninterp preds env cn_preds without_ownership_checking
+let cn_to_ail_predicates ~accept_uninterp env preds cn_preds without_ownership_checking
   : ((Locations.t * A.sigma_declaration)
     * CF.GenTypes.genTypeCategory A.sigma_function_definition)
       list

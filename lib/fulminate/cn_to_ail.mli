@@ -208,8 +208,8 @@ val cn_to_ail_function
 
 val cn_to_ail_predicates
   :  accept_uninterp:bool ->
-  (Sym.t * Definition.Predicate.t) list ->
   env ->
+  (Sym.t * Definition.Predicate.t) list ->
   AilSyntax.sigma_cn_predicate list ->
   bool ->
   ((Locations.t * AilSyntax.sigma_declaration)

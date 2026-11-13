@@ -37,6 +37,7 @@ let compile_assumes
       (insts : (bool * FExtract.instrumentation) list)
   : Pp.document
   =
+  let env = CtA.env_of ~filename sigma prog5 in
   let declarations, function_definitions =
     List.split
       (List.map
@@ -50,12 +51,12 @@ let compile_assumes
           in
          !CtA.ownership_ctypes |> CtypeSet.of_list |> CtypeSet.to_seq |> List.of_seq)
        @ CtA.cn_to_ail_assume_predicates
-           (CtA.env_of ~filename sigma prog5)
+           env
            prog5.resource_predicates
            prog5.resource_predicates
            without_ownership_checking
        @ ESpecInternal.generate_c_assume_pres_internal
-           filename
+           env
            without_ownership_checking
            insts
            sigma
@@ -229,21 +230,22 @@ let compile_test_file
   in
   (* TODO copied from fulminate.ml, put somewhere shared *)
   let open ESpecInternal in
+  let env = CtA.env_of ~filename sigma prog5 in
   let c_datatype_defs = generate_c_datatypes sigma in
   let c_function_defs, c_function_decls, _c_function_locs =
-    generate_c_functions ~accept_uninterp:false ~remove_uninterp filename prog5 sigma
+    generate_c_functions ~accept_uninterp:false ~remove_uninterp env prog5 sigma
   in
   let c_predicate_defs, c_predicate_decls, _c_predicate_locs =
     generate_c_predicates
       ~accept_uninterp:false
       ~remove_uninterp
-      filename
+      env
       without_ownership_checking
       prog5
       sigma
   in
   let conversion_function_defs, conversion_function_decls =
-    generate_conversion_and_equality_functions filename sigma prog5
+    generate_conversion_and_equality_functions env sigma
   in
   let ownership_function_defs, ownership_function_decls =
     generate_ownership_functions without_ownership_checking !Cn_to_ail.ownership_ctypes
