@@ -2422,9 +2422,10 @@ module BaseTyping = struct
       in
       let@ its = ListM.mapM WT.infer its in
       if warn then
-        List.iter (fun it ->
-          warn_when_not_quantifier_bt "focus" (T.get_loc it) (T.get_bt it) (T.pp it)
-        ) its;
+        List.iter
+          (fun it ->
+             warn_when_not_quantifier_bt "focus" (T.get_loc it) (T.get_bt it) (T.pp it))
+          its;
       return (Extract (attrs, to_extract, its))
     | Unfold (f, its) ->
       let@ def = get_logical_function_def loc f in

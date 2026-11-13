@@ -1599,10 +1599,7 @@ let from_bytes_constraints ~(value : T.t) ~(bytes : T.t list) (ct : Sctypes.t) :
           ]
           here
       in
-      let rec aux = function
-        | [] -> []
-        | p :: ps -> List.map (pairwise p) ps @ aux ps
-      in
+      let rec aux = function [] -> [] | p :: ps -> List.map (pairwise p) ps @ aux ps in
       and_ (aux bytes_prov) here
     in
     let combined_prov_sym, combined_prov =
@@ -2330,7 +2327,9 @@ let rec check_expr
               add_c loc (LC.T (to_bytes_constraints ~value ~bytes ct)))
          | From ->
            let get_byte re =
-             let@ _, O o = RI.Special.predicate_request loc (Access From_bytes) (re, None) in
+             let@ _, O o =
+               RI.Special.predicate_request loc (Access From_bytes) (re, None)
+             in
              return o
            in
            let@ bytes = ListM.mapM get_byte (bytes_list pred.pointer ct init loc) in
@@ -2376,10 +2375,8 @@ let rec check_expr
         let@ original_rs = all_resources loc in
         (* let verbose = List.exists (Id.is_str "verbose") attrs in *)
         let quiet = List.exists (Id.equal_string "quiet") attrs in
-        let@ () = 
-          ListM.iterM (fun it ->
-            add_movable_index loc (predicate_name, it) 
-          ) its
+        let@ () =
+          ListM.iterM (fun it -> add_movable_index loc (predicate_name, it)) its
         in
         let@ upd_rs = all_resources loc in
         if List.equal Resource.equal original_rs upd_rs && not quiet then

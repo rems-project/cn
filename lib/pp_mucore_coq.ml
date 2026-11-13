@@ -1834,10 +1834,9 @@ let rec pp_cn_statement ppfa ppfty (CF.Cn.CN_statement (loc, stmt)) =
          pp_constructor2
            "CN_extract"
            [ pp_tuple
-               ( pp_list pp_identifier ids ::
-                 pp_cn_to_extract ppfa ppfty extract ::
-                 List.map (pp_cn_expr ppfa ppfty) exprs
-               )
+               (pp_list pp_identifier ids
+                :: pp_cn_to_extract ppfa ppfty extract
+                :: List.map (pp_cn_expr ppfa ppfty) exprs)
            ]
        | CN_unfold (sym, exprs) ->
          pp_constructor2
