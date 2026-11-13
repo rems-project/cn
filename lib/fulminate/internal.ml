@@ -131,13 +131,7 @@ let generate_c_loop_invariants
     List.concat injs)
 
 
-let generate_fn_call_ghost_args_injs
-      filename
-      (sigm : _ CF.AilSyntax.sigma)
-      (prog5 : unit Mucore.file)
-  =
-  let globals = Cn_to_ail.extract_global_variables prog5 in
-  let dts = sigm.cn_datatypes in
+let generate_fn_call_ghost_args_injs env (prog5 : unit Mucore.file) =
   List.concat
     (List.map
        (fun (loc, ghost_args) ->
@@ -146,10 +140,8 @@ let generate_fn_call_ghost_args_injs
               @ Utils.remove_last_semicolon
                   (generate_ail_stat_strs
                      (Cn_to_ail.cn_to_ail_cnprog_ghost_args
-                        filename
-                        dts
-                        globals
-                        None
+                        env
+                        ~spec_mode:None
                         ghost_args))
               @ [ ", " ] );
             (get_end_loc loc, [ ")" ])
@@ -174,20 +166,18 @@ let generate_c_specs_from_cn_internal
       with_loop_leak_checks
       without_lemma_checks
       without_inline_statements
-      filename
+      env
       (instrumentation : Extract.instrumentation)
       (sigm : _ CF.AilSyntax.sigma)
       (prog5 : unit Mucore.file)
   : cn_spec_inj_info
   =
-  let dts = sigm.cn_datatypes in
   let preds = prog5.resource_predicates in
   let c_return_type =
     match List.assoc CF.Symbol.equal_sym instrumentation.fn sigm.A.declarations with
     | _, _, A.Decl_function (_, (_, ret_ty), _, _, _, _) -> ret_ty
     | _ -> failwith (__LOC__ ^ ": C function to be instrumented not found in Ail AST")
   in
-  let globals = Cn_to_ail.extract_global_variables prog5 in
   let ail_executable_spec =
     Cn_to_ail.cn_to_ail_pre_post
       ~without_ownership_checking
@@ -196,10 +186,8 @@ let generate_c_specs_from_cn_internal
       ~disable_ghost_arg_failure
       ~is_lemma:false
       ~without_inline_statements
-      filename
-      dts
+      env
       preds
-      globals
       c_return_type
       instrumentation.internal
   in
@@ -234,7 +222,7 @@ let generate_c_specs_internal
       with_loop_leak_checks
       without_lemma_checks
       without_inline_statements
-      filename
+      env
       (instrumentation : Extract.instrumentation)
       (sigm : _ CF.AilSyntax.sigma)
       (prog5 : unit Mucore.file)
@@ -257,7 +245,7 @@ let generate_c_specs_internal
         with_loop_leak_checks
         without_lemma_checks
         without_inline_statements
-        filename
+        env
         instrumentation
         sigm
         prog5
@@ -287,14 +275,13 @@ let generate_c_specs_internal
 
 
 let generate_c_assume_pres_internal
-      filename
+      env
       without_ownership_checking
       (insts : (bool * Extract.instrumentation) list)
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
   =
   let aux ((is_static, inst) : bool * Extract.instrumentation) =
-    let dts = sigma.cn_datatypes in
     let preds = prog5.resource_predicates in
     let args =
       match List.assoc Sym.equal inst.fn sigma.declarations with
@@ -304,19 +291,17 @@ let generate_c_assume_pres_internal
         List.map (fun ((x, bt), ct) -> (x, (bt, ct))) (List.combine arg_names arg_cts)
       | _ -> failwith ("unreachable @ " ^ __LOC__)
     in
-    let globals = Cn_to_ail.extract_global_variables prog5 in
     let fsym =
       if is_static then
-        Sym.fresh (Utils.static_prefix filename ^ "_" ^ Sym.pp_string inst.fn)
+        Sym.fresh
+          (Utils.static_prefix env.Cn_to_ail.filename ^ "_" ^ Sym.pp_string inst.fn)
       else
         inst.fn
     in
     Cn_to_ail.cn_to_ail_assume_pre
-      filename
-      dts
+      env
       fsym
       args
-      globals
       preds
       without_ownership_checking
       (AT.get_lat (Option.get inst.internal))
@@ -336,7 +321,7 @@ let generate_c_specs
       with_loop_leak_checks
       without_lemma_checks
       without_inline_statements
-      filename
+      env
       instrumentation_list
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
       (prog5 : unit Mucore.file)
@@ -351,7 +336,7 @@ let generate_c_specs
       with_loop_leak_checks
       without_lemma_checks
       without_inline_statements
-      filename
+      env
       instrumentation
       sigm
       prog5
@@ -533,7 +518,7 @@ let generate_defined_fun_def_and_decl_docs ?(uninterps = Sym.Set.empty) funs =
 let generate_c_functions
       ~accept_uninterp
       ~remove_uninterp
-      filename
+      env
       (prog5 : _ Mucore.file)
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
   =
@@ -549,13 +534,7 @@ let generate_c_functions
     List.map
       (fun cn_f ->
          (fun r -> (cn_f, r))
-           (Cn_to_ail.cn_to_ail_function
-              ~accept_uninterp
-              filename
-              cn_f
-              prog5
-              sigm.cn_datatypes
-              sigm.cn_functions))
+           (Cn_to_ail.cn_to_ail_function ~accept_uninterp env cn_f sigm.cn_functions))
       cn_funs
   in
   let ail_funs =
@@ -590,7 +569,7 @@ let[@warning "-32" (* unused-value-declaration *)] rec remove_duplicates eq_fun 
 let generate_c_predicates
       ~accept_uninterp
       ~remove_uninterp
-      filename
+      env
       without_ownership_checking
       (prog5 : _ Mucore.file)
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
@@ -606,10 +585,8 @@ let generate_c_predicates
   let ail_funs, _ =
     Cn_to_ail.cn_to_ail_predicates
       ~accept_uninterp
+      env
       cn_preds
-      filename
-      sigm.cn_datatypes
-      (Cn_to_ail.extract_global_variables prog5)
       sigm.cn_predicates
       without_ownership_checking
   in
@@ -633,27 +610,14 @@ let generate_c_predicates
     locs )
 
 
-let generate_c_lemmas
-      filename
-      (remove_uninterp : bool)
-      (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
-      (prog5 : unit Mucore.file)
-  =
-  let globals = Cn_to_ail.extract_global_variables prog5 in
+let generate_c_lemmas env (remove_uninterp : bool) (prog5 : unit Mucore.file) =
   let cn_lemmas =
     if remove_uninterp then
       Uninterp.remove_uninterp_lemmas prog5.lemmata
     else
       prog5.lemmata
   in
-  let ail_funs =
-    Cn_to_ail.cn_to_ail_lemmas
-      filename
-      sigm.cn_datatypes
-      prog5.resource_predicates
-      globals
-      cn_lemmas
-  in
+  let ail_funs = Cn_to_ail.cn_to_ail_lemmas env prog5.resource_predicates cn_lemmas in
   let decls, defs = List.split ail_funs in
   let defs_doc, decls_doc =
     generate_defined_fun_def_and_decl_docs (List.combine decls defs)
@@ -698,7 +662,7 @@ let generate_ownership_functions without_ownership_checking ownership_ctypes =
 
 
 let generate_conversion_and_equality_functions
-      filename
+      env
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
   =
   let struct_conversion_funs =
@@ -709,7 +673,7 @@ let generate_conversion_and_equality_functions
     List.map Cn_to_ail.generate_struct_equality_function sigm.tag_definitions
   in
   let datatype_equality_funs =
-    List.map (Cn_to_ail.generate_datatype_equality_function filename) sigm.cn_datatypes
+    List.map (Cn_to_ail.generate_datatype_equality_function env) sigm.cn_datatypes
   in
   let struct_map_get_funs =
     List.map Cn_to_ail.generate_struct_map_get sigm.tag_definitions
