@@ -62,7 +62,7 @@ module Make (AD : Domain.T) = struct
       | BT.Unit ->
         (* For unit types, return NULL directly *)
         ([], [], mk_expr (AilEconst ConstantNull))
-      | _ -> CtA.cn_to_ail_expr_toplevel env None it
+      | _ -> CtA.cn_to_ail_expr_toplevel env ~spec_mode:None it
     in
     ( [ Utils.create_binding var (bt_to_ctype_for_binding it_bt) ],
       A.
@@ -79,7 +79,7 @@ module Make (AD : Domain.T) = struct
 
   let transform_lc (env : CtA.env) (lc : LC.t) =
     let var = Sym.fresh_anon () in
-    let bs, ss, e = CtA.cn_to_ail_logical_constraint env None lc in
+    let bs, ss, e = CtA.cn_to_ail_logical_constraint env ~spec_mode:None lc in
     ( [ Utils.create_binding var (bt_to_ctype_for_binding BT.Bool) ],
       A.
         [ AilSdeclaration
@@ -110,7 +110,7 @@ module Make (AD : Domain.T) = struct
   let generate_value_read (env : CtA.env) (it : T.t) : Pp.document =
     let open Pp in
     let bt = T.get_bt it in
-    let bs, ss, e = CtA.cn_to_ail_expr_toplevel env None it in
+    let bs, ss, e = CtA.cn_to_ail_expr_toplevel env ~spec_mode:None it in
     let e_cn =
       if List.is_empty bs && List.is_empty ss then
         e

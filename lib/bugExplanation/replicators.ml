@@ -441,7 +441,7 @@ let compile_it
       (prog5 : unit Mucore.file)
       (it : T.t)
   =
-  CtA.cn_to_ail_expr_toplevel (CtA.env_of ~filename sigma prog5) None it
+  CtA.cn_to_ail_expr_toplevel (CtA.env_of ~filename sigma prog5) ~spec_mode:None it
 
 
 let owned_sct_call

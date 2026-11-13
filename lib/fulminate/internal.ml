@@ -144,7 +144,10 @@ let generate_fn_call_ghost_args_injs
               [ "(" ]
               @ Utils.remove_last_semicolon
                   (generate_ail_stat_strs
-                     (Cn_to_ail.cn_to_ail_cnprog_ghost_args env None ghost_args))
+                     (Cn_to_ail.cn_to_ail_cnprog_ghost_args
+                        env
+                        ~spec_mode:None
+                        ghost_args))
               @ [ ", " ] );
             (get_end_loc loc, [ ")" ])
           ])

@@ -170,7 +170,7 @@ val generate_record_map_get
 
 val cn_to_ail_expr_toplevel
   :  env ->
-  spec_mode option ->
+  spec_mode:spec_mode option ->
   Terms.Normal.t ->
   AilSyntax.bindings
   * GenTypes.genTypeCategory AilSyntax.statement_ list
@@ -178,7 +178,7 @@ val cn_to_ail_expr_toplevel
 
 val cn_to_ail_logical_constraint
   :  env ->
-  spec_mode option ->
+  spec_mode:spec_mode option ->
   LogicalConstraints.t ->
   AilSyntax.bindings
   * GenTypes.genTypeCategory AilSyntax.statement_ list
@@ -266,6 +266,6 @@ val cn_to_ail_ghost_enum
 
 val cn_to_ail_cnprog_ghost_args
   :  env ->
-  spec_mode option ->
+  spec_mode:spec_mode option ->
   Terms.Normal.t Cnprog.t list ->
   AilSyntax.bindings * GenTypes.genTypeCategory AilSyntax.statement_ list
