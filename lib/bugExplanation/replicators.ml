@@ -276,6 +276,7 @@ let compile_sct_aux (prog5 : unit Mucore.file) (sct : Sctypes.t)
                             [ mk_expr (AilEident ptr_sym) ] ))) )
               ]
           ] )
+    | Union _tag -> failwith "todo: union types"
     | Struct tag ->
       (match Pmap.find tag prog5.tagDefs with
        | StructDef (pieces, fam) ->

@@ -238,6 +238,12 @@ let pp_global = function
   | Unknown_struct tag ->
     let short = !^"Struct" ^^^ squotes (Sym.pp tag) ^^^ !^"not defined" in
     { short; descr = None; state = None }
+  | Unknown_union tag ->
+    let short = !^"Union" ^^^ squotes (Sym.pp tag) ^^^ !^"not defined" in
+    { short; descr = None; state = None }
+  | Unknown_struct_or_union tag ->
+    let short = !^"Struct/union" ^^^ squotes (Sym.pp tag) ^^^ !^"not defined" in
+    { short; descr = None; state = None }
   | Unknown_datatype tag ->
     let short = !^"Datatype" ^^^ squotes (Sym.pp tag) ^^^ !^"not defined" in
     { short; descr = None; state = None }

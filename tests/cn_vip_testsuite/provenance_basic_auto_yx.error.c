@@ -10,6 +10,7 @@ int main() {
   //CN_VIP printf("Addresses: p=%p q=%p\n",(void*)p,(void*)q);
   /*CN_VIP*//*@ to_bytes RW<int*>(&p); @*/
   /*CN_VIP*//*@ to_bytes RW<int*>(&q); @*/
+  /*CN_VIP*//*@ focus RW<byte>, 0,1,2,3,4,5,6,7; @*/
   /*CN_VIP*//*@ apply byte_array_init_8(&p, &q, sizeof<int*>); @*/
   /*CN_VIP*/int result = _memcmp((byte*)&p, (byte*)&q, sizeof(p));
   /*CN_VIP*//*@ from_bytes RW<int*>(&p); @*/

@@ -105,7 +105,13 @@ module NoSolver = struct
 
   let get_struct_member_type ~fam_permitted loc tag member =
     let@ decl = get_struct_decl loc tag in
-    let@ ty = get_member_type ~fam_permitted loc member decl in
+    let@ ty = get_struct_member_type ~fam_permitted loc member decl in
+    return ty
+
+
+  let get_union_member_type loc tag member =
+    let@ decl = get_union_decl loc tag in
+    let@ ty = get_union_member_type loc member decl in
     return ty
 
 
@@ -375,6 +381,9 @@ module WCT = struct
       | Pointer ct -> aux ct
       | Struct tag ->
         let@ _struct_decl = get_struct_decl loc tag in
+        return ()
+      | Union tag ->
+        let@ _union_decl = get_union_decl loc tag in
         return ()
       | Function ((_, rct), args, _) -> ListM.iterM aux (rct :: List.map fst args)
       | Byte -> return ()
@@ -748,7 +757,7 @@ module WT = struct
         return (IT (NthTuple (n, t'), item_bt, loc))
       | Struct (tag, members) ->
         let@ layout = get_struct_decl loc tag in
-        let decl_members, _fam = Memory.member_types layout in
+        let decl_members, _fam = Memory.struct_member_types layout in
         let@ () = correct_members loc decl_members members in
         (* "sort" according to declaration *)
         let@ members_sorted =
@@ -872,15 +881,20 @@ module WT = struct
         in
         return (IT (Cast (target_bt, t), target_bt, loc))
       | MemberShift (t, tag, member) ->
-        let@ _ty = get_struct_member_type ~fam_permitted:true loc tag member in
         let@ t = check loc (Loc ()) t in
-        let@ decl = get_struct_decl loc tag in
+        let@ su = get_struct_or_union_decl loc tag in
         let@ () =
-          if !cnBV then (
-            let o = Option.get (Memory.member_offset decl member) in
-            let rs = Option.get (BT.is_bits_bt Memory.uintptr_bt) in
-            ensure_z_fits_bits_type loc rs (Z.of_int o))
-          else
+          match su with
+          | `Struct decl ->
+            let@ _ty = get_struct_member_type ~fam_permitted:true loc tag member in
+            if !cnBV then (
+              let o = Option.get (Memory.struct_member_offset decl member) in
+              let rs = Option.get (BT.is_bits_bt Memory.uintptr_bt) in
+              ensure_z_fits_bits_type loc rs (Z.of_int o))
+            else
+              return ()
+          | `Union _decl ->
+            let@ _ty = get_union_member_type loc tag member in
             return ()
         in
         (* looking at solver mapping *)
@@ -919,11 +933,18 @@ module WT = struct
         in
         return (IT (SizeOf ct, Memory.size_bt, loc))
       | OffsetOf (tag, member) ->
-        let@ _ty = get_struct_member_type ~fam_permitted:true loc tag member in
-        let@ decl = get_struct_decl loc tag in
+        let@ def = get_struct_or_union_decl loc tag in
+        let@ o =
+          match def with
+          | `Struct decl ->
+            let@ _ty = get_struct_member_type ~fam_permitted:true loc tag member in
+            return (Option.get (Memory.struct_member_offset decl member))
+          | `Union _decl ->
+            let@ _ty = get_union_member_type loc tag member in
+            return 0
+        in
         let@ () =
           if !cnBV then (
-            let o = Option.get (Memory.member_offset decl member) in
             let rs = Option.get (BT.is_bits_bt Memory.size_bt) in
             ensure_z_fits_bits_type loc rs (Z.of_int o))
           else
@@ -1608,8 +1629,8 @@ module BaseTyping = struct
       | OVarray xs ->
         let@ _xs = ListM.mapM (infer_loaded_value loc) xs in
         todo ()
-      | OVstruct (nm, xs) -> return (Struct nm, Mu.OVstruct (nm, xs))
-      | OVunion _ -> todo ()
+      | OVstruct _ -> todo ()
+      | OVunion _ -> failwith "todo: OVunion is being changed in Core"
     in
     return (Mu.OV (bt, ov))
 
@@ -1855,6 +1876,12 @@ module BaseTyping = struct
           return (Loc (), PEarray_shift (pe1, ct, pe2))
         | PEmember_shift (pe, tag, member) ->
           let@ pe = check_pexpr (Loc ()) pe in
+          let@ su = get_struct_or_union_decl loc tag in
+          let@ _ty =
+            match su with
+            | `Struct _decl -> get_struct_member_type ~fam_permitted:true loc tag member
+            | `Union _decl -> get_union_member_type loc tag member
+          in
           return (Loc (), PEmember_shift (pe, tag, member))
         | PEcall
             (Sym (Symbol (_, _, SD_Id ("conv_int" | "conv_loaded_int"))), [ ct_pe; pe ])
@@ -1905,7 +1932,7 @@ module BaseTyping = struct
           return (Tuple [ CType; List CType; Bool; Bool ], PEcfunction pe)
         | PEstruct (nm, nm_pes) ->
           let@ layout = get_struct_decl loc nm in
-          let decl_members, _fam = Memory.member_types layout in
+          let decl_members, _fam = Memory.struct_member_types layout in
           let@ () = correct_members loc decl_members nm_pes in
           let@ nm_pes =
             ListM.mapM
@@ -1960,32 +1987,29 @@ module BaseTyping = struct
           let@ pe2 = check_pexpr CType pe2 in
           return (BT.Bool, PEare_compatible (pe1, pe2))
         | PEconstrained _ -> todo ()
-        | PEunion (tag, member, pe) ->
-          if !Sym.experimental_unions then (
-            (* todo: make this proper when CN actually supports unions *)
-            let ct = Option.get (Sctypes.of_ctype (CF.Ctype.Ctype ([], Union tag))) in
-            let@ () = WCT.is_ct loc ct in
-            let@ pe = infer_pexpr pe in
-            return (Memory.bt_of_sct ct, PEunion (tag, member, pe)))
-          else
-            fail
-              { loc; msg = Generic !^"unsupported: union types" } [@alert "-deprecated"]
+        | PEunion (_tag, _member, _pe) ->
+          failwith "todo: PEunion is being changed in Core"
         | PEmemberof (tag, member, pe) ->
-          let@ pe = check_pexpr (Struct tag) pe in
-          let@ field_ct = get_struct_member_type ~fam_permitted:false loc tag member in
-          return (Memory.bt_of_sct field_ct, PEmemberof (tag, member, pe))
+          let@ su = get_struct_or_union_decl loc tag in
+          let@ pe_bt, member_bt =
+            match su with
+            | `Struct _sd ->
+              let@ member_ct =
+                get_struct_member_type ~fam_permitted:false loc tag member
+              in
+              return (Struct tag, Memory.bt_of_sct member_ct)
+            | `Union _ud ->
+              let@ member_ct = get_union_member_type loc tag member in
+              return (Memory.bt_of_sct (Union tag), Memory.bt_of_sct member_ct)
+          in
+          let@ pe = check_pexpr pe_bt pe in
+          return (member_bt, PEmemberof (tag, member, pe))
         (* reaching these cases should be prevented by the `is_unreachable` used in
            inferring types of PEif *)
         | PEerror (_, _) -> todo ()
         | PEundef (loc, ub) ->
-          if !Sym.experimental_unions then
-            (* in the case of a well-formedness check when labels are not inlined
-             *      run ret_label ( undef(<<UB088_reached_end_of_function>>)))
-             * we may need to infer an type for PEundef, which in the absence of
-             * polymorphism is arbitrarily to Unit below *)
-            return (Unit, PEundef (loc, ub))
-          else
-            todo ()
+          (* In the absence of polymorphism, arbitrarily use Unit *)
+          return (Unit, PEundef (loc, ub))
       in
       return (Pexpr (loc, annots, bty, pe_))
 
@@ -2384,7 +2408,7 @@ module BaseTyping = struct
       in
       let@ it = WT.infer it in
       return (Instantiate (to_instantiate, it))
-    | Extract (attrs, to_extract, it) ->
+    | Extract (attrs, to_extract, its) ->
       let@ () =
         match to_extract with
         | E_Pred (CN_owned None) -> return ()
@@ -2396,10 +2420,13 @@ module BaseTyping = struct
           return ()
         | E_Everything -> return ()
       in
-      let@ it = WT.infer it in
+      let@ its = ListM.mapM WT.infer its in
       if warn then
-        warn_when_not_quantifier_bt "focus" (T.get_loc it) (T.get_bt it) (T.pp it);
-      return (Extract (attrs, to_extract, it))
+        List.iter
+          (fun it ->
+             warn_when_not_quantifier_bt "focus" (T.get_loc it) (T.get_bt it) (T.pp it))
+          its;
+      return (Extract (attrs, to_extract, its))
     | Unfold (f, its) ->
       let@ def = get_logical_function_def loc f in
       if Definition.Function.is_recursive def then

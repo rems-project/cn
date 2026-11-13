@@ -222,7 +222,13 @@ module Global = struct
 
   let get_struct_member_type ~fam_permitted loc tag member =
     let@ decl = get_struct_decl loc tag in
-    let@ ty = get_member_type ~fam_permitted loc member decl in
+    let@ ty = get_struct_member_type ~fam_permitted loc member decl in
+    return ty
+
+
+  let get_union_member_type loc tag member =
+    let@ decl = get_union_decl loc tag in
+    let@ ty = get_union_member_type loc member decl in
     return ty
 
 
@@ -234,6 +240,11 @@ module Global = struct
   let add_struct_decl tag layout : unit m =
     let@ global = get_global () in
     set_global { global with struct_decls = Sym.Map.add tag layout global.struct_decls }
+
+
+  let add_union_decl tag ud : unit m =
+    let@ global = get_global () in
+    set_global { global with union_decls = Sym.Map.add tag ud global.union_decls }
 
 
   let add_fun_decl fname entry =

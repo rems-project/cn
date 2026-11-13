@@ -158,6 +158,7 @@ let rec json_of_sct (ct : Sctypes.t) : json =
       [ json_of_sct ct'; (match n with None -> `Null | Some n -> `Int n) ]
   | Sctypes.Pointer ct' -> newtype_variant "Pointer" (json_of_sct ct')
   | Sctypes.Struct tag -> newtype_variant "Struct" (json_of_sym tag)
+  | Sctypes.Union tag -> newtype_variant "Union" (json_of_sym tag)
   | Sctypes.Function ((quals, ret), args, variadic) ->
     record_variant
       "Function"
@@ -612,6 +613,7 @@ let rec json_of_ctype (ct : Sctypes.t) : json =
     obj [ ("kind", `String "pointer"); ("pointee", json_of_ctype ct') ]
   | Sctypes.Struct tag ->
     obj [ ("kind", `String "named"); ("name", `String (Sym.pp_string_no_nums tag)) ]
+  | Sctypes.Union _tag -> failwith "todo: union types"
   | Sctypes.Function _ -> raise (Unrepresentable "a function type")
   | Sctypes.Byte -> raise (Unrepresentable "the `byte` type")
 
@@ -637,7 +639,7 @@ let json_of_structs (prog5 : unit Mucore.file) : json list =
   Pmap.fold
     (fun tag (def : Mucore.tag_definition) acc ->
        match def with
-       | Mucore.UnionDef ->
+       | Mucore.UnionDef _ ->
          Pp.warn_noloc
            (Pp.string
               ("union "
@@ -645,7 +647,7 @@ let json_of_structs (prog5 : unit Mucore.file) : json list =
                ^ " has no AustenTest counterpart and is not exported"));
          acc
        | Mucore.StructDef layout ->
-         let member_types, fam = Memory.member_types layout in
+         let member_types, fam = Memory.struct_member_types layout in
          (match fam with None -> () | Some _ -> failwith "todo: flexible array members");
          let fields =
            List.map
@@ -745,12 +747,14 @@ let rec validate_global_type_with find_tag (ct : Sctypes.t) : unit =
   | Sctypes.Struct tag ->
     (match find_tag tag with
      | Some (Mucore.StructDef _) -> ()
-     | Some Mucore.UnionDef ->
+     | Some (Mucore.UnionDef _) ->
        raise (Unrepresentable ("global " ^ Sym.pp_string_no_nums tag ^ " has union type"))
      | None ->
        raise
          (Unrepresentable
             ("global " ^ Sym.pp_string_no_nums tag ^ " has incomplete struct type")))
+  | Sctypes.Union tag ->
+    raise (Unrepresentable ("global " ^ Sym.pp_string_no_nums tag ^ " has union type"))
   | Sctypes.Void -> raise (Unrepresentable "a void global")
   | Sctypes.Function _ -> raise (Unrepresentable "a function global")
   | Sctypes.Byte -> raise (Unrepresentable "a byte-typed global")

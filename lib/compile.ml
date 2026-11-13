@@ -102,8 +102,16 @@ let lookup_function sym env = Sym.Map.find_opt sym env.functions
 let lookup_struct_opt sym env =
   match Pmap.lookup sym env.tagDefs with
   | Some (StructDef xs) -> Some xs
-  | Some UnionDef | None -> None
+  | Some (UnionDef _) | None -> None
 
+
+let lookup_union_opt sym env =
+  match Pmap.lookup sym env.tagDefs with
+  | Some (UnionDef xs) -> Some xs
+  | Some (StructDef _) | None -> None
+
+
+let lookup_struct_or_union_opt sym env = Pmap.lookup sym env.tagDefs
 
 let add_datatype sym info env =
   let datatypes = Sym.Map.add sym info env.datatypes in
@@ -431,13 +439,34 @@ module C_vars = struct
     | None -> fail { loc; msg = Global (Unknown_struct tag) }
 
 
-  let lookup_member ~fam_permitted loc (_tag, def) member =
-    let member_types, fam = Memory.member_types def in
+  let lookup_union loc tag env =
+    match lookup_union_opt tag env with
+    | Some def -> return def
+    | None -> fail { loc; msg = Global (Unknown_union tag) }
+
+
+  let lookup_struct_or_union loc tag env =
+    match lookup_struct_or_union_opt tag env with
+    | Some def -> return def
+    | None -> fail { loc; msg = Global (Unknown_struct_or_union tag) }
+
+
+  let lookup_struct_member ~fam_permitted loc (_tag, def) member =
+    let member_types, fam = Memory.struct_member_types def in
     match (List.assoc_opt Id.equal member member_types, fam) with
     | Some ty, _ -> return ty
     | None, Some (member', ct) when fam_permitted && Id.equal member member' -> return ct
     | _ ->
       fail { loc; msg = Global (Unexpected_member (List.map fst member_types, member)) }
+
+
+  let lookup_union_member loc (_tag, def) member' =
+    let open Memory in
+    match List.find_opt (fun { member; _ } -> Id.equal member member') def with
+    | Some m -> return m.ct
+    | None ->
+      let members = List.map (fun { member; _ } -> member) def in
+      fail { loc; msg = Global (Unexpected_member (members, member')) }
 
 
   let lookup_constr loc sym env =
@@ -565,7 +594,7 @@ module C_vars = struct
       return (MT.recordMember_ ~member_bt (t, member) loc)
     | Struct tag ->
       let@ defs_ = lookup_struct loc tag env in
-      let@ ty = lookup_member ~fam_permitted:false loc (tag, defs_) member in
+      let@ ty = lookup_struct_member ~fam_permitted:false loc (tag, defs_) member in
       let member_bt = Memory.sbt_of_sct ty in
       return (Terms.IT (StructMember (t, member), member_bt, loc))
     | has ->
@@ -622,6 +651,7 @@ module C_vars = struct
   let warn_if_ct_mismatch loc context ~annot ~inferred ~ptr =
     match (inferred, annot) with
     | Sctypes.Void, _ (* this case will error later in the checks *)
+    | _, Sctypes.Byte
     | _, Sctypes.(Integer IntegerTypes.Char)
     | _, Sctypes.(Integer (Signed Ichar))
     | _, Sctypes.(Integer (Unsigned Ichar)) ->
@@ -819,7 +849,12 @@ module C_vars = struct
         let scty = Sctypes.of_ctype_unsafe loc ct in
         return (IT (SizeOf scty, Memory.size_sbt, loc))
       | CNExpr_offsetof (tag, member) ->
-        let@ _ = lookup_struct loc tag env in
+        let@ def = lookup_struct_or_union loc tag env in
+        let@ _ =
+          match def with
+          | StructDef sd -> lookup_struct_member ~fam_permitted:true loc (tag, sd) member
+          | UnionDef ud -> lookup_union_member loc (tag, ud) member
+        in
         return (IT (OffsetOf (tag, member), Memory.size_sbt, loc))
       | CNExpr_array_shift (base, ty_annot, index) ->
         let@ base = self base in
@@ -851,44 +886,39 @@ module C_vars = struct
              })
       | CNExpr_membershift (e, opt_tag, member) ->
         let@ e = self e in
-        let with_tag tag =
-          let@ struct_def = lookup_struct loc tag env in
-          let@ member_ty =
-            lookup_member ~fam_permitted:true loc (tag, struct_def) member
-          in
-          let (IT (it_, _, _)) =
-            Surface.inj (MT.memberShift_ (Surface.proj e, tag, member) loc)
-          in
-          (* Surface.inj will not have produced a C-type-annotated bt. So stick that on
-             now. *)
-          return (IT (it_, Loc (Some member_ty), loc))
+        let@ e_pointee =
+          match get_bt e with
+          | Loc otyp -> return otyp
+          | has ->
+            let expected = "pointer" in
+            let reason = "member shift" in
+            let has = SBT.pp has in
+            let it = Terms.pp e in
+            let msg = WellTyped (Illtyped_it { it; has; expected; reason }) in
+            fail { loc; msg }
         in
-        (match (opt_tag, get_bt e) with
-         | Some (Ctype (_, Struct tag)), Loc (Some (Struct tag')) ->
-           if Sym.equal tag tag' then
-             with_tag tag
-           else (
-             let expected = Pp.plain @@ SBT.pp (Struct tag) in
-             let reason = "struct member offset" in
-             fail
-               { loc;
-                 msg =
-                   WellTyped
-                     (Illtyped_it
-                        { it = Terms.pp e; has = SBT.pp (Struct tag'); expected; reason })
-               })
-         | Some (Ctype (_, Struct tag)), Loc None | None, Loc (Some (Struct tag)) ->
-           with_tag tag
-         | None, Loc None -> fail { loc; msg = No_pointee_ctype e }
-         | _, has ->
-           let expected = "struct pointer" in
-           let reason = "struct member offset" in
-           fail
-             { loc;
-               msg =
-                 WellTyped
-                   (Illtyped_it { it = Terms.pp e; has = SBT.pp has; expected; reason })
-             })
+        let@ shift_typ =
+          match (opt_tag, e_pointee) with
+          | Some ct, _ -> return (Sctypes.of_ctype_unsafe loc ct)
+          | None, Some ct -> return ct
+          | None, None -> fail { loc; msg = No_pointee_ctype e }
+        in
+        (match shift_typ with
+         | Struct tag ->
+           let@ struct_def = lookup_struct loc tag env in
+           let@ member_ty =
+             lookup_struct_member ~fam_permitted:true loc (tag, struct_def) member
+           in
+           let it_ = Terms.MemberShift (e, tag, member) in
+           return (IT (it_, Loc (Some member_ty), loc))
+         | Union tag ->
+           let@ union_def = lookup_union loc tag env in
+           let@ member_ty = lookup_union_member loc (tag, union_def) member in
+           let it_ = Terms.MemberShift (e, tag, member) in
+           return (IT (it_, Loc (Some member_ty), loc))
+         | _ct ->
+           let msg = "Member shift must be at struct or union type." in
+           fail { loc; msg = Generic !^msg [@alert "-deprecated"] })
       | CNExpr_addr nm -> return (MT.sym_ (nm, BT.Loc None, loc))
       | CNExpr_cast (bt, expr) ->
         let@ expr = self expr in
@@ -1359,9 +1389,9 @@ module C_vars = struct
     | CN_split_case e ->
       let@ e = cn_assrt env (loc, e) in
       return (Split_case e)
-    | CN_extract (attrs, to_extract, expr) ->
-      let@ expr = cn_expr Sym.Set.empty env expr in
-      let expr = Terms.Surface.proj expr in
+    | CN_extract (attrs, to_extract, exprs) ->
+      let@ exprs = ListM.mapM (cn_expr Sym.Set.empty env) exprs in
+      let exprs = List.map Terms.Surface.proj exprs in
       let to_extract =
         match to_extract with
         | Cn.E_Everything -> Cn.E_Everything
@@ -1371,7 +1401,7 @@ module C_vars = struct
           E_Pred (CN_block (Option.map (Sctypes.of_ctype_unsafe loc) oty))
         | E_Pred (CN_named pn) -> E_Pred (CN_named pn)
       in
-      return (Extract (attrs, to_extract, expr))
+      return (Extract (attrs, to_extract, exprs))
     | CN_unfold (s, args) ->
       let@ args = ListM.mapM (cn_expr Sym.Set.empty env) args in
       let args = List.map Terms.Surface.proj args in

@@ -507,6 +507,11 @@ let value_check mode (struct_layouts : Memory.struct_decls) ct about loc =
             let value = cast_ Integer membyte loc in
             in_range value (min, max) loc )
           loc)
+    | Union tag ->
+      and_
+        (List.init (Memory.size_of_ctype (Union tag)) (fun i ->
+           aux Byte (nthTuple_ ~item_bt:(Memory.bt_of_sct Byte) (i, about) loc)))
+        loc
     | Integer it ->
       in_z_range about (Memory.min_integer_type it, Memory.max_integer_type it) loc
     | Array (_, None) ->

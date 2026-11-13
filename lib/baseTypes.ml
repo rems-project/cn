@@ -154,17 +154,22 @@ let is_bits_bt = function Bits (sign, n) -> Some (sign, n) | _ -> None
 
 let make_map_bt abt rbt = Map (abt, rbt)
 
-let rec of_sct loc is_signed size_of = function
+let rec of_sct loc is_signed size_of ct =
+  match ct with
   | Sctypes.Void -> Unit
   | Integer ity ->
     if !cnBV then
-      Bits ((if is_signed ity then Signed else Unsigned), size_of ity * 8)
+      Bits ((if is_signed ity then Signed else Unsigned), size_of ct * 8)
     else
       Integer
   | Array (sct, _) ->
     Map (uintptr_bt loc is_signed size_of, of_sct loc is_signed size_of sct)
   | Pointer sct -> Loc (loc sct)
   | Struct tag -> Struct tag
+  | Union tag ->
+    let byte = of_sct loc is_signed size_of Byte in
+    let n = size_of (Union tag) in
+    Tuple (List.init n (fun _ -> byte))
   | Byte -> Option MemByte
   | Function _ -> Cerb_diagnostic.fatal "todo: function types"
 

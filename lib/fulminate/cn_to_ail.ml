@@ -15,6 +15,8 @@ module AT = ArgumentTypes
 module OE = Ownership
 open Terms
 
+let experimental_unions = ref false
+
 type ail_bindings_and_statements =
   A.bindings * CF.GenTypes.genTypeCategory A.statement_ list
 
@@ -253,7 +255,7 @@ let rec bt_to_cn_base_type = function
   | Tuple bts -> CN_tuple (List.map bt_to_cn_base_type bts)
   | Set bt -> CN_set (bt_to_cn_base_type bt)
   | Option MemByte ->
-    if !Sym.experimental_unions then
+    if !experimental_unions then
       bt_to_cn_base_type (Bits (Unsigned, 8))
     else
       failwith (__LOC__ ^ ": TODO Option")
@@ -876,7 +878,7 @@ let generate_get_or_put_ownership_function ~without_ownership_checking ctype
     | None ->
       failwith (__LOC__ ^ "Bad sctype when trying to generate ownership checking function")
   in
-  let bt = BT.of_sct Memory.is_signed_integer_type Memory.size_of_integer_type sct in
+  let bt = Memory.bt_of_sct sct in
   let ret_type = bt_to_ail_ctype bt in
   let return_stmt = A.(AilSreturn (mk_expr (wrap_with_convert_to ~sct deref_expr_ bt))) in
   (* Generating function declaration *)
@@ -2102,7 +2104,7 @@ let generate_struct_equality_function
       let sct =
         match sct_opt with Some t -> t | None -> failwith (__LOC__ ^ ": Bad sctype")
       in
-      let bt = BT.of_sct Memory.is_signed_integer_type Memory.size_of_integer_type sct in
+      let bt = Memory.bt_of_sct sct in
       let args =
         List.map
           (fun cast_sym -> mk_expr (AilEmemberofptr (mk_expr (AilEident cast_sym), id)))
@@ -2182,7 +2184,7 @@ let generate_struct_default_function
       let lhs = A.(AilEmemberofptr (mk_expr ret_ident, id)) in
       let sct_opt = Sctypes.of_ctype ctype in
       let sct = match sct_opt with Some t -> t | None -> failwith "Bad sctype" in
-      let bt = BT.of_sct Memory.is_signed_integer_type Memory.size_of_integer_type sct in
+      let bt = Memory.bt_of_sct sct in
       let member_ctype_str_opt = get_underscored_typedef_string_from_bt ~is_record bt in
       let default_fun_str =
         match member_ctype_str_opt with
@@ -2234,15 +2236,9 @@ let generate_struct_map_get ((sym, (_loc, _attrs, tag_def)) : A.sigma_tag_defini
   | C.UnionDef _ -> []
 
 
-let transform_if_union (bt, sct) ail_expr =
-  let is_union =
-    !Sym.experimental_unions
-    &&
-    match (bt, sct) with
-    | BT.Map (_, Option MemByte), Sctypes.Array (Byte, _) -> true
-    | _, _ -> false
-  in
-  if is_union then (
+let transform_if_union (_bt, sct) ail_expr =
+  let is_union = match sct with Sctypes.Union _ -> true | _ -> false in
+  if !experimental_unions && is_union then (
     let addr_of_lhs = A.(AilEunary (Address, mk_expr ail_expr)) in
     let cast_addr_of_lhs =
       A.(AilEcast (C.no_qualifiers, C.pointer_to_char, mk_expr addr_of_lhs))
@@ -2278,7 +2274,7 @@ let generate_struct_conversion_to_function
       let sct =
         match sct_opt with Some t -> t | None -> failwith (__LOC__ ^ "Bad sctype")
       in
-      let bt = BT.of_sct Memory.is_signed_integer_type Memory.size_of_integer_type sct in
+      let bt = Memory.bt_of_sct sct in
       let rhs = transform_if_union (bt, sct) rhs in
       let rhs = wrap_with_convert_to ~sct rhs bt in
       let lhs = A.(AilEmemberofptr (mk_expr (AilEident res_sym), id)) in
@@ -2340,7 +2336,7 @@ let generate_struct_conversion_from_function
       let sct =
         match sct_opt with Some t -> t | None -> failwith (__LOC__ ^ "Bad sctype")
       in
-      let bt = BT.of_sct Memory.is_signed_integer_type Memory.size_of_integer_type sct in
+      let bt = Memory.bt_of_sct sct in
       let lhs = A.(AilEmemberof (mk_expr (AilEident res_sym), id)) in
       match (bt, sct) with
       | BT.Map (_k_bt, v_bt), Sctypes.Array (_v_sct, Some sz) ->
@@ -2550,11 +2546,9 @@ let cn_to_ail_struct ((sym, (loc, attrs, tag_def)) : A.sigma_tag_definition)
         (fun (id, (attrs, _alignment, qualifiers, ctype)) ->
            let sct_opt = Sctypes.of_ctype ctype in
            let sct = match sct_opt with Some t -> t | None -> failwith "Bad sctype" in
-           let bt =
-             BT.of_sct Memory.is_signed_integer_type Memory.size_of_integer_type sct
-           in
            (* Don't carry alignment through -- may not necessarily match
             between C type and Fulminate representation *)
+           let bt = Memory.bt_of_sct sct in
            (id, (attrs, None, qualifiers, bt_to_ail_ctype bt)))
         members
     in
@@ -2656,9 +2650,7 @@ let cn_to_ail_resource
   =
   let calculate_resource_return_type (preds : (Sym.t * Definition.Predicate.t) list) loc
     = function
-    | Request.Owned (sct, _) ->
-      ( Sctypes.to_ctype sct,
-        BT.of_sct Memory.is_signed_integer_type Memory.size_of_integer_type sct )
+    | Request.Owned (sct, _) -> (Sctypes.to_ctype sct, Memory.bt_of_sct sct)
     | PName pname ->
       if Sym.equal pname Alloc.Predicate.sym then (
         Cerb_colour.with_colour
@@ -2731,7 +2723,7 @@ let cn_to_ail_resource
           IT
             ( Apply
                 (Sym.fresh owned_fn_name, [ p.pointer; enum_val_get; loop_ownership_arg ]),
-              BT.of_sct Memory.is_signed_integer_type Memory.size_of_integer_type sct,
+              Memory.bt_of_sct sct,
               Cerb_location.unknown )
         in
         let bs', ss', e' = cn_to_ail_expr env ~spec_mode fn_call_it PassBack in
@@ -2834,7 +2826,7 @@ let cn_to_ail_resource
             ( Apply
                 ( Sym.fresh owned_or_deref_fn_name,
                   [ ptr_add_it; enum_val_get; loop_ownership_arg ] ),
-              BT.of_sct Memory.is_signed_integer_type Memory.size_of_integer_type sct,
+              Memory.bt_of_sct sct,
               Cerb_location.unknown )
         in
         let bs', ss', e' = cn_to_ail_expr env ~spec_mode fn_call_it PassBack in
@@ -3593,7 +3585,7 @@ let rec cn_to_ail_cnprog ~without_lemma_checks env ~spec_mode = function
         AilEcall
           (mk_expr (AilEident cn_ptr_deref_sym), [ e; mk_expr (AilEident ctype_sym) ]))
     in
-    let bt = BT.of_sct Memory.is_signed_integer_type Memory.size_of_integer_type ct in
+    let bt = Memory.bt_of_sct ct in
     let ctype = bt_to_ail_ctype bt in
     let binding = create_binding name ctype in
     let ail_stat_ =
@@ -3653,7 +3645,7 @@ let rec cn_to_ail_cnprog_ghost_arg env ~spec_mode i = function
         AilEcall
           (mk_expr (AilEident cn_ptr_deref_sym), [ e; mk_expr (AilEident ctype_sym) ]))
     in
-    let bt = BT.of_sct Memory.is_signed_integer_type Memory.size_of_integer_type ct in
+    let bt = Memory.bt_of_sct ct in
     let ctype = bt_to_ail_ctype bt in
     let binding = create_binding name ctype in
     let ail_stat_ =
@@ -4187,9 +4179,7 @@ let rec cn_to_ail_lat_2
         let sct =
           match sct_opt with Some t -> t | None -> failwith "No sctype conversion"
         in
-        let bt =
-          BT.of_sct Memory.is_signed_integer_type Memory.size_of_integer_type sct
-        in
+        let bt = Memory.bt_of_sct sct in
         let real_return_ctype = bt_to_ail_ctype bt in
         let return_cn_binding = create_binding return_cn_sym real_return_ctype in
         let cn_ret_ail_expr_ = A.(AilEident (Sym.fresh "__cn_ret")) in
@@ -4625,7 +4615,7 @@ let generate_assume_ownership_function ~without_ownership_checking ctype
       failwith
         (__LOC__ ^ ": Bad sctype when trying to generate ownership assuming function")
   in
-  let bt = BT.of_sct Memory.is_signed_integer_type Memory.size_of_integer_type sct in
+  let bt = Memory.bt_of_sct sct in
   let ret_type = bt_to_ail_ctype bt in
   let return_stmt = A.(AilSreturn (mk_expr (wrap_with_convert_to ~sct deref_expr_ bt))) in
   (* Generating function declaration *)
@@ -4660,9 +4650,7 @@ let cn_to_ail_assume_resource
       without_ownership_checking
   =
   let calculate_return_type = function
-    | Request.Owned (sct, _) ->
-      ( Sctypes.to_ctype sct,
-        BT.of_sct Memory.is_signed_integer_type Memory.size_of_integer_type sct )
+    | Request.Owned (sct, _) -> (Sctypes.to_ctype sct, Memory.bt_of_sct sct)
     | PName pname ->
       if Sym.equal pname Alloc.Predicate.sym then (
         Cerb_colour.with_colour
@@ -4731,7 +4719,7 @@ let cn_to_ail_assume_resource
                         BT.Unit,
                         Locations.other __LOC__ )
                   ] ),
-              BT.of_sct Memory.is_signed_integer_type Memory.size_of_integer_type sct,
+              Memory.bt_of_sct sct,
               Cerb_location.unknown )
         in
         let bs', ss', e' = cn_to_ail_expr env ~spec_mode fn_call_it PassBack in
@@ -4823,7 +4811,7 @@ let cn_to_ail_assume_resource
                         BT.Unit,
                         Locations.other __LOC__ )
                   ] ),
-              BT.of_sct Memory.is_signed_integer_type Memory.size_of_integer_type sct,
+              Memory.bt_of_sct sct,
               Cerb_location.unknown )
         in
         let bs', ss', e' = cn_to_ail_expr env ~spec_mode fn_call_it PassBack in

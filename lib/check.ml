@@ -175,7 +175,7 @@ let rec check_mem_value (loc : Locations.t) ~(expect : BT.t) (mem : mem_value) :
          List.map (fun (id, ct, mv) -> (id, Sctypes.of_ctype_unsafe loc ct, mv)) mvals
        in
        check_struct loc tag mvals)
-    (fun tag id mv -> check_union loc tag id mv)
+    (fun _tag _id _mv -> failwith "todo: union values are being changed in Core")
 
 
 and check_struct
@@ -185,7 +185,7 @@ and check_struct
   : T.t m
   =
   let@ layout = Global.get_struct_decl loc tag in
-  let member_types, _fam = Memory.member_types layout in
+  let member_types, _fam = Memory.struct_member_types layout in
   assert (
     List.for_all2
       (fun (id, ct) (id', ct', _mv') -> Id.equal id id' && Sctypes.equal ct ct')
@@ -199,11 +199,6 @@ and check_struct
       member_values
   in
   return (MT.struct_ (tag, member_its) loc)
-
-
-and check_union (_loc : Locations.t) (_tag : Sym.t) (_id : Id.t) (_mv : mem_value) : T.t m
-  =
-  Cerb_diagnostic.fatal "todo: union types"
 
 
 let ensure_bitvector_type (loc : Locations.t) ~(expect : BT.t) : (BT.sign * int) m =
@@ -253,7 +248,7 @@ let rec check_object_value (loc : Locations.t) (Mu.OV (expect, ov)) : T.t m =
   | OVstruct (tag, fields) ->
     let@ () = WellTyped.ensure_base_type loc ~expect (Struct tag) in
     check_struct loc tag fields
-  | OVunion (tag, id, mv) -> check_union loc tag id mv
+  | OVunion _ -> failwith "todo: OVunion is being changed in Core"
   | OVfloating _iv -> unsupported loc !^"floats"
 
 
@@ -763,7 +758,12 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : T.t m =
     let@ () = WellTyped.ensure_base_type loc ~expect (Loc ()) in
     let@ () = WellTyped.ensure_base_type loc ~expect:(Loc ()) (Mu.bt_of_pexpr pe) in
     let@ vt = check_pexpr path_cs pe in
-    let@ ct = Global.get_struct_member_type ~fam_permitted:true loc tag member in
+    let@ su = Global.get_struct_or_union_decl loc tag in
+    let@ ct =
+      match su with
+      | `Struct _sd -> Global.get_struct_member_type ~fam_permitted:true loc tag member
+      | `Union _ud -> Global.get_union_member_type loc tag member
+    in
     let result = memberShift_ (vt, tag, member) loc in
     (* This should only be called after a PtrValidForDeref, so if we
         were willing to optimise, we could skip to [k result]. *)
@@ -1008,7 +1008,7 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : T.t m =
     let@ () = WellTyped.check_ct loc (Struct tag) in
     let@ () = WellTyped.ensure_base_type loc ~expect (Struct tag) in
     let@ layout = Global.get_struct_decl loc tag in
-    let member_types, _fam = Memory.member_types layout in
+    let member_types, _fam = Memory.struct_member_types layout in
     let@ _ =
       ListM.map2M
         (fun (id, ct) (id', pe') ->
@@ -1023,7 +1023,7 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : T.t m =
     let@ vs = ListM.mapM (check_pexpr path_cs) (List.map snd xs) in
     let members = List.map2 (fun (nm, _) v -> (nm, v)) xs vs in
     return (struct_ (tag, members) loc)
-  | PEunion _ -> Cerb_diagnostic.fatal "todo: PEunion"
+  | PEunion _ -> failwith "todo: PEunion is being changed in Core"
   | PEcfunction pe2 ->
     let@ () =
       WellTyped.ensure_base_type loc ~expect (Tuple [ CType; List CType; Bool; Bool ])
@@ -1047,13 +1047,19 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : T.t m =
                 [@alert "-deprecated"]
             })))
   | PEmemberof (tag, member, pe) ->
-    let struct_bt = BT.Struct tag in
-    let@ () = WellTyped.ensure_base_type loc ~expect:struct_bt (Mu.bt_of_pexpr pe) in
-    let@ struct_val = check_pexpr path_cs pe in
-    let@ member_sct = Global.get_struct_member_type ~fam_permitted:false loc tag member in
-    let member_bt = Memory.bt_of_sct member_sct in
-    let@ () = WellTyped.ensure_base_type loc ~expect member_bt in
-    return (member_ ~member_bt (struct_val, member) loc)
+    let@ su = Global.get_struct_or_union_decl loc tag in
+    (match su with
+     | `Struct _sd ->
+       let struct_bt = BT.Struct tag in
+       let@ () = WellTyped.ensure_base_type loc ~expect:struct_bt (Mu.bt_of_pexpr pe) in
+       let@ struct_val = check_pexpr path_cs pe in
+       let@ member_sct =
+         Global.get_struct_member_type ~fam_permitted:false loc tag member
+       in
+       let member_bt = Memory.bt_of_sct member_sct in
+       let@ () = WellTyped.ensure_base_type loc ~expect member_bt in
+       return (member_ ~member_bt (struct_val, member) loc)
+     | `Union _sd -> unsupported loc !^"todo: unions as values")
   | PEwrapI (ity, iop, pe1, pe2) when !cnBV ->
     (* in integers, perform this op and round. in bitvector types, just perform
         the op (for all the ops where wrapping is consistent) *)
@@ -1486,10 +1492,6 @@ let add_trace_information _labels annots =
   return ()
 
 
-let bytes_pred ct pointer init : Req.Predicate.t =
-  { name = Owned (ct, init); pointer; iargs = [] }
-
-
 let bytes_qpred sym size pointer init : Req.QPredicate.t =
   let here = Locations.other __LOC__ in
   let bt' = WellTyped.default_quantifier_bt in
@@ -1507,6 +1509,13 @@ let bytes_qpred sym size pointer init : Req.QPredicate.t =
     pointer;
     iargs = []
   }
+
+
+let bytes_list pointer ct init loc =
+  List.init (Memory.size_of_ctype ct) (fun i ->
+    let index = num_lit_ (Z.of_int i) Memory.uintptr_bt loc in
+    let pointer = arrayShift_ ~base:pointer ~index Byte loc in
+    Req.Predicate.{ name = Owned (Byte, init); pointer; iargs = [] })
 
 
 let call_prefix = function
@@ -1536,148 +1545,107 @@ let rec cn_prog_sub_let f = function
   | Pure (loc, x) -> return (loc, x)
 
 
-let bytes_constraints
-      loc
-      (to_from : CF.Cn.to_from)
-      ~(value : T.t)
-      ~(byte_arr : T.t)
-      (ct : Sctypes.t)
-  : T.t t
-  =
+let combine_bytes loc ~wrap ity bytes =
+  let bt = Memory.bt_of_sct (Integer ity) in
+  let shifted =
+    List.mapi
+      (fun i byte ->
+         let casted = cast_ bt (getOpt_ byte loc) loc in
+         let shift_amt = int_lit_ (i * 8) bt loc in
+         Terms.IT (Binop (ShiftLeft, casted, shift_amt), bt, loc))
+      bytes
+  in
+  let added =
+    List.fold_left (fun x y -> MT.add_ (x, y) loc) (List.hd shifted) (List.tl shifted)
+  in
+  (* TODO: correct? *)
+  if wrap && not !cnBV then integer_wrapI_value loc ity added else added
+
+
+let check_all_bytes_specified loc bytes =
+  let all_some = and_ (List.map (fun b -> isSome_ b loc) bytes) loc in
+  let lc = LC.T all_some in
+  let@ provable = provable loc in
+  match provable lc with
+  | `False ->
+    let@ model = model () in
+    fail (fun ctxt ->
+      { loc; msg = Converting_from_unspecified_bytes { constr = lc; ctxt; model } })
+  | `True -> return ()
+
+
+let from_bytes_constraints ~(value : T.t) ~(bytes : T.t list) (ct : Sctypes.t) : T.t =
   (* FIXME this hard codes big endianness but this should be switchable *)
   let here = Locations.other __LOC__ in
   match ct with
-  | Sctypes.Void | Array (_, _) | Struct _ | Function (_, _, _) | Byte ->
-    fail (fun _ -> { loc; msg = Unsupported_byte_conv_ct ct })
-  | Integer it ->
-    let bt = T.get_bt value in
-    let lhs = value in
-    let bytes =
-      List.init (Memory.size_of_integer_type it) (fun i ->
-        let index = int_lit_ i WellTyped.default_quantifier_bt here in
-        map_get_ byte_arr index here)
-    in
-    let all_some = and_ (List.map (fun byte -> isSome_ byte here) bytes) here in
-    let all_good = and_ (List.map (fun byte -> good_ (Byte, byte) here) bytes) here in
-    let rhs =
-      let shifted =
-        List.mapi
-          (fun i byte ->
-             let casted = cast_ bt (getOpt_ byte here) here in
-             let shift_amt = int_lit_ (i * 8) bt here in
-             Terms.IT (Binop (ShiftLeft, casted, shift_amt), bt, here))
-          bytes
-      in
-      List.fold_left (fun x y -> MT.add_ (x, y) here) (List.hd shifted) (List.tl shifted)
-    in
-    let rhs = if !cnBV then rhs else integer_wrapI_value loc it rhs in
-    (* TODO: correct? *)
-    (match to_from with
-     | To -> return (and_ [ all_some; all_good; eq_ (lhs, rhs) here ] here)
-     | From ->
-       let lc = LC.T all_some in
-       let@ provable = provable loc in
-       (match provable lc with
-        | `True -> return (eq_ (lhs, rhs) here)
-        | `False ->
-          let@ model = model () in
-          fail (fun ctxt ->
-            { loc; msg = Converting_from_unspecified_bytes { constr = lc; ctxt; model } })))
+  | Sctypes.Void | Array _ | Struct _ | Union _ | Function _ | Byte -> assert false
+  | Integer ity ->
+    let rhs = combine_bytes here ~wrap:true ity bytes in
+    eq_ (value, rhs) here
   | Pointer _ ->
-    let bt = Memory.uintptr_bt in
     let value_prov = cast_ BT.Alloc_id value here in
-    let value_addr = cast_ bt value here in
-    let bytes =
-      List.init Memory.size_of_pointer (fun i ->
-        let index = int_lit_ i WellTyped.default_quantifier_bt here in
-        map_get_ byte_arr index here)
+    let value_addr = cast_ Memory.uintptr_bt value here in
+    let rhs = combine_bytes here ~wrap:false (Unsigned Intptr_t) bytes in
+    let bytes_prov =
+      List.map (fun b -> cast_ (BT.Option Alloc_id) (getOpt_ b here) here) bytes
     in
-    let bytes_addr =
-      let shifted =
-        List.mapi
-          (fun i byte ->
-             let casted = cast_ bt (getOpt_ byte here) here in
-             let shift_amt = int_lit_ (i * 8) bt here in
-             Terms.IT (Binop (ShiftLeft, casted, shift_amt), bt, here))
-          bytes
+    (* if two byte provenances are not CN_None, they should be equal *)
+    let bytes_prov_eq =
+      let pairwise prov1 prov2 =
+        or_
+          [ isNone_ prov1 here;
+            isNone_ prov2 here;
+            eq_ (getOpt_ prov1 here, getOpt_ prov2 here) here
+          ]
+          here
       in
-      List.fold_left (fun x y -> MT.add_ (x, y) here) (List.hd shifted) (List.tl shifted)
+      let rec aux = function [] -> [] | p :: ps -> List.map (pairwise p) ps @ aux ps in
+      and_ (aux bytes_prov) here
     in
-    (* let bytes_addr = if !cnBV then bytes_addr else integer_wrapI_value loc Uintptr_t bytes_addr in (\* TODO: correct? *\) *)
-    let all_some = and_ (List.map (fun byte -> isSome_ byte here) bytes) here in
-    let all_good = and_ (List.map (fun byte -> good_ (Byte, byte) here) bytes) here in
+    let combined_prov_sym, combined_prov =
+      MT.fresh_named (BT.Option Alloc_id) "combined_prov" here
+    in
+    (* evaluate to the first non-CN_None provenance... *)
+    let first_some_prov =
+      List.fold_right
+        (fun rest prov -> ite_ (isSome_ prov here, prov, rest) here)
+        bytes_prov
+        (none_ Alloc_id here)
+    in
+    (* this constraint implements the combine_provenance function *)
+    let prov_constr =
+      let_
+        ( (combined_prov_sym, first_some_prov),
+          impl_
+            ( and2_ (bytes_prov_eq, isSome_ combined_prov here) here,
+              eq_ (value_prov, getOpt_ combined_prov here) here )
+            here )
+        here
+    in
+    and_ [ prov_constr; eq_ (value_addr, rhs) here ] here
+
+
+let to_bytes_constraints ~(value : T.t) ~(bytes : T.t list) (ct : Sctypes.t) : T.t =
+  (* FIXME this hard codes big endianness but this should be switchable *)
+  let here = Locations.other __LOC__ in
+  let all_some = and_ (List.map (fun byte -> isSome_ byte here) bytes) here in
+  let all_good = and_ (List.map (fun byte -> good_ (Byte, byte) here) bytes) here in
+  match ct with
+  | Sctypes.Void | Array _ | Struct _ | Union _ | Function _ | Byte -> assert false
+  | Integer ity ->
+    let rhs = combine_bytes here ~wrap:true ity bytes in
+    and_ [ all_some; all_good; eq_ (value, rhs) here ] here
+  | Pointer _ ->
+    let rhs = combine_bytes here ~wrap:false (Unsigned Intptr_t) bytes in
+    let value_prov = cast_ BT.Alloc_id value here in
+    let value_addr = cast_ Memory.uintptr_bt value here in
     let bytes_prov =
       List.map (fun byte -> cast_ (BT.Option Alloc_id) (getOpt_ byte here) here) bytes
     in
-    (match to_from with
-     | From ->
-       let lc = LC.T all_some in
-       let@ provable = provable loc in
-       (match provable lc with
-        | `False ->
-          let@ model = model () in
-          fail (fun ctxt ->
-            { loc; msg = Converting_from_unspecified_bytes { constr = lc; ctxt; model } })
-        | `True ->
-          (* if two byte provenances are not CN_None, they should be equal *)
-          let bytes_prov_eq =
-            let pairwise prov1 prov2 =
-              or_
-                [ isNone_ prov1 here;
-                  isNone_ prov2 here;
-                  eq_ (getOpt_ prov1 here, getOpt_ prov2 here) here
-                ]
-                here
-            in
-            let _, _, pairwise_opt_eq =
-              List.fold_right
-                (fun prov1 (prov2, rest, constr) ->
-                   ( prov1,
-                     prov2 :: rest,
-                     List.map (pairwise prov1) (prov2 :: rest) @ constr ))
-                bytes_prov
-                (none_ Alloc_id here, [], [])
-            in
-            and_ pairwise_opt_eq here
-          in
-          let combined_prov_sym, combined_prov =
-            MT.fresh_named (BT.Option Alloc_id) "combined_prov" here
-          in
-          (* evaluate to the first non-CN_None provenance... *)
-          let first_some_prov =
-            List.fold_right
-              (fun rest prov -> ite_ (isSome_ prov here, prov, rest) here)
-              bytes_prov
-              (none_ Alloc_id here)
-          in
-          (* ...and name it for easy reference *)
-          let@ () =
-            add_a
-              combined_prov_sym
-              (BT.Option Alloc_id)
-              (here, lazy (Pp.string "combined provenance"))
-          in
-          let@ () = add_c here (LC.T (MT.eq_ (combined_prov, first_some_prov) here)) in
-          (* this constraint implements the combine_provenance function *)
-          let prov_constr =
-            impl_
-              ( and2_ (bytes_prov_eq, isSome_ combined_prov here) here,
-                eq_ (value_prov, getOpt_ combined_prov here) here )
-              here
-          in
-          return (and_ [ prov_constr; eq_ (value_addr, bytes_addr) here ] here))
-     | To ->
-       let bytes_prov_eq =
-         and_
-           (List.map
-              (fun byte_prov -> eq_ (byte_prov, some_ value_prov here) here)
-              bytes_prov)
-           here
-       in
-       return
-         (and_
-            [ all_some; all_good; bytes_prov_eq; eq_ (value_addr, bytes_addr) here ]
-            here))
+    let bytes_prov_eq =
+      and_ (List.map (fun bp -> eq_ (bp, some_ value_prov here) here) bytes_prov) here
+    in
+    and_ [ all_some; all_good; bytes_prov_eq; eq_ (value_addr, rhs) here ] here
 
 
 let rec check_expr
@@ -1695,10 +1663,6 @@ let rec check_expr
       debug 3 (lazy (action "inferring expression"));
       debug 3 (lazy (item "expr" (group (Pp_mucore.pp_expr e))));
       debug 3 (lazy (item "ctxt" (Context.pp ctxt))))
-  in
-  let bytes_qpred sym ct pointer init : Req.QPredicate.t =
-    let here = Locations.other __LOC__ in
-    bytes_qpred sym (sizeOf_ ct here) pointer init
   in
   match e_ with
   | Epure pe ->
@@ -2333,55 +2297,51 @@ let rec check_expr
         let rs = pred_rs @ pred_name_rs in
         let@ () = add_rs loc rs in
         add_cs loc (List.map (fun t -> LC.T t) (Resource.derived_lc2 rs))
-      | To_from_bytes ((To | From), { name = PName _; _ }) ->
-        fail (fun _ -> { loc; msg = Byte_conv_needs_owned })
-      | To_from_bytes (To, { name = Owned (ct, init); pointer; _ }) ->
-        let@ _, O value =
-          RI.Special.predicate_request
-            loc
-            (Access To_bytes)
-            (bytes_pred ct pointer init, None)
+      | To_from_bytes (to_from, pred) ->
+        let@ ct, init =
+          match pred.name with
+          | PName _ -> fail (fun _ -> { loc; msg = Byte_conv_needs_owned })
+          | Owned (((Pointer _ | Integer _) as ct), init) -> return (ct, init)
+          | Owned (ct, _) -> fail (fun _ -> { loc; msg = Unsupported_byte_conv_ct ct })
         in
-        let q_sym = Sym.fresh "to_bytes" in
-        let bt = WellTyped.default_quantifier_bt in
-        let map_bt = BT.Map (bt, Option MemByte) in
-        let byte_sym, byte_arr = MT.fresh_named map_bt "byte_arr" here in
-        let@ () = add_a byte_sym map_bt (loc, lazy (Pp.string "byte array")) in
-        (* Note the byte array is always initalised *)
-        let@ () = add_r loc (Q (bytes_qpred q_sym ct pointer Init), O byte_arr) in
-        (match init with
-         | Uninit ->
-           add_c
-             loc
-             (* This requires --arrays-exp for CVC5. An alternative could be to
-                assert the value per byte from 0..size(t)-1 instead of for the
-                whole array, but I haven't tried it. *)
-             (LC.T (MT.eq_ (byte_arr, const_map_ bt (none_ MemByte here) here) here))
-         | Init ->
-           let@ constr = bytes_constraints loc To ~value ~byte_arr ct in
-           add_c loc (LC.T constr))
-      | To_from_bytes (From, { name = Owned (ct, init); pointer; _ }) ->
-        let q_sym = Sym.fresh "from_bytes" in
-        let@ _, O byte_arr =
-          RI.Special.qpredicate_request
-            loc
-            (Access From_bytes)
-            (bytes_qpred q_sym ct pointer init, None)
-        in
-        let value_bt = Memory.bt_of_sct ct in
-        let value_sym, value = MT.fresh_named value_bt "value" here in
-        let@ () = add_a value_sym value_bt (loc, lazy (Pp.string "value from bytes")) in
-        let@ () = add_r loc (P (bytes_pred ct pointer init), O value) in
-        let@ () =
-          (* TODO - why is this constraint necessary here? *)
-          (* TODO - this looks unsound, in fact *)
-          add_c here (LC.T (MT.good_pointer ~pointee_ct:ct pointer here))
-        in
-        (match init with
-         | Uninit -> add_c loc (LC.T (MT.eq_ (value, default_ value_bt here) here))
-         | Init ->
-           let@ constr = bytes_constraints loc From ~value ~byte_arr ct in
-           add_c loc (LC.T constr))
+        (match to_from with
+         | To ->
+           let@ _, O value =
+             RI.Special.predicate_request loc (Access To_bytes) (pred, None)
+           in
+           (match init with
+            | Uninit ->
+              (* Note that the bytes are always RW (not W) *)
+              ListM.iterM
+                (fun re -> add_r loc (P re, O (none_ BT.MemByte loc)))
+                (bytes_list pred.pointer ct Init loc)
+            | Init ->
+              let do_byte i re =
+                let byte_bt = BT.Option MemByte in
+                let b_s, b = MT.fresh_named byte_bt ("byte" ^ string_of_int i) loc in
+                let@ () = add_a b_s (T.get_bt b) (loc, lazy (Sym.pp b_s)) in
+                let@ () = add_r loc (P re, O b) in
+                return b
+              in
+              let@ bytes = ListM.mapiM do_byte (bytes_list pred.pointer ct Init loc) in
+              add_c loc (LC.T (to_bytes_constraints ~value ~bytes ct)))
+         | From ->
+           let get_byte re =
+             let@ _, O o =
+               RI.Special.predicate_request loc (Access From_bytes) (re, None)
+             in
+             return o
+           in
+           let@ bytes = ListM.mapM get_byte (bytes_list pred.pointer ct init loc) in
+           let value_bt = Memory.bt_of_sct ct in
+           (match init with
+            | Uninit -> add_r loc (P pred, O (default_ value_bt here))
+            | Init ->
+              let value_sym, value = MT.fresh_named value_bt "value" here in
+              let@ () = add_a value_sym value_bt (loc, lazy (Sym.pp value_sym)) in
+              let@ () = add_r loc (P pred, O value) in
+              let@ () = check_all_bytes_specified loc bytes in
+              add_c loc (LC.T (from_bytes_constraints ~value ~bytes ct))))
       | Have _lc ->
         fail (fun _ ->
           { loc;
@@ -2396,7 +2356,7 @@ let rec check_expr
         in
         instantiate loc filter it
       | Split_case _ -> assert false
-      | Extract (attrs, to_extract, it) ->
+      | Extract (attrs, to_extract, its) ->
         let@ predicate_name =
           match to_extract with
           | E_Everything ->
@@ -2415,7 +2375,9 @@ let rec check_expr
         let@ original_rs = all_resources loc in
         (* let verbose = List.exists (Id.is_str "verbose") attrs in *)
         let quiet = List.exists (Id.equal_string "quiet") attrs in
-        let@ () = add_movable_index loc (predicate_name, it) in
+        let@ () =
+          ListM.iterM (fun it -> add_movable_index loc (predicate_name, it)) its
+        in
         let@ upd_rs = all_resources loc in
         if List.equal Resource.equal original_rs upd_rs && not quiet then
           warn loc !^"focus: index added, no effect on existing resources (yet)."
@@ -2674,12 +2636,8 @@ let record_tagdefs tagDefs =
   PmapM.iterM
     (fun tag def ->
        match def with
-       | Mu.UnionDef ->
-         if !Sym.experimental_unions then
-           return ()
-         else
-           unsupported (Loc.other __LOC__) !^"todo: union types"
-       | StructDef layout -> Global.add_struct_decl tag layout)
+       | Mu.UnionDef ud -> Global.add_union_decl tag ud
+       | StructDef sd -> Global.add_struct_decl tag sd)
     tagDefs
 
 
@@ -2688,11 +2646,17 @@ let check_tagdefs tagDefs =
     (fun _tag def ->
        let open Memory in
        match def with
-       | Mu.UnionDef ->
-         if !Sym.experimental_unions then
-           return ()
-         else
-           unsupported (Loc.other __LOC__) !^"todo: union types"
+       | Mu.UnionDef ud ->
+         let@ _ids =
+           ListM.fold_leftM
+             (fun ids { member; ct; _ } ->
+                let@ () = WellTyped.check_ct (Loc.other __LOC__) ct in
+                assert (not (IdSet.mem member ids));
+                return (IdSet.add member ids))
+             IdSet.empty
+             ud
+         in
+         return ()
        | StructDef (members, fam) ->
          let@ member_names =
            ListM.fold_rightM

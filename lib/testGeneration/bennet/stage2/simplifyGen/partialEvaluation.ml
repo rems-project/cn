@@ -292,15 +292,12 @@ module Make (AD : Domain.T) = struct
                  (Bits
                     ( (Unsigned, Memory.size_of_ctype Sctypes.(Integer Size_t)),
                       Z.of_int (Memory.size_of_ctype ty) )),
-               BT.of_sct
-                 Memory.is_signed_integer_type
-                 Memory.size_of_integer_type
-                 Sctypes.(Integer Size_t),
+               Memory.bt_of_sct Sctypes.(Integer Size_t),
                here )
       | OffsetOf (tag, member) ->
         (match Pmap.find tag prog5.tagDefs with
          | StructDef st ->
-           let n = Z.of_int (Option.get (Memory.member_offset st member)) in
+           let n = Z.of_int (Option.get (Memory.struct_member_offset st member)) in
            return @@ num_lit_ n bt here
          | _ -> Error "Invalid OffsetOf")
       | MemberShift _ -> Error "todo: MemberShift"

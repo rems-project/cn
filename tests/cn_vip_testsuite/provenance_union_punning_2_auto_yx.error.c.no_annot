@@ -1,4 +1,7 @@
-return code: 2
-tests/cn_vip_testsuite/provenance_union_punning_2_auto_yx.error.c:4:9: error: unsupported union types
-typedef union { uintptr_t ui; int *p; } un;
-        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
+return code: 1
+[1/1]: main -- fail
+tests/cn_vip_testsuite/provenance_union_punning_2_auto_yx.error.c:11:3: error: Missing resource for writing
+  u.ui = i;
+  ~~~~~^~~ 
+Resource needed: W<uintptr_t>(&&u->ui)
+State file: file:///tmp/state__provenance_union_punning_2_auto_yx.error.c__main.html

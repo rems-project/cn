@@ -98,12 +98,21 @@ module Global : sig
 
   val get_struct_decl : Locations.t -> Sym.t -> Memory.struct_decl m
 
+  val get_union_decl : Locations.t -> Sym.t -> Memory.union_decl m
+
+  val get_struct_or_union_decl
+    :  Locations.t ->
+    Sym.t ->
+    [ `Struct of Memory.struct_decl | `Union of Memory.union_decl ] m
+
   val get_struct_member_type
     :  fam_permitted:bool ->
     Locations.t ->
     Sym.t ->
     Id.t ->
     Sctypes.t m
+
+  val get_union_member_type : Locations.t -> Sym.t -> Id.t -> Sctypes.t m
 
   val get_datatype : Locations.t -> Sym.t -> BaseTypes.dt_info m
 
@@ -122,7 +131,9 @@ module Global : sig
 
   val get_logical_function_def : Locations.t -> Sym.t -> Definition.Function.t m
 
-  val add_struct_decl : Sym.t -> Memory.struct_layout -> unit m
+  val add_struct_decl : Sym.t -> Memory.struct_decl -> unit m
+
+  val add_union_decl : Sym.t -> Memory.union_decl -> unit m
 
   val add_fun_decl
     :  Sym.t ->

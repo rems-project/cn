@@ -723,6 +723,7 @@ let rec pp_sctype = function
     pp_constructor "SCtypes.Array" [ pp_tuple [ pp_sctype ct; pp_option pp_nat on ] ]
   | Sctypes.Pointer ct -> pp_constructor "SCtypes.Pointer" [ pp_sctype ct ]
   | Sctypes.Struct sym -> pp_constructor "SCtypes.Struct" [ pp_symbol sym ]
+  | Sctypes.Union sym -> pp_constructor "SCtypes.Union" [ pp_symbol sym ]
   | Sctypes.Function ((quals, ret), args, variadic) ->
     pp_constructor
       "SCtypes.SCFunction"
@@ -1731,11 +1732,11 @@ let pp_cn_condition ppfa ppfty = function
     pp_constructor2 "CN_cconstr" [ pp_location loc; pp_cn_assertion ppfa ppfty assertion ]
 
 
-let pp_cnprogs_extract (ids, extract, term) =
+let pp_cnprogs_extract ((ids, extract, terms) : Cnstatement.extract) =
   pp_tuple
     [ pp_list pp_identifier ids;
       pp_cn_to_extract pp_symbol pp_sctype extract;
-      pp_index_term term
+      pp_list pp_index_term terms
     ]
 
 
@@ -1829,14 +1830,13 @@ let rec pp_cn_statement ppfa ppfty (CF.Cn.CN_statement (loc, stmt)) =
            ]
        | CN_split_case assertion ->
          pp_constructor2 "CN_split_case" [ pp_cn_assertion ppfa ppfty assertion ]
-       | CN_extract (ids, extract, expr) ->
+       | CN_extract (ids, extract, exprs) ->
          pp_constructor2
            "CN_extract"
            [ pp_tuple
-               [ pp_list pp_identifier ids;
-                 pp_cn_to_extract ppfa ppfty extract;
-                 pp_cn_expr ppfa ppfty expr
-               ]
+               (pp_list pp_identifier ids
+                :: pp_cn_to_extract ppfa ppfty extract
+                :: List.map (pp_cn_expr ppfa ppfty) exprs)
            ]
        | CN_unfold (sym, exprs) ->
          pp_constructor2

@@ -210,6 +210,7 @@ let print_ctype (ctyp : Sctypes.t) =
   | Array _ -> "unsupported ctype array"
   | Pointer _ -> "Ptr"
   | Struct s -> Sym.pp_string s
+  | Union _s -> failwith "todo: union types"
   | Function _ -> "unsupported ctype function"
   | Byte -> "unsupported ctype function" (* TODO(HK): added for plumbing *)
 
@@ -1031,6 +1032,7 @@ let translate_own_structs (struct_decls : Memory.struct_decls) =
        (* todo: probably not right? *)
        | Pointer _ -> make_owned "Owned_int" id
        | Struct s -> make_owned ("Owned_" ^ Sym.pp_string s) id
+       | Union _s -> failwith "todo: union types"
        | Function _ -> rets "unsupported ctype function"
        | Byte -> rets "unsupported ctype function")
       (* TODO(HK): added for plumbing *)

@@ -119,7 +119,7 @@ let generate_executable_specs
   MakeTerm.use_vip := not dont_use_vip;
   Check.fail_fast := fail_fast;
   Sym.executable_spec_enabled := true;
-  Sym.experimental_unions := experimental_unions;
+  Fulminate.experimental_unions := experimental_unions;
   let handle_error (e : TypeErrors.t) =
     let report = TypeErrors.pp_message e.msg in
     Pp.error e.loc report.short (Option.to_list report.descr);
