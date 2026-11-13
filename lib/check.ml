@@ -2340,7 +2340,7 @@ let rec check_expr
               let value_sym, value = MT.fresh_named value_bt "value" here in
               let@ () = add_a value_sym value_bt (loc, lazy (Sym.pp value_sym)) in
               let@ () = add_r loc (P pred, O value) in
-              let@ () = check_all_bytes_specified here bytes in
+              let@ () = check_all_bytes_specified loc bytes in
               add_c loc (LC.T (from_bytes_constraints ~value ~bytes ct))))
       | Have _lc ->
         fail (fun _ ->
