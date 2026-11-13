@@ -3205,7 +3205,7 @@ let env_of ~filename (sigm : _ A.sigma) (prog5 : _ Mucore.file) : env =
   { filename;
     dts = sigm.cn_datatypes;
     globals = extract_global_variables prog5;
-    funs = Sym.Set.empty (* TODO: Pmap.bindings_list prog5.funs, once read *)
+    funs = Sym.Set.of_list (List.map fst (Pmap.bindings_list prog5.funs))
   }
 
 
