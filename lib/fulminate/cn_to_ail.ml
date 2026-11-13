@@ -943,7 +943,7 @@ let rec cn_to_ail_expr_aux
     in
     let ail_expr_ = A.(AilEident sym) in
     let ail_expr_ =
-      (* Check if address of symbol is being referred to here *)
+      (* Check sym actually means &sym here *)
       if is_sym_obj_address sym then
         if List.exists (fun (x, _) -> Sym.equal x sym) env.globals then
           wrap_with_convert
@@ -957,8 +957,8 @@ let rec cn_to_ail_expr_aux
             (A.AilEunary (Address, mk_expr ail_expr_))
             basetype
       else if is_sym_c_function_symbol env sym then
+        (* Wrap with `convert_to_cn_pointer` if sym is C function symbol *)
         wrap_with_convert ~convert_from:false ail_expr_ basetype
-      (* Check if symbol is C function symbol *)
       else
         ail_expr_
     in
