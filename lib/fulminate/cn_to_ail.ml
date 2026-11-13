@@ -64,7 +64,7 @@ let true_const = ail_int_const 1
 
 let ownership_ctypes = ref []
 
-(* Per-unit information, fixed for a run *)
+(* Static environment read from for Fulminate translation *)
 type env =
   { filename : string; (* For accessor names *)
     datatypes : A.sigma_cn_datatype list;
