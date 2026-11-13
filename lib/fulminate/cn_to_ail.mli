@@ -70,7 +70,7 @@ type ail_executable_spec =
 
 type env =
   { filename : string;
-    dts : AilSyntax.sigma_cn_datatype list;
+    datatypes : AilSyntax.sigma_cn_datatype list;
     globals : (Ctype.union_tag * Ctype.ctype) list;
     funs : Sym.Set.t
   }

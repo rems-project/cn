@@ -67,7 +67,7 @@ let ownership_ctypes = ref []
 (* Per-unit information, fixed for a run *)
 type env =
   { filename : string; (* For accessor names *)
-    dts : A.sigma_cn_datatype list;
+    datatypes : A.sigma_cn_datatype list;
     globals : (C.union_tag * C.ctype) list; (* Those with accessors *)
     funs : Sym.Set.t (* C functions *)
   }
@@ -1184,7 +1184,7 @@ let rec cn_to_ail_expr_aux
         else
           find_dt_from_constructor constr_sym dts'
     in
-    let parent_dt, _members = find_dt_from_constructor sym env.dts in
+    let parent_dt, _members = find_dt_from_constructor sym env.datatypes in
     let res_sym = Sym.fresh_anon () in
     let res_ident = A.(AilEident res_sym) in
     let ctype_ = C.(Pointer (C.no_qualifiers, mk_ctype (Struct parent_dt.cn_dt_name))) in
@@ -1425,7 +1425,9 @@ let rec cn_to_ail_expr_aux
         else (
           match TN.get_bt term with
           | BT.Datatype sym ->
-            let cn_dt = List.filter (fun dt -> Sym.equal sym dt.cn_dt_name) env.dts in
+            let cn_dt =
+              List.filter (fun dt -> Sym.equal sym dt.cn_dt_name) env.datatypes
+            in
             (match cn_dt with
              | [] -> failwith (__LOC__ ^ ": Datatype not found")
              | dt :: _ ->
@@ -3205,7 +3207,7 @@ let extract_global_variables ?(prune_unused = false) (prog5 : _ Mucore.file) =
 
 let env_of ~filename (sigm : _ A.sigma) (prog5 : _ Mucore.file) : env =
   { filename;
-    dts = sigm.cn_datatypes;
+    datatypes = sigm.cn_datatypes;
     globals = extract_global_variables prog5;
     funs = Sym.Set.of_list (List.map fst (Pmap.bindings_list prog5.funs))
   }
