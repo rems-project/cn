@@ -97,7 +97,7 @@ let loop_ownership_struct_ptr_ctype =
   mk_ctype C.(Pointer (no_qualifiers, mk_ctype (Struct loop_ownership_sym)))
 
 
-let sym_of_spec_mode_opt = function
+let sym_of_spec_mode = function
   | Some spec_mode ->
     Sym.fresh (spec_mode_to_str spec_mode) (* Called from top-level spec *)
   | None -> spec_mode_sym
@@ -224,7 +224,7 @@ let generate_cn_assert ail_expr spec_mode =
   if is_assert_true then
     None
   else (
-    let spec_mode_ident = mk_expr A.(AilEident (sym_of_spec_mode_opt spec_mode)) in
+    let spec_mode_ident = mk_expr A.(AilEident (sym_of_spec_mode spec_mode)) in
     let assertion_expr_ =
       A.(AilEcall (mk_expr (AilEident cn_assert_sym), [ ail_expr; spec_mode_ident ]))
     in
@@ -2694,7 +2694,7 @@ let cn_to_ail_resource
     let fn_prefix = if without_ownership_checking then "deref_" else "owned_" in
     fn_prefix ^ ct_str
   in
-  let enum_sym = sym_of_spec_mode_opt spec_mode in
+  let enum_sym = sym_of_spec_mode spec_mode in
   let it_zero_const = IT (Const (Z (Z.of_int 0)), BT.Unit, Cerb_location.unknown) in
   let ail_zero_const_expr_ =
     A.(AilEconst (ConstantInteger (IConstant (Z.of_int 0, Decimal, None))))
