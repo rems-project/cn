@@ -1,0 +1,10 @@
+return code: 1
+[1/2]: char_param -- fail
+[2/2]: main -- pass
+tests/cn-x86_64/char_is_signed.error.c:5:5: error: Unprovable constraint
+    return c;
+    ^~~~~~~~~ 
+Constraint from tests/cn-x86_64/char_is_signed.error.c:3:13:
+/*@ ensures 0 <= return; @*/
+            ^~~~~~~~~~~~ 
+State file: file:///tmp/state__char_is_signed.error.c__char_param.html
