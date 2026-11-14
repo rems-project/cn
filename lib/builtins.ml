@@ -198,6 +198,25 @@ let is_none_def = ("is_none", Sym.fresh "is_none", mk_arg1 MT.isNone_)
 
 let get_opt_def = ("get_opt", Sym.fresh "get_opt", mk_arg1 MT.getOpt_)
 
+(* The range of plain char. Unlike MINi8 () and friends, these depend on the
+   implementation profile (--impl), which is chosen after this module is
+   initialised, so they are expanded when applied. *)
+let char_bound_def name bound =
+  ( name,
+    Sym.fresh name,
+    fun args loc ->
+      match args with
+      | [] ->
+        let ct = Sctypes.(Integer IntegerTypes.Char) in
+        let bt = if !BT.cnBV then Memory.bt_of_sct ct else BT.Integer in
+        return (Terms.Surface.inj (MT.num_lit_ (bound Sctypes.IntegerTypes.Char) bt loc))
+      | xs -> fail_number_args loc ~has:(List.length xs) ~expect:0 )
+
+
+let min_char_def = char_bound_def "MINchar" Memory.min_integer_type
+
+let max_char_def = char_bound_def "MAXchar" Memory.max_integer_type
+
 let builtin_funs
   : (string
     * Sym.t
@@ -219,7 +238,9 @@ let builtin_funs
     has_alloc_id_def;
     is_some_def;
     is_none_def;
-    get_opt_def
+    get_opt_def;
+    min_char_def;
+    max_char_def
   ]
 
 
