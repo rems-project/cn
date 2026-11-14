@@ -418,6 +418,12 @@ let integer_wrapI loc ity n =
   | `False -> return (integer_wrapI_value loc ity n)
 
 
+(** An out-of-range conversion to a signed integer type is
+    implementation-defined (C11 6.3.1.3p3). If false (the default), CN
+    rejects it; if true, it reduces the value modulo 2^N, as GCC and Clang
+    document. *)
+let wrap_signed_conversions = ref false
+
 let check_conv_int loc ~expect ct arg =
   assert (
     match (!cnBV, expect, T.get_bt arg) with
@@ -463,6 +469,11 @@ let check_conv_int loc ~expect ct arg =
            return (cast_ (Memory.bt_of_sct ct) arg loc)
          else
            return arg
+       | `False when !wrap_signed_conversions ->
+         if !cnBV then
+           return (cast_ (Memory.bt_of_sct ct) arg loc)
+         else
+           return (integer_wrapI_value loc ity arg)
        | `False -> fail_unrepresentable ())
   in
   return value

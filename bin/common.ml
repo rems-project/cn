@@ -28,11 +28,16 @@ let print_log_file =
     types, notably whether plain [char] is signed. *)
 type impl =
   | Hafnium (** AArch64 (pKVM/Hafnium): unsigned plain [char]. The default. *)
-  | X86_64 (** x86-64 (GCC/Clang): signed plain [char]. *)
+  | X86_64
+  (** x86-64 (GCC/Clang): signed plain [char]; an out-of-range conversion to a
+      signed type reduces modulo 2^N, as GCC documents and as the Core
+      implementation file CN loads (gcc, x86-64) says. *)
 
 let set_impl = function
   | Hafnium -> CF.Ocaml_implementation.set CF.Ocaml_implementation.HafniumImpl.impl
-  | X86_64 -> CF.Ocaml_implementation.set CF.Ocaml_implementation.DefaultImpl.impl
+  | X86_64 ->
+    CF.Ocaml_implementation.set CF.Ocaml_implementation.DefaultImpl.impl;
+    Check.wrap_signed_conversions := true
 
 
 let frontend
@@ -511,7 +516,8 @@ module Flags = struct
   let impl =
     let doc =
       "Implementation profile: $(b,hafnium) (default; AArch64, plain char unsigned) or \
-       $(b,x86_64) (plain char signed)."
+       $(b,x86_64) (plain char signed; out-of-range conversions to signed integer types \
+       reduce modulo 2^N, as in GCC, instead of being rejected)."
     in
     Arg.(
       value
