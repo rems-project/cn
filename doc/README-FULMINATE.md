@@ -42,6 +42,10 @@ cn instrument --run <your-file>.c
 
 This generates the executable specification files, compiles and links these, and then runs the produced binary.
 
+The compile command includes `-funsigned-char` (or `-fsigned-char` with
+`--impl=x86_64`), so that plain `char` behaves as in the implementation
+profile CN verifies against; see [IMPLEMENTATION-PROFILES.md](IMPLEMENTATION-PROFILES.md).
+
 The compile command includes the `-g` flag for collecting debug information, which means gdb or lldb can be run on the produced binary for setting breakpoints, stepping in and out of functions in a given run, printing concrete variable values at specific points in the program run, etc.
 Problems can be caused by gdb on Mac due to some certification-related issues, so we recommend that Mac users use lldb.
 

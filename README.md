@@ -121,6 +121,10 @@ Mete Polat. Thesis for the Technical University of Munich MSc, hosted at the Uni
 
 See the [tutorial documentation](https://rems-project.github.io/cn-tutorial/).
 
+CN checks programs against an implementation profile, AArch64 with
+unsigned plain `char` by default; `--impl=x86_64` selects signed `char`.
+See [doc/IMPLEMENTATION-PROFILES.md](doc/IMPLEMENTATION-PROFILES.md).
+
 ## Installation
 
 Below are the installation instructions for installing CN,
