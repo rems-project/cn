@@ -88,6 +88,7 @@ let generate_executable_specs
       no_inherit_loc
       magic_comment_char_dollar
       allow_split_magic_comments
+      impl
       (* Executable spec *)
         output
       output_dir
@@ -161,7 +162,8 @@ let generate_executable_specs
   let out_file =
     Option.value ~default:(Fulminate.get_instrumented_filename basefile) output
   in
-  Common.with_well_formedness_check (* CLI arguments *)
+  Common.with_well_formedness_check
+    ~impl (* CLI arguments *)
     ~filename
     ~cc
     ~macros:(("__CN_INSTRUMENT", None) :: macros)
@@ -470,6 +472,7 @@ let cmd =
     $ Common.Flags.no_inherit_loc
     $ Common.Flags.magic_comment_char_dollar
     $ Common.Flags.allow_split_magic_comments
+    $ Common.Flags.impl
     $ Flags.output
     $ Flags.output_dir
     $ Flags.without_ownership_checking
