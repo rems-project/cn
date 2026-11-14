@@ -22,7 +22,14 @@ let header ~output_dir =
 
 
 let define_cc_flags () =
-  let base_flags = [ "-g"; "-I$(RUNTIME_PREFIX)/include/"; "$(CFLAGS)"; "$(CPPFLAGS)" ] in
+  let base_flags =
+    [ "-g";
+      "-I$(RUNTIME_PREFIX)/include/";
+      Memory.cc_char_signedness_flag ();
+      "$(CFLAGS)";
+      "$(CPPFLAGS)"
+    ]
+  in
   let sanitize_flags =
     let sanitize, no_sanitize = Config.has_sanitizers () in
     (match sanitize with Some sanitize -> [ "-fsanitize=" ^ sanitize ] | None -> [])

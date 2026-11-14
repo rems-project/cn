@@ -25,6 +25,17 @@ let is_signed_integer_type ity = (OI.get ()).is_signed_ity ity
 
 let max_integer_type it = z_of_ival (CF.Impl_mem.max_ival it)
 
+(** The C compiler flag that makes plain [char] behave as in the
+    implementation profile, for C that CN generates and compiles (Fulminate,
+    [cn test], [cn seq-test]): it must agree with the model the specs were
+    written and checked against. GCC and Clang accept it. *)
+let cc_char_signedness_flag () =
+  if is_signed_integer_type Sctypes.IntegerTypes.Char then
+    "-fsigned-char"
+  else
+    "-funsigned-char"
+
+
 let min_integer_type it = z_of_ival (CF.Impl_mem.min_ival it)
 
 let size_of_pointer = Option.get (OI.get ()).sizeof_pointer

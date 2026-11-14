@@ -22,7 +22,9 @@ let run_instrumented_file ~filename ~cc ~no_debug_info ~output ~output_dir ~prin
     let debug_info_flag = if no_debug_info then "" else " -g " in
     let cflags = Option.value ~default:"" (Sys.getenv_opt "CFLAGS") in
     let cppflags = Option.value ~default:"" (Sys.getenv_opt "CPPFLAGS") in
-    String.concat " " [ debug_info_flag; cflags; cppflags ]
+    String.concat
+      " "
+      [ debug_info_flag; Memory.cc_char_signedness_flag (); cflags; cppflags ]
   in
   if
     Sys.command
