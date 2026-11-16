@@ -3122,19 +3122,31 @@ let unreachable_proxy_ft =
   AT.L (LAT.Constraint (lc, (loc, None), LAT.I rt))
 
 
+let builtin_proxies =
+  [ ("ctz_proxy", ctz_proxy_ft);
+    ("ffs_proxy", ffs_proxy_ft Sctypes.IntegerBaseTypes.Int_);
+    ("ffsl_proxy", ffs_proxy_ft Sctypes.IntegerBaseTypes.Long);
+    ("ffsll_proxy", ffs_proxy_ft Sctypes.IntegerBaseTypes.LongLong);
+    ("memcpy_proxy", memcpy_proxy_ft);
+    ("unreachable_proxy", unreachable_proxy_ft)
+  ]
+
+
+(** Whether [fsym] names one of the built-in proxies above, whose
+    specifications are trusted. *)
+let is_builtin_proxy fsym =
+  match Sym.has_id fsym with
+  | Some s -> List.exists (fun (name, _) -> String.equal name s) builtin_proxies
+  | None -> false
+
+
 let add_stdlib_spec =
   let module StrMap = Map.Make (String) in
   let proxies =
     List.fold_left
       (fun map (name, ft) -> StrMap.add name ft map)
       StrMap.empty
-      [ ("ctz_proxy", ctz_proxy_ft);
-        ("ffs_proxy", ffs_proxy_ft Sctypes.IntegerBaseTypes.Int_);
-        ("ffsl_proxy", ffs_proxy_ft Sctypes.IntegerBaseTypes.Long);
-        ("ffsll_proxy", ffs_proxy_ft Sctypes.IntegerBaseTypes.LongLong);
-        ("memcpy_proxy", memcpy_proxy_ft);
-        ("unreachable_proxy", unreachable_proxy_ft)
-      ]
+      builtin_proxies
   in
   let add ct fsym ft =
     Pp.debug
@@ -3241,9 +3253,12 @@ let time_check_c_functions
       in
       let@ () =
         Sym.Map.fold
-          (fun _ (loc, def, _) acc ->
+          (fun fsym (loc, def, _) acc ->
              match def with
              | None -> acc
+             (* Built-in specifications are trusted, and unreachable_proxy's
+                [requires false] is inconsistent by design. *)
+             | Some _ when is_builtin_proxy fsym -> acc
              | Some def ->
                (* I think this avoids a left-recursion in the monad bind *)
                let@ () = Consistent.function_type "proc/fun" loc def in
