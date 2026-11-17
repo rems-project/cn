@@ -1,11 +1,11 @@
-typedef unsigned char uint8_t;
+/*CN_VIP*/ [[cerb::byte]] typedef unsigned char byte;
 typedef struct s {
-    uint8_t a;
+    byte a;
 } s;
 /*@
-predicate (map<integer,integer>) Array_u8 (pointer p, integer l)
+predicate (map<integer,byte>) Array_byte (pointer p, integer l)
 {
-  take pv = each(integer i; i >= 0 && i < l) {RW<uint8_t>(array_shift<uint8_t>(p,i))};
+  take pv = each(integer i; i >= 0 && i < l) {RW<byte>(array_shift<byte>(p,i))};
   return pv;
 }
 @*/
@@ -13,10 +13,11 @@ predicate (map<integer,integer>) Array_u8 (pointer p, integer l)
 #if 0
 static void transmute_to_blob(void *p)
 /*@
-  requires take xsi = Array_u8(p, sizeof<s>);
+  requires take xsi = Array_byte(p, sizeof<s>);
   ensures take xso = RW<s>p);
   @*/
 {
+  /*@ focus RW<byte>, 0; @*/
   /*@ from_bytes RW<s>(p); @*/
 }
 #else
@@ -24,9 +25,10 @@ static void transmute_to_blob(void *p)
 static void untransmute_to_blob(void *p)
 /*@
   requires take xsi = RW<s>(p);
-  ensures take xso = Array_u8(p, sizeof<s>);
+  ensures take xso = Array_byte(p, sizeof<s>);
   @*/
 {
+  /*@ focus RW<byte>, 0; @*/
   /*@ to_bytes RW<s>(p); @*/
 }
 #endif
