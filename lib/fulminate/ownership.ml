@@ -427,13 +427,13 @@ let concat_block_local_injs injs =
 
 (* Ghost state tracking for stack-allocated variables in blocks *)
 let get_c_block_entry_exit_injs_aux ~contains_user_spec cerb_conf bindings s =
-  let get_exit_injs loc bs =
+  let get_exit_injs ?(offset = 0) loc bs =
     let exit_injs =
       List.filter_map
         (fun (b_sym, ((_, _, is_register), _, _, b_ctype)) ->
            if not is_register then
              Some
-               ( get_end_loc ~offset:(-1) loc,
+               ( get_end_loc ~offset loc,
                  Option.get
                    (generate_c_local_ownership_exit ~is_register:false (b_sym, b_ctype))
                )
@@ -444,7 +444,7 @@ let get_c_block_entry_exit_injs_aux ~contains_user_spec cerb_conf bindings s =
     List.map (fun (loc, stat) -> (loc, [], [ stat ])) exit_injs
   in
   let gen_standard_block_injs (bs, ss) f_stmt_injs loc =
-    let exit_injs = get_exit_injs loc bs in
+    let exit_injs = get_exit_injs ~offset:(-1) loc bs in
     let exit_injs' = ret_standard_injs exit_injs in
     let stat_injs = List.map (fun s -> f_stmt_injs bs s) ss in
     concat_block_local_injs [ concat_block_local_injs stat_injs; exit_injs' ]
