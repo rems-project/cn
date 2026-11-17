@@ -1,0 +1,8 @@
+return code: 0
+tests/cn/to_from_bytes_struct.c:32:7: warning: experimental keyword 'to_bytes' (use of experimental features is discouraged)
+  /*@ to_bytes RW<s>(p); @*/
+      ^~~~~~~~ 
+tests/cn/to_from_bytes_struct.c:31:7: warning: focus: index added, no effect on existing resources (yet).
+  /*@ focus RW<byte>, 0; @*/
+      ^~~~~~~~~~~~~~~~~~ 
+[1/1]: untransmute_to_blob -- pass

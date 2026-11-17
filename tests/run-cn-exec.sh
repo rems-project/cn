@@ -99,6 +99,7 @@ SUCCESS=$(find cn -name '*.c' \
     ! -name "to_from_bytes_block.c" \
     ! -name "disj_nonnull.c" \
     ! -name "ghost_pointer_to_bitvec_cast.c" \
+    ! -name "to_from_bytes_struct.c" \
 )
 
 # Include files which cause error for proof but not testing
@@ -160,7 +161,8 @@ BUGGY="\
        cn/alloc_create.c \
        cn/to_from_bytes_block.c \
        cn/disj_nonnull.c \
-       cn/ghost_pointer_to_bitvec_cast.c" \
+       cn/ghost_pointer_to_bitvec_cast.c \
+       cn/to_from_bytes_struct.c" \
 
 # Exclude files which cause error for proof but not testing
 SHOULD_FAIL=$(find cn -name '*.error.c' \
