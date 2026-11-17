@@ -143,30 +143,6 @@ let rec str_of_ctype ctype =
     CF.Pp_utils.to_plain_pretty_string doc
 
 
-let rec execCtypeEqual (C.Ctype (_, ty1)) (C.Ctype (_, ty2)) =
-  let paramsEqual ((qs1, ty1, b1), (qs2, ty2, b2)) =
-    C.qualifiersEqual qs1 qs2 && execCtypeEqual ty1 ty2 && b1 == b2
-  in
-  match (ty1, ty2) with
-  | Void, Void -> true
-  | Basic bty1, Basic bty2 -> C.basicTypeEqual bty1 bty2
-  | Array (ty1, n1_opt), Array (ty2, n2_opt) -> execCtypeEqual ty1 ty2 && n1_opt == n2_opt
-  | Function ((qs1, ty1), params1, b1), Function ((qs2, ty2), params2, b2) ->
-    let bools = List.map paramsEqual (List.combine params1 params2) in
-    C.qualifiersEqual qs1 qs2
-    && execCtypeEqual ty1 ty2
-    && List.fold_left ( && ) true bools
-    && b1 == b2
-  | FunctionNoParams (qs1, ty1), FunctionNoParams (qs2, ty2) ->
-    C.qualifiersEqual qs1 qs2 && execCtypeEqual ty1 ty2
-  | Pointer (qs1, ty1), Pointer (qs2, ty2) ->
-    C.qualifiersEqual qs1 qs2 && execCtypeEqual ty1 ty2
-  | Atomic ty1, Atomic ty2 -> execCtypeEqual ty1 ty2
-  | Struct id1, Struct id2 -> id1 == id2
-  | Union id1, Union id2 -> id1 == id2
-  | _ -> false
-
-
 let[@warning "-32" (* unused-value-declaration *)] str_of_it_ = function
   | Terms.Sym sym -> Sym.pp_string sym
   | _ -> ""
