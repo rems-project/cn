@@ -190,18 +190,21 @@ let memory_accesses_injections ail_prog =
     | CF.GenTypes.GenLValueType (_, _, is_register) -> is_register
     | _ -> false
   in
-  let is_access_register = function
+  let is_compound_literal (A.AnnotatedExpression (_, _, _, expr_)) =
+    match expr_ with A.AilEcompound _ -> true | _ -> false
+  in
+  let should_not_instrument = function
     | Load { lvalue; _ }
     | Store { lvalue; _ }
     | StoreOp { lvalue; _ }
     | Postfix { lvalue; _ } ->
-      is_register lvalue
+      is_register lvalue || is_compound_literal lvalue
   in
   List.iter
     (* HK: Currently, `env` is ignored. It will be used in future patches. *)
     (fun (access, _env) ->
        (* Don't instrument *)
-       if is_access_register access then
+       if should_not_instrument access then
          ()
        else (
          match access with
