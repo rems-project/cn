@@ -36,8 +36,6 @@ val get_ctype_without_ptr : Ctype.ctype -> Ctype.ctype
 
 val str_of_ctype : Ctype.ctype -> string
 
-val execCtypeEqual : Ctype.ctype -> Ctype.ctype -> bool
-
 val create_binding
   :  'a ->
   'b ->

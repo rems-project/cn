@@ -629,7 +629,7 @@ let generate_ownership_functions without_ownership_checking ownership_ctypes =
   let rec remove_duplicates ret_list = function
     | [] -> []
     | x :: xs ->
-      if List.mem execCtypeEqual x ret_list then
+      if List.mem CF.Ctype.ctypeEqual x ret_list then
         remove_duplicates (x :: ret_list) xs
       else
         x :: remove_duplicates (x :: ret_list) xs
