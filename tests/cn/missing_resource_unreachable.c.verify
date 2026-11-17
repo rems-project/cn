@@ -1,0 +1,6 @@
+return code: 0
+[1/5]: post_after_call -- pass
+[2/5]: load_after_call -- pass
+[3/5]: store_after_call -- pass
+[4/5]: load_pre_false -- pass
+[5/5]: post_pre_false -- pass
