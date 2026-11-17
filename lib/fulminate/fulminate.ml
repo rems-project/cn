@@ -161,6 +161,102 @@ let collect_memory_accesses (_, sigm) =
   !acc
 
 
+(* Lifetime of compound literals can change if enclosed in a block via gen_single_stat_control_flow_injs, so need to check for any instances *)
+let rec expr_contains_compound_literal (A.AnnotatedExpression (_, _, _, e_)) =
+  match e_ with
+  | AilEcompound _ -> true
+  | AilEgcc_statement (_, ss) ->
+    List.fold_left ( || ) false (List.map stat_contains_compound_literal ss)
+  | AilEunion (_, _, None)
+  | AilEoffsetof _ | AilEbuiltin _ | AilEstr _ | AilEconst _ | AilEident _ | AilEsizeof _
+  | AilEalignof _ | AilEreg_load _ | AilEinvalid _ | AilElabel_addressGNU _ ->
+    false
+  | AilEsizeof_expr e
+  | AilErvalue e
+  | AilEunary (_, e)
+  | AilEcast (_, _, e)
+  | AilEassert e
+  | AilEunion (_, _, Some e)
+  | AilEmemberof (e, _)
+  | AilEmemberofptr (e, _)
+  | AilEannot (_, e)
+  | AilEva_start (e, _)
+  | AilEva_arg (e, _)
+  | AilEva_end e
+  | AilEprint_type e
+  | AilEbmc_assume e
+  | AilEarray_decay e
+  | AilEfunction_decay e
+  | AilEatomic e ->
+    expr_contains_compound_literal e
+  | AilEbinary (e1, _, e2)
+  | AilEcond (e1, None, e2)
+  | AilEva_copy (e1, e2)
+  | AilEassign (e1, e2)
+  | AilEcompoundAssign (e1, _, e2) ->
+    expr_contains_compound_literal e1 || expr_contains_compound_literal e2
+  | AilEcond (e1, Some e2, e3) ->
+    expr_contains_compound_literal e1
+    || expr_contains_compound_literal e2
+    || expr_contains_compound_literal e3
+  | AilEcall (e, es) ->
+    expr_contains_compound_literal e
+    || List.fold_left ( || ) false (List.map expr_contains_compound_literal es)
+  | AilEgeneric (e, _, gas) ->
+    let bs =
+      List.map
+        (function
+          | A.AilGAtype (_, _, e) | AilGAdefault e -> expr_contains_compound_literal e)
+        gas
+    in
+    expr_contains_compound_literal e || List.fold_left ( || ) false bs
+  | AilEarray (_, _, xs) ->
+    let bs =
+      List.map (function None -> false | Some e -> expr_contains_compound_literal e) xs
+    in
+    List.fold_left ( || ) false bs
+  | AilEstruct (_, xs) ->
+    let bs =
+      List.map
+        (function _, None -> false | _, Some e -> expr_contains_compound_literal e)
+        xs
+    in
+    List.fold_left ( || ) false bs
+
+
+and stat_contains_compound_literal A.{ node = s_; _ } =
+  match s_ with
+  | A.(AilSdeclaration decls) ->
+    let bs =
+      List.map
+        (fun (_, e_opt) ->
+           match e_opt with Some e -> expr_contains_compound_literal e | None -> false)
+        decls
+    in
+    List.fold_left ( || ) false bs
+  | AilSblock (_, ss) ->
+    let bs = List.map stat_contains_compound_literal ss in
+    List.fold_left ( || ) false bs
+  | AilSif (e, s1, s2) ->
+    expr_contains_compound_literal e
+    || stat_contains_compound_literal s1
+    || stat_contains_compound_literal s2
+  | AilSwhile (e, s, _) | AilSdo (s, e, _) | AilSswitch (e, s) ->
+    expr_contains_compound_literal e || stat_contains_compound_literal s
+  | AilScase (_, s) | AilScase_rangeGNU (_, _, s) | AilSdefault s | AilSlabel (_, s, _) ->
+    stat_contains_compound_literal s
+  | AilSreturn e | AilSexpr e | AilSreg_store (_, e) -> expr_contains_compound_literal e
+  | AilSgoto _ | AilScontinue | AilSbreak | AilSskip | AilSreturnVoid | AilSpar _
+  | AilSmarker _ | AilSasm _ ->
+    false
+
+
+let is_register (A.AnnotatedExpression (genType, _, _, _)) =
+  match genType with
+  | CF.GenTypes.GenLValueType (_, _, is_register) -> is_register
+  | _ -> false
+
+
 let memory_accesses_injections ail_prog =
   let open Cerb_frontend in
   let open Cerb_location in
@@ -185,23 +281,17 @@ let memory_accesses_injections ail_prog =
   in
   let acc = ref [] in
   let xs = collect_memory_accesses ail_prog in
-  let is_register (A.AnnotatedExpression (genType, _, _, _)) =
-    match genType with
-    | CF.GenTypes.GenLValueType (_, _, is_register) -> is_register
-    | _ -> false
-  in
-  let is_access_register = function
+  let should_not_instrument = function
     | Load { lvalue; _ }
     | Store { lvalue; _ }
     | StoreOp { lvalue; _ }
     | Postfix { lvalue; _ } ->
-      is_register lvalue
+      is_register lvalue || expr_contains_compound_literal lvalue
   in
   List.iter
     (* HK: Currently, `env` is ignored. It will be used in future patches. *)
     (fun (access, _env) ->
-       (* Don't instrument *)
-       if is_access_register access then
+       if should_not_instrument access then
          ()
        else (
          match access with
@@ -262,80 +352,6 @@ let memory_accesses_injections ail_prog =
   !acc
 
 
-(* Lifetime of compound literals can change if enclosed in a block via gen_single_stat_control_flow_injs, so need to check for any instances *)
-let contains_compound_literal s =
-  let rec aux_expr (A.AnnotatedExpression (_, _, _, e_)) =
-    match e_ with
-    | AilEcompound _ -> true
-    | AilEgcc_statement (_, ss) -> List.fold_left ( || ) false (List.map aux_stmt ss)
-    | AilEunion (_, _, None)
-    | AilEoffsetof _ | AilEbuiltin _ | AilEstr _ | AilEconst _ | AilEident _
-    | AilEsizeof _ | AilEalignof _ | AilEreg_load _ | AilEinvalid _
-    | AilElabel_addressGNU _ ->
-      false
-    | AilEsizeof_expr e
-    | AilErvalue e
-    | AilEunary (_, e)
-    | AilEcast (_, _, e)
-    | AilEassert e
-    | AilEunion (_, _, Some e)
-    | AilEmemberof (e, _)
-    | AilEmemberofptr (e, _)
-    | AilEannot (_, e)
-    | AilEva_start (e, _)
-    | AilEva_arg (e, _)
-    | AilEva_end e
-    | AilEprint_type e
-    | AilEbmc_assume e
-    | AilEarray_decay e
-    | AilEfunction_decay e
-    | AilEatomic e ->
-      aux_expr e
-    | AilEbinary (e1, _, e2)
-    | AilEcond (e1, None, e2)
-    | AilEva_copy (e1, e2)
-    | AilEassign (e1, e2)
-    | AilEcompoundAssign (e1, _, e2) ->
-      aux_expr e1 || aux_expr e2
-    | AilEcond (e1, Some e2, e3) -> aux_expr e1 || aux_expr e2 || aux_expr e3
-    | AilEcall (e, es) -> aux_expr e || List.fold_left ( || ) false (List.map aux_expr es)
-    | AilEgeneric (e, _, gas) ->
-      let bs =
-        List.map (function A.AilGAtype (_, _, e) | AilGAdefault e -> aux_expr e) gas
-      in
-      aux_expr e || List.fold_left ( || ) false bs
-    | AilEarray (_, _, xs) ->
-      let bs = List.map (function None -> false | Some e -> aux_expr e) xs in
-      List.fold_left ( || ) false bs
-    | AilEstruct (_, xs) ->
-      let bs = List.map (function _, None -> false | _, Some e -> aux_expr e) xs in
-      List.fold_left ( || ) false bs
-  and aux_stmt A.{ node = s_; _ } =
-    match s_ with
-    | A.(AilSdeclaration decls) ->
-      let bs =
-        List.map
-          (fun (_, e_opt) -> match e_opt with Some e -> aux_expr e | None -> false)
-          decls
-      in
-      List.fold_left ( || ) false bs
-    | AilSblock (_, ss) ->
-      let bs = List.map aux_stmt ss in
-      List.fold_left ( || ) false bs
-    | AilSif (e, s1, s2) -> aux_expr e || aux_stmt s1 || aux_stmt s2
-    | AilSwhile (e, s, _) | AilSdo (s, e, _) | AilSswitch (e, s) ->
-      aux_expr e || aux_stmt s
-    | AilScase (_, s) | AilScase_rangeGNU (_, _, s) | AilSdefault s | AilSlabel (_, s, _)
-      ->
-      aux_stmt s
-    | AilSreturn e | AilSexpr e | AilSreg_store (_, e) -> aux_expr e
-    | AilSgoto _ | AilScontinue | AilSbreak | AilSskip | AilSreturnVoid | AilSpar _
-    | AilSmarker _ | AilSasm _ ->
-      false
-  in
-  aux_stmt s
-
-
 let gen_single_stat_control_flow_injs statement =
   let gen_curly_braces_inj loc =
     [ (Utils.get_start_loc loc, [ "{" ]); (Utils.get_end_loc loc, [ "}" ]) ]
@@ -352,7 +368,7 @@ let gen_single_stat_control_flow_injs statement =
       | _ -> false
     in
     let b = is_single_stat_with_existing_inj s in
-    if b && contains_compound_literal s then
+    if b && stat_contains_compound_literal s then
       failwith
         "Cannot enclose single statement with curly braces: compound literal found in \
          statement"
