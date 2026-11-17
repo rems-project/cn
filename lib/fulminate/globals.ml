@@ -39,35 +39,7 @@ let setter filename (sym : Sym.t) (sct : Sctypes.t)
   let fsym = Sym.fresh (Cn_to_ail.setter_str filename sym) in
   let ptr_sym = Sym.fresh "ptr" in
   let ct = Sctypes.to_ctype sct in
-  let e_size_ =
-    match sct with
-    | Array (sct', len) ->
-      let ct' = Sctypes.to_ctype sct' in
-      A.AilEcall
-        ( Utils.mk_expr (AilEident (Sym.fresh "sizeof")),
-          [ Utils.mk_expr
-              (AilEbinary
-                 ( Utils.mk_expr
-                     (AilEconst
-                        (ConstantInteger
-                           (IConstant (Z.of_int (Option.get len), Decimal, None)))),
-                   Arithmetic Mul,
-                   Utils.mk_expr
-                     (AilEident
-                        (Sym.fresh
-                           (Pp.plain
-                              (CF.Pp_ail.pp_ctype ~is_human:false C.no_qualifiers ct'))))
-                 ))
-          ] )
-    | _ ->
-      A.AilEcall
-        ( Utils.mk_expr (AilEident (Sym.fresh "sizeof")),
-          [ Utils.mk_expr
-              (AilEident
-                 (Sym.fresh
-                    (Pp.plain (CF.Pp_ail.pp_ctype ~is_human:false C.no_qualifiers ct))))
-          ] )
-  in
+  let e_size_ = A.AilEsizeof (C.no_qualifiers, ct) in
   A.
     ( ( fsym,
         ( Locations.other __LOC__,
