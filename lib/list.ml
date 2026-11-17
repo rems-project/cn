@@ -91,7 +91,7 @@ let take n l =
 
 let drop n l =
   let rec aux n l =
-    match (n, l) with 0, _ -> l | _, [] -> [] | _, (_ : xs) -> aux (n - 1) xs
+    match (n, l) with 0, _ -> l | _, [] -> [] | _, _ :: xs -> aux (n - 1) xs
   in
   if n < 0 then invalid_arg "List.drop";
   aux n l
