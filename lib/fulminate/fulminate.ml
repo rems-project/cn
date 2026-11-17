@@ -220,34 +220,29 @@ let memory_accesses_injections ail_prog =
               :: (point e, [ ")" ])
               :: !acc
          | StoreOp { lvalue; aop; expr; loc } ->
+           let b, pos1 = pos_bbox (loc_of_expr lvalue) in
+           let cnum pos = (Cerb_position.to_file_lexing pos).pos_cnum in
            (match bbox [ loc_of_expr expr ] with
-            | `Other _ ->
-              (* This prettyprinter doesn not produce valid C, but it's
-                     correct for simple expressions and we use it here for
-                     simple literals *)
-              let pp_expr e = CF.Pp_utils.to_plain_string (Pp_ail.pp_expression e) in
-              let sstart, ssend = pos_bbox loc in
-              let b, _ = pos_bbox (loc_of_expr lvalue) in
-              acc
-              := (region (sstart, b) NoCursor, [ "" ])
-                 :: ( point b,
-                      [ "CN_STORE_OP("
-                        ^ pp_expr lvalue
-                        ^ ","
-                        ^ string_of_aop aop
-                        ^ ","
-                        ^ pp_expr expr
-                        ^ ")"
-                      ] )
-                 :: (region (b, ssend) NoCursor, [ "" ])
-                 :: !acc
-            | `Bbox _ ->
-              let b, pos1 = pos_bbox (loc_of_expr lvalue) in
-              let pos2, e = pos_bbox (loc_of_expr expr) in
+            | `Bbox (pos2, e) when cnum pos1 <= cnum pos2 ->
+              (* E1 op= E2 *)
               acc
               := (point b, [ "CN_STORE_OP(" ])
                  :: (region (pos1, pos2) NoCursor, [ "," ^ string_of_aop aop ^ "," ])
                  :: (point e, [ ")" ])
+                 :: !acc
+            | `Bbox _ | `Other _ ->
+              (* ++E and --E, which Cerberus desugars to E += 1 and E -= 1. The
+                 synthesized 1 has no location of its own: it is either unknown or
+                 that of the whole ++E. Replace the operator with "CN_STORE_OP(" and
+                 close the call after E, keeping E's source (and any injections
+                 inside it) in place. *)
+              (* This prettyprinter does not produce valid C, but it's correct
+                 for simple literals such as this 1 *)
+              let pp_expr e = CF.Pp_utils.to_plain_string (Pp_ail.pp_expression e) in
+              let sstart, _ = pos_bbox loc in
+              acc
+              := (region (sstart, b) NoCursor, [ "CN_STORE_OP(" ])
+                 :: (point pos1, [ "," ^ string_of_aop aop ^ "," ^ pp_expr expr ^ ")" ])
                  :: !acc)
          | Postfix { loc; op; lvalue } ->
            let op_str = match op with `Incr -> "++" | `Decr -> "--" in
