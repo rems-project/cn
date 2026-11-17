@@ -1574,11 +1574,40 @@ let check_all_bytes_specified loc bytes =
   | `True -> return ()
 
 
-let from_bytes_constraints ~(value : T.t) ~(bytes : T.t list) (ct : Sctypes.t) : T.t =
+let rec from_bytes_constraints global ~(value : T.t) ~(bytes : T.t list) (ct : Sctypes.t)
+  : T.t
+  =
   (* FIXME this hard codes big endianness but this should be switchable *)
   let here = Locations.other __LOC__ in
   match ct with
-  | Sctypes.Void | Array _ | Struct _ | Union _ | Function _ | Byte -> assert false
+  | Sctypes.Void | Array (_, None) | Function _ -> assert false
+  | Array (ict, Some n) ->
+    let per_item = List.length bytes / n in
+    let size = Memory.size_of_ctype ict in
+    and_
+      (List.init n (fun i ->
+         let bytes = List.take size (List.drop (per_item * i) bytes) in
+         let index = num_lit_ (Z.of_int i) WT.default_quantifier_bt here in
+         let value = map_get_ value index here in
+         from_bytes_constraints global ~value ~bytes ict))
+      here
+  | Byte -> eq_ (value, List.hd bytes) here
+  | Union _tag -> eq_ (value, tuple_ bytes here) here
+  | Struct tag ->
+    let open Memory in
+    let layout, _fam = Sym.Map.find tag global.Global.struct_decls in
+    and_
+      (List.filter_map
+         (fun (piece : struct_piece) ->
+            Option.map
+              (fun (member, mct) ->
+                 let member_bt = Memory.bt_of_sct mct in
+                 let bytes = List.take piece.size (List.drop piece.offset bytes) in
+                 let value = member_ ~member_bt (value, member) here in
+                 from_bytes_constraints global ~value ~bytes mct)
+              piece.member_or_padding)
+         layout)
+      here
   | Integer ity ->
     let rhs = combine_bytes here ~wrap:true ity bytes in
     eq_ (value, rhs) here
@@ -1625,13 +1654,43 @@ let from_bytes_constraints ~(value : T.t) ~(bytes : T.t list) (ct : Sctypes.t) :
     and_ [ prov_constr; eq_ (value_addr, rhs) here ] here
 
 
-let to_bytes_constraints ~(value : T.t) ~(bytes : T.t list) (ct : Sctypes.t) : T.t =
+let rec to_bytes_constraints global ~(value : T.t) ~(bytes : T.t list) (ct : Sctypes.t)
+  : T.t
+  =
   (* FIXME this hard codes big endianness but this should be switchable *)
   let here = Locations.other __LOC__ in
   let all_some = and_ (List.map (fun byte -> isSome_ byte here) bytes) here in
   let all_good = and_ (List.map (fun byte -> good_ (Byte, byte) here) bytes) here in
   match ct with
-  | Sctypes.Void | Array _ | Struct _ | Union _ | Function _ | Byte -> assert false
+  | Sctypes.Void | Array (_, None) | Function _ -> assert false
+  | Byte -> eq_ (value, List.hd bytes) here
+  | Union _tag -> eq_ (value, tuple_ bytes here) here
+  | Array (ict, Some n) ->
+    let per_item = Memory.size_of_ctype ct / n in
+    let size = Memory.size_of_ctype ict in
+    and_
+      (List.init n (fun i ->
+         let index = num_lit_ (Z.of_int i) WT.default_quantifier_bt here in
+         let value = map_get_ value index here in
+         let bytes = List.take size (List.drop (i * per_item) bytes) in
+         to_bytes_constraints global ~value ~bytes ict))
+      here
+  | Struct tag ->
+    let open Memory in
+    let pieces, _fam = Sym.Map.find tag global.Global.struct_decls in
+    and_
+      (List.filter_map
+         (fun (piece : struct_piece) ->
+            Option.map
+              (fun (member, mct) ->
+                 let size = Memory.size_of_ctype mct in
+                 let member_bt = Memory.bt_of_sct mct in
+                 let value = member_ ~member_bt (value, member) here in
+                 let bytes = List.take size (List.drop piece.offset bytes) in
+                 to_bytes_constraints global ~value ~bytes mct)
+              piece.member_or_padding)
+         pieces)
+      here
   | Integer ity ->
     let rhs = combine_bytes here ~wrap:true ity bytes in
     and_ [ all_some; all_good; eq_ (value, rhs) here ] here
@@ -2298,11 +2357,15 @@ let rec check_expr
         let@ () = add_rs loc rs in
         add_cs loc (List.map (fun t -> LC.T t) (Resource.derived_lc2 rs))
       | To_from_bytes (to_from, pred) ->
+        let@ global = get_global () in
         let@ ct, init =
           match pred.name with
           | PName _ -> fail (fun _ -> { loc; msg = Byte_conv_needs_owned })
-          | Owned (((Pointer _ | Integer _) as ct), init) -> return (ct, init)
-          | Owned (ct, _) -> fail (fun _ -> { loc; msg = Unsupported_byte_conv_ct ct })
+          | Owned (ct, init) ->
+            (match ct with
+             | Void | Array (_, None) | Function _ ->
+               fail (fun _ -> { loc; msg = Unsupported_byte_conv_ct ct })
+             | _ -> return (ct, init))
         in
         (match to_from with
          | To ->
@@ -2324,7 +2387,7 @@ let rec check_expr
                 return b
               in
               let@ bytes = ListM.mapiM do_byte (bytes_list pred.pointer ct Init loc) in
-              add_c loc (LC.T (to_bytes_constraints ~value ~bytes ct)))
+              add_c loc (LC.T (to_bytes_constraints global ~value ~bytes ct)))
          | From ->
            let get_byte re =
              let@ _, O o =
@@ -2341,7 +2404,7 @@ let rec check_expr
               let@ () = add_a value_sym value_bt (loc, lazy (Sym.pp value_sym)) in
               let@ () = add_r loc (P pred, O value) in
               let@ () = check_all_bytes_specified loc bytes in
-              add_c loc (LC.T (from_bytes_constraints ~value ~bytes ct))))
+              add_c loc (LC.T (from_bytes_constraints global ~value ~bytes ct))))
       | Have _lc ->
         fail (fun _ ->
           { loc;

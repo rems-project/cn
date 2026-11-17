@@ -214,6 +214,21 @@ module ErrorReader = struct
 end
 
 module Global = struct
+  type t = Global.t =
+    { struct_decls : Memory.struct_decls;
+      union_decls : Memory.union_decls;
+      datatypes : BaseTypes.dt_info Sym.Map.t;
+      datatype_constrs : BaseTypes.constr_info Sym.Map.t;
+      datatype_order : Sym.t list list option;
+      fun_decls :
+        (Locations.t * ArgumentTypes.ft option * Sctypes.c_concrete_sig) Sym.Map.t;
+      resource_predicates : Definition.Predicate.t Sym.Map.t;
+      resource_predicate_order : Sym.t list list option;
+      logical_functions : Definition.Function.t Sym.Map.t;
+      logical_function_order : Sym.t list list option;
+      lemmata : (Locations.t * ArgumentTypes.lemmat) Sym.Map.t
+    }
+
   include Global.Lift (ErrorReader)
 
   let empty = Global.empty
