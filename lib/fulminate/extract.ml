@@ -21,8 +21,7 @@ type loop =
   { contains_user_spec : bool;
     cond_loc : Locations.t;
     loop_loc : Locations.t;
-    invariant :
-      unit ArgumentTypes.t (* the invariant's argument types; nothing at the leaf *)
+    invariant : unit ArgumentTypes.t (* invariant, with nothing at leaf *)
   }
 
 let loop_subst subst (loop : loop) =

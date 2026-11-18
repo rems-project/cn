@@ -3879,8 +3879,7 @@ let rec cn_to_ail_loop_inv_aux
           (loop : ESE.loop)
   : loop_info
   =
-  let { ESE.contains_user_spec = _; cond_loc; loop_loc; invariant } = loop in
-  match invariant with
+  match loop.invariant with
   | AT.Computational ((sym, bt), _, at') ->
     let cn_sym = generate_sym_with_suffix ~suffix:"_addr_cn" sym in
     let subst_loop =
@@ -3898,8 +3897,8 @@ let rec cn_to_ail_loop_inv_aux
         subst_loop
     in
     let _, (cond_bs, cond_ss) = loop_info.cond in
-    { cond = (cond_loc, (cond_bs, cond_ss));
-      loop_loc;
+    { cond = (loop.cond_loc, (cond_bs, cond_ss));
+      loop_loc = loop.loop_loc;
       loop_entry = loop_info.loop_entry;
       loop_exit = ([], [])
     }
@@ -3919,8 +3918,8 @@ let rec cn_to_ail_loop_inv_aux
     in
     (* Needed so that CN invariant ghost variables are in scope for assertions in the loop body. *)
     let decls, modified_stats = Utils.separate_decls_and_assigns ss in
-    { cond = (cond_loc, (bs, modified_stats));
-      loop_loc;
+    { cond = (loop.cond_loc, (bs, modified_stats));
+      loop_loc = loop.loop_loc;
       loop_entry = (bs, decls);
       loop_exit = ([], [])
     }
@@ -3966,8 +3965,7 @@ let cn_to_ail_loop_inv
       with_loop_leak_checks
       (loop : ESE.loop)
   =
-  let { ESE.contains_user_spec; cond_loc; loop_loc; invariant = _ } = loop in
-  if contains_user_spec then (
+  if loop.contains_user_spec then (
     let loop_ownership_state = get_loop_ownership_bs_and_ss () in
     let loop_info =
       cn_to_ail_loop_inv_aux
@@ -4030,8 +4028,8 @@ let cn_to_ail_loop_inv
     let ail_gcc_stat_as_expr = A.(AilEgcc_statement ([], List.map mk_stmt stats)) in
     let ail_stat_as_expr_stat = A.(AilSexpr (mk_expr ail_gcc_stat_as_expr)) in
     Some
-      { cond = (cond_loc, (cond_bs, [ ail_stat_as_expr_stat ]));
-        loop_loc;
+      { cond = (loop.cond_loc, (cond_bs, [ ail_stat_as_expr_stat ]));
+        loop_loc = loop.loop_loc;
         loop_entry =
           ( (bump_alloc_binding :: loop_ownership_state.binding) @ loop_bs,
             bump_alloc_decl :: loop_ownership_state.decl :: loop_ss );
