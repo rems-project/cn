@@ -78,7 +78,7 @@ val generate_c_predicates
 
 val generate_c_lemmas : Cn_to_ail.env -> bool -> unit Mucore.file -> string * string
 
-val generate_ownership_functions : bool -> Cn_to_ail.SctypesSet.t -> string * string
+val generate_ownership_functions : bool -> Sctypes.t list -> string * string
 
 val generate_conversion_and_equality_functions
   :  Cn_to_ail.env ->

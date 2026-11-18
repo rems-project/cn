@@ -68,6 +68,8 @@ module SctypesSet = Set.Make (Sctypes)
 
 let ownership_sctypes : SctypesSet.t ref = ref SctypesSet.empty
 
+let owned_sctypes () = SctypesSet.elements !ownership_sctypes
+
 (* Environment read from by Fulminate translation *)
 type env =
   { filename : string; (* For accessor names *)
