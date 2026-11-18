@@ -68,6 +68,7 @@ module SctypesSet = Set.Make (Sctypes)
 
 let ownership_sctypes : SctypesSet.t ref = ref SctypesSet.empty
 
+(* Getter for ownership_sctypes *)
 let owned_sctypes () = SctypesSet.elements !ownership_sctypes
 
 (* Environment read from by Fulminate translation *)
