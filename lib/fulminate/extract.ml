@@ -17,11 +17,16 @@ let statements_free_vars statements =
   |> List.fold_left Sym.Set.union Sym.Set.empty
 
 
-(* a loop's invariant, as its argument types; nothing at the leaf *)
-type loop = bool * Locations.t * Locations.t * unit ArgumentTypes.t
+type loop =
+  { contains_user_spec : bool;
+    cond_loc : Locations.t;
+    loop_loc : Locations.t;
+    invariant :
+      unit ArgumentTypes.t (* the invariant's argument types; nothing at the leaf *)
+  }
 
-let loop_subst subst ((contains_user_spec, cond_loc, loop_loc, at) : loop) =
-  (contains_user_spec, cond_loc, loop_loc, ArgumentTypes.subst (fun _ () -> ()) subst at)
+let loop_subst subst (loop : loop) =
+  { loop with invariant = ArgumentTypes.subst (fun _ () -> ()) subst loop.invariant }
 
 
 type loops = loop list
@@ -123,7 +128,7 @@ let from_fn (file : _ Mucore.file) (fn, decl) =
                         (stmts_in_expr (ArgumentTypes.get_return at))
                     in
                     ( stmts @ in_loop,
-                      (contains_user_spec, cond_loc, loop_loc, invariant) :: loops )
+                      { contains_user_spec; cond_loc; loop_loc; invariant } :: loops )
                   | Return _ -> (stmts, loops))
                (stmts_in_expr body, [])
                (Pmap.bindings_list labels)

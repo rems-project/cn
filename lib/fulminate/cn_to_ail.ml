@@ -3168,7 +3168,7 @@ let extract_global_variables ?(prune_unused = false) (prog5 : _ Mucore.file) =
                   in
                   let from_loops =
                     loops
-                    |> List.map (fun (_, _, _, at) -> at)
+                    |> List.map (fun (loop : ESE.loop) -> loop.invariant)
                     |> List.map (AT.free_vars (fun () -> Sym.Set.empty))
                   in
                   List.fold_left
@@ -3876,16 +3876,15 @@ let rec cn_to_ail_loop_inv_aux
           stats
           loop_ownership_sym
           ~spec_mode
-          (contains_user_spec, cond_loc, loop_loc, at)
+          (loop : ESE.loop)
   : loop_info
   =
-  match at with
+  let { ESE.contains_user_spec = _; cond_loc; loop_loc; invariant } = loop in
+  match invariant with
   | AT.Computational ((sym, bt), _, at') ->
     let cn_sym = generate_sym_with_suffix ~suffix:"_addr_cn" sym in
     let subst_loop =
-      ESE.loop_subst
-        (ESE.sym_subst (sym, bt, cn_sym))
-        (contains_user_spec, cond_loc, loop_loc, at')
+      ESE.loop_subst (ESE.sym_subst (sym, bt, cn_sym)) { loop with invariant = at' }
     in
     let loop_info =
       cn_to_ail_loop_inv_aux
@@ -3965,8 +3964,9 @@ let cn_to_ail_loop_inv
       preds
       stats
       with_loop_leak_checks
-      ((contains_user_spec, cond_loc, loop_loc, _) as loop)
+      (loop : ESE.loop)
   =
+  let { ESE.contains_user_spec; cond_loc; loop_loc; invariant = _ } = loop in
   if contains_user_spec then (
     let loop_ownership_state = get_loop_ownership_bs_and_ss () in
     let loop_info =
@@ -4091,7 +4091,7 @@ let rec cn_to_ail_lat_2
            let post_free_vars = RT.free_vars post in
            let stats_free_vars = ESE.statements_free_vars stats in
            let loop_free_vars =
-             List.map (fun (_, _, _, at) -> at) loops
+             List.map (fun (loop : ESE.loop) -> loop.invariant) loops
              |> List.map (AT.free_vars (fun () -> Sym.Set.empty))
              |> List.fold_left Sym.Set.union Sym.Set.empty
            in
@@ -4519,7 +4519,7 @@ let has_cn_spec (instrumentation : Extract.instrumentation) =
       List.fold_left
         ( || )
         false
-        (List.map (fun (contains_user_spec, _, _, _) -> contains_user_spec) loops)
+        (List.map (fun (loop : Extract.loop) -> loop.contains_user_spec) loops)
     in
     let rec has_intermediate_spec_lat = function
       | LAT.Define (_, _, lat) | Resource (_, _, lat) | Constraint (_, _, lat) ->
