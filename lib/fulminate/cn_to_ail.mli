@@ -6,7 +6,9 @@ val getter_str : string -> Sym.t -> string
 
 val setter_str : string -> Sym.t -> string
 
-val ownership_sctypes : Sctypes.t list ref
+module SctypesSet : Set.S with type elt = Sctypes.t
+
+val ownership_sctypes : SctypesSet.t ref
 
 type spec_mode =
   | Pre

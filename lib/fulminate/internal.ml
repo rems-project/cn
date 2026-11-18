@@ -626,15 +626,9 @@ let generate_c_lemmas env (remove_uninterp : bool) (prog5 : unit Mucore.file) =
 
 
 let generate_ownership_functions without_ownership_checking ownership_sctypes =
-  let rec remove_duplicates ret_list = function
-    | [] -> []
-    | x :: xs ->
-      if List.mem Sctypes.equal x ret_list then
-        remove_duplicates (x :: ret_list) xs
-      else
-        x :: remove_duplicates (x :: ret_list) xs
+  let ctypes =
+    List.map Sctypes.to_ctype (Cn_to_ail.SctypesSet.elements ownership_sctypes)
   in
-  let ctypes = List.map Sctypes.to_ctype (remove_duplicates [] ownership_sctypes) in
   let deref_funs =
     List.map
       (fun ctype ->

@@ -906,7 +906,8 @@ let synthesize
         in
         if SctypesSet.equal old_scts new_scts then old_scts else expand new_scts
       in
-      List.map Sctypes.to_ctype !CtA.ownership_sctypes @ arg_types
+      List.map Sctypes.to_ctype (CtA.SctypesSet.elements !CtA.ownership_sctypes)
+      @ arg_types
       |> CtypeSet.of_list
       |> CtypeSet.to_seq
       |> List.of_seq
