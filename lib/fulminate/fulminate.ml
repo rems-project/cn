@@ -658,7 +658,7 @@ let main
     generate_conversion_and_equality_functions env sigm
   in
   let ownership_function_defs, ownership_function_decls =
-    generate_ownership_functions without_ownership_checking !Cn_to_ail.ownership_ctypes
+    generate_ownership_functions without_ownership_checking !Cn_to_ail.ownership_sctypes
   in
   let ordered_ail_tag_defs = order_ail_tag_definitions sigm.tag_definitions in
   let c_tag_defs = generate_c_tag_def_strs ordered_ail_tag_defs in

@@ -64,7 +64,7 @@ let ail_int_const n =
 
 let true_const = ail_int_const 1
 
-let ownership_ctypes = ref []
+let ownership_sctypes : Sctypes.t list ref = ref []
 
 (* Environment read from by Fulminate translation *)
 type env =
@@ -2709,7 +2709,7 @@ let cn_to_ail_resource
     let rhs, bs, ss =
       match p.name with
       | Owned (sct, _) ->
-        ownership_ctypes := Sctypes.to_ctype sct :: !ownership_ctypes;
+        ownership_sctypes := sct :: !ownership_sctypes;
         let owned_fn_name = generate_owned_fn_name ~without_ownership_checking sct in
         (* Hack with enum as sym *)
         let enum_val_get = IT (Sym enum_sym, BT.Integer, Cerb_location.unknown) in
@@ -2808,7 +2808,7 @@ let cn_to_ail_resource
     let rhs, bs, ss, opt_bs, opt_ss =
       match q.name with
       | Owned (sct, _) ->
-        ownership_ctypes := Sctypes.to_ctype sct :: !ownership_ctypes;
+        ownership_sctypes := sct :: !ownership_sctypes;
         let owned_or_deref_fn_name =
           generate_owned_fn_name ~without_ownership_checking:permission_only_bounds sct
         in
@@ -4690,7 +4690,7 @@ let cn_to_ail_assume_resource
     let rhs, bs, ss, _owned_ctype =
       match p.name with
       | Owned (sct, _) ->
-        ownership_ctypes := Sctypes.to_ctype sct :: !ownership_ctypes;
+        ownership_sctypes := sct :: !ownership_sctypes;
         let owned_fn_name =
           "assume_" ^ generate_owned_fn_name ~without_ownership_checking sct
         in
@@ -4781,7 +4781,7 @@ let cn_to_ail_assume_resource
     let rhs, bs, ss, _owned_ctype =
       match q.name with
       | Owned (sct, _) ->
-        ownership_ctypes := Sctypes.to_ctype sct :: !ownership_ctypes;
+        ownership_sctypes := sct :: !ownership_sctypes;
         let owned_fn_name =
           "assume_" ^ generate_owned_fn_name ~without_ownership_checking sct
         in

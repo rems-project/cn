@@ -625,16 +625,16 @@ let generate_c_lemmas env (remove_uninterp : bool) (prog5 : unit Mucore.file) =
   ("\n/* CN LEMMAS */\n\n" ^ doc_to_pretty_string defs_doc, doc_to_pretty_string decls_doc)
 
 
-let generate_ownership_functions without_ownership_checking ownership_ctypes =
+let generate_ownership_functions without_ownership_checking ownership_sctypes =
   let rec remove_duplicates ret_list = function
     | [] -> []
     | x :: xs ->
-      if List.mem CF.Ctype.ctypeEqual x ret_list then
+      if List.mem Sctypes.equal x ret_list then
         remove_duplicates (x :: ret_list) xs
       else
         x :: remove_duplicates (x :: ret_list) xs
   in
-  let ctypes = remove_duplicates [] ownership_ctypes in
+  let ctypes = List.map Sctypes.to_ctype (remove_duplicates [] ownership_sctypes) in
   let deref_funs =
     List.map
       (fun ctype ->

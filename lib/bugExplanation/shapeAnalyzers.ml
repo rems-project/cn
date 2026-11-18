@@ -439,7 +439,7 @@ let synthesize
         let compare a b = compare (Hashtbl.hash a) (Hashtbl.hash b)
       end)
     in
-    !CtA.ownership_ctypes
+    List.map Sctypes.to_ctype !CtA.ownership_sctypes
     |> CtypeSet.of_list
     |> CtypeSet.to_seq
     |> List.of_seq
