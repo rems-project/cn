@@ -90,6 +90,22 @@ let rec stmts_in_expr (Mucore.Expr (loc, _, _, e_)) =
   | CN_progs (_stmts_s, stmts_i) -> [ (loc, stmts_i) ]
 
 
+(* a CN statement is one per source location: Core copies a continuation into every path
+   that reaches it, so the body and the labels hold the same statement several times *)
+let rec first_per_location seen = function
+  | [] -> []
+  | ((loc, _) as stmt) :: stmts ->
+    let loc_equal x y =
+      String.equal
+        (Cerb_location.location_to_string x)
+        (Cerb_location.location_to_string y)
+    in
+    if List.mem loc_equal loc seen then
+      first_per_location seen stmts
+    else
+      stmt :: first_per_location (loc :: seen) stmts
+
+
 let from_fn (file : _ Mucore.file) (fn, decl) =
   match decl with
   | ProcDecl (fn_loc, _fn) ->
@@ -133,7 +149,7 @@ let from_fn (file : _ Mucore.file) (fn, decl) =
                (stmts_in_expr body, [])
                (Pmap.bindings_list labels)
            in
-           (rt, (stmts, loops)))
+           (rt, (first_per_location [] stmts, loops)))
         args_and_body
     in
     let trusted_flag = match trusted with Mucore.Trusted _ -> true | _ -> false in

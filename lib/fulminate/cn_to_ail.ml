@@ -4179,21 +4179,6 @@ let rec cn_to_ail_lat_2
         ([ return_cn_binding ], [ mk_stmt return_cn_decl ])
     in
     let gen_ail_statements stats =
-      let rec remove_duplicates locs stats =
-        match stats with
-        | [] -> []
-        | (loc, s) :: ss ->
-          let loc_equality x y =
-            String.equal
-              (Cerb_location.location_to_string x)
-              (Cerb_location.location_to_string y)
-          in
-          if List.mem loc_equality loc locs then
-            remove_duplicates locs ss
-          else
-            (loc, s) :: remove_duplicates (loc :: locs) ss
-      in
-      let stats = remove_duplicates [] stats in
       List.map
         (fun stat_pair ->
            cn_to_ail_statements
