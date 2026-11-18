@@ -626,10 +626,15 @@ let generate_c_lemmas env (remove_uninterp : bool) (prog5 : unit Mucore.file) =
 
 
 let generate_ownership_functions without_ownership_checking ownership_ctypes =
+  (* One function per name. Both the functions and their callers derive the name
+     from [str_of_ctype], so compare that. ([CF.Ctype.ctypeEqual] would not do: it
+     considers all pointer types equal, so it dropped e.g. the function for
+     [char **] when there was one for [char *].) *)
+  let same_fn_name ct1 ct2 = String.equal (str_of_ctype ct1) (str_of_ctype ct2) in
   let rec remove_duplicates ret_list = function
     | [] -> []
     | x :: xs ->
-      if List.mem CF.Ctype.ctypeEqual x ret_list then
+      if List.mem same_fn_name x ret_list then
         remove_duplicates (x :: ret_list) xs
       else
         x :: remove_duplicates (x :: ret_list) xs
