@@ -215,7 +215,7 @@ let line_and_column_numbers = function
   | Loc_regions ([], _) -> None
 
 
-(* loc lies within loc', by file positions (both located, in the same file) *)
+(* check if loc lies within loc' (inclusive, not strict) *)
 let is_sub_location loc loc' =
   let cnum p = (Cerb_position.to_file_lexing p).Lexing.pos_cnum in
   match (Cerb_location.bbox [ loc ], Cerb_location.bbox [ loc' ]) with

@@ -112,6 +112,7 @@ let from_fn (file : _ Mucore.file) (fn, decl) =
               holds too), so only the statements within the loop are taken from it; a
               To_inline label (a case, a named label) holds its own.  Taken with the
               invariant, a label's statements ran before every test of the condition. *)
+           (* Collect CN statements and loop invariants *)
            let stmts, loops =
              List.fold_left
                (fun (stmts, loops) (_, label) ->
