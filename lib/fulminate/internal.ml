@@ -819,26 +819,16 @@ let generate_global_assignments
 
 (* Needed for handling typedef definitions *)
 let generate_tag_definition_injs (tag_defs : CF.AilSyntax.sigma_tag_definition list) =
-  (* Check whether loc is (strictly) contained within loc' *)
-  let is_strict_sub_location (loc, loc') =
-    if Utils.from_same_file (loc, loc') then (
-      match (Utils.line_and_column_numbers loc, Utils.line_and_column_numbers loc') with
-      | None, _ | _, None -> false
-      | Some ((ls, le), (cs, ce)), Some ((ls', le'), (cs', ce')) ->
-        let not_same_line_sub_loc = ls > ls' && le < le' in
-        let same_line_sub_loc = ls == ls' && le == le' && cs > cs' && ce < ce' in
-        not_same_line_sub_loc || same_line_sub_loc)
-    else
-      false
-  in
   let tag_defs' = ref [] in
   List.iter
-    (fun ((_, (loc, _, _)) as tag_def) ->
-       let ssl =
-         List.map (fun (_, (loc', _, _)) -> is_strict_sub_location (loc, loc')) tag_defs
+    (fun ((sym, (loc, _, _)) as tag_def) ->
+       let nested =
+         List.exists
+           (fun (sym', (loc', _, _)) ->
+              (not (Sym.equal sym sym')) && Utils.is_sub_location loc loc')
+           tag_defs
        in
-       let is_strict_subloc_of_any = List.fold_left ( || ) false ssl in
-       if not is_strict_subloc_of_any then tag_defs' := tag_def :: !tag_defs')
+       if not nested then tag_defs' := tag_def :: !tag_defs')
     tag_defs;
   let all_tag_def_injs =
     List.map

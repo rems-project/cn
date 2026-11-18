@@ -3168,11 +3168,8 @@ let extract_global_variables ?(prune_unused = false) (prog5 : _ Mucore.file) =
                   in
                   let from_loops =
                     loops
-                    |> List.map (fun (_, _, _, at) -> at)
-                    |> List.map (AT.map (List.map snd))
-                    |> List.map (AT.map List.flatten)
-                    |> List.map
-                         (AT.free_vars (Cnprog.free_vars_list Cnstatement.free_vars))
+                    |> List.map (fun (loop : ESE.loop) -> loop.invariant)
+                    |> List.map (AT.free_vars (fun () -> Sym.Set.empty))
                   in
                   List.fold_left
                     Sym.Set.union
@@ -3815,7 +3812,7 @@ let rec cn_to_ail_lat_internal_loop
   | LAT.Resource ((name, (ret, _bt)), (loc, _str_opt), lat) ->
     let upd_s = generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) () in
     let pop_s = generate_cn_pop_msg_info () in
-    let free_vars_in_rest_of_inv = LAT.free_vars ESE.statements_free_vars lat in
+    let free_vars_in_rest_of_inv = LAT.free_vars (fun () -> Sym.Set.empty) lat in
     let free_vars_in_cn_stats = ESE.statements_free_vars cn_stats in
     let is_used =
       Sym.Set.mem name (Sym.Set.union free_vars_in_rest_of_inv free_vars_in_cn_stats)
@@ -3868,16 +3865,7 @@ let rec cn_to_ail_lat_internal_loop
         lat
     in
     (b1 @ b2, ss @ s2)
-  | LAT.I ss ->
-    let ail_statements =
-      List.map
-        (fun stat_pair ->
-           cn_to_ail_statements ~without_lemma_checks env ~spec_mode stat_pair)
-        ss
-    in
-    let _, bs_and_ss = List.split ail_statements in
-    let bs, ss = List.split bs_and_ss in
-    (List.concat bs, List.concat ss)
+  | LAT.I () -> ([], [])
 
 
 let rec cn_to_ail_loop_inv_aux
@@ -3888,16 +3876,14 @@ let rec cn_to_ail_loop_inv_aux
           stats
           loop_ownership_sym
           ~spec_mode
-          (contains_user_spec, cond_loc, loop_loc, at)
+          (loop : ESE.loop)
   : loop_info
   =
-  match at with
+  match loop.invariant with
   | AT.Computational ((sym, bt), _, at') ->
     let cn_sym = generate_sym_with_suffix ~suffix:"_addr_cn" sym in
     let subst_loop =
-      ESE.loop_subst
-        (ESE.sym_subst (sym, bt, cn_sym))
-        (contains_user_spec, cond_loc, loop_loc, at')
+      ESE.loop_subst (ESE.sym_subst (sym, bt, cn_sym)) { loop with invariant = at' }
     in
     let loop_info =
       cn_to_ail_loop_inv_aux
@@ -3911,8 +3897,8 @@ let rec cn_to_ail_loop_inv_aux
         subst_loop
     in
     let _, (cond_bs, cond_ss) = loop_info.cond in
-    { cond = (cond_loc, (cond_bs, cond_ss));
-      loop_loc;
+    { cond = (loop.cond_loc, (cond_bs, cond_ss));
+      loop_loc = loop.loop_loc;
       loop_entry = loop_info.loop_entry;
       loop_exit = ([], [])
     }
@@ -3932,8 +3918,8 @@ let rec cn_to_ail_loop_inv_aux
     in
     (* Needed so that CN invariant ghost variables are in scope for assertions in the loop body. *)
     let decls, modified_stats = Utils.separate_decls_and_assigns ss in
-    { cond = (cond_loc, (bs, modified_stats));
-      loop_loc;
+    { cond = (loop.cond_loc, (bs, modified_stats));
+      loop_loc = loop.loop_loc;
       loop_entry = (bs, decls);
       loop_exit = ([], [])
     }
@@ -3977,9 +3963,9 @@ let cn_to_ail_loop_inv
       preds
       stats
       with_loop_leak_checks
-      ((contains_user_spec, cond_loc, loop_loc, _) as loop)
+      (loop : ESE.loop)
   =
-  if contains_user_spec then (
+  if loop.contains_user_spec then (
     let loop_ownership_state = get_loop_ownership_bs_and_ss () in
     let loop_info =
       cn_to_ail_loop_inv_aux
@@ -4042,8 +4028,8 @@ let cn_to_ail_loop_inv
     let ail_gcc_stat_as_expr = A.(AilEgcc_statement ([], List.map mk_stmt stats)) in
     let ail_stat_as_expr_stat = A.(AilSexpr (mk_expr ail_gcc_stat_as_expr)) in
     Some
-      { cond = (cond_loc, (cond_bs, [ ail_stat_as_expr_stat ]));
-        loop_loc;
+      { cond = (loop.cond_loc, (cond_bs, [ ail_stat_as_expr_stat ]));
+        loop_loc = loop.loop_loc;
         loop_entry =
           ( (bump_alloc_binding :: loop_ownership_state.binding) @ loop_bs,
             bump_alloc_decl :: loop_ownership_state.decl :: loop_ss );
@@ -4103,8 +4089,8 @@ let rec cn_to_ail_lat_2
            let post_free_vars = RT.free_vars post in
            let stats_free_vars = ESE.statements_free_vars stats in
            let loop_free_vars =
-             List.map (fun (_, _, _, at) -> at) loops
-             |> List.map (AT.free_vars ESE.statements_free_vars)
+             List.map (fun (loop : ESE.loop) -> loop.invariant) loops
+             |> List.map (AT.free_vars (fun () -> Sym.Set.empty))
              |> List.fold_left Sym.Set.union Sym.Set.empty
            in
            List.fold_left
@@ -4531,7 +4517,7 @@ let has_cn_spec (instrumentation : Extract.instrumentation) =
       List.fold_left
         ( || )
         false
-        (List.map (fun (contains_user_spec, _, _, _) -> contains_user_spec) loops)
+        (List.map (fun (loop : Extract.loop) -> loop.contains_user_spec) loops)
     in
     let rec has_intermediate_spec_lat = function
       | LAT.Define (_, _, lat) | Resource (_, _, lat) | Constraint (_, _, lat) ->

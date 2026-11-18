@@ -119,11 +119,7 @@ let add_records_to_map_from_instrumentation (i : Extract.instrumentation) =
     let rt, (stmts, loops) = aux_at instr in
     aux_rt rt;
     List.iter add_records_to_map_from_cnprogs stmts;
-    List.iter
-      (fun (_, _, _, loop_at) ->
-         let loop_stmts = aux_at loop_at in
-         List.iter add_records_to_map_from_cnprogs loop_stmts)
-      loops
+    List.iter (fun (loop : Extract.loop) -> aux_at loop.invariant) loops
 
 
 let rec populate ?cn_sym bt =

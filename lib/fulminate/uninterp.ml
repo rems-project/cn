@@ -249,11 +249,10 @@ let remove_uninterp_rest_of_spec u_vars (post, (stats, loops)) =
   let new_stats = remove_uninterp_statements u_vars stats in
   let new_loops =
     List.map
-      (fun (contains_user_spec, cond_loc, loop_loc, at) ->
-         ( contains_user_spec,
-           cond_loc,
-           loop_loc,
-           remove_uninterp_at u_vars remove_uninterp_statements at ))
+      (fun (loop : Extract.loop) ->
+         { loop with
+           invariant = remove_uninterp_at u_vars (fun _ () -> ()) loop.invariant
+         })
       loops
   in
   (new_post, (new_stats, new_loops))

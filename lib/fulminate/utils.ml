@@ -215,6 +215,17 @@ let line_and_column_numbers = function
   | Loc_regions ([], _) -> None
 
 
+(* check if loc lies within loc' (inclusive, not strict) *)
+let is_sub_location loc loc' =
+  let cnum p = (Cerb_position.to_file_lexing p).Lexing.pos_cnum in
+  match (Cerb_location.bbox [ loc ], Cerb_location.bbox [ loc' ]) with
+  | `Bbox (b, e), `Bbox (b', e') ->
+    String.equal (Cerb_position.file b) (Cerb_position.file b')
+    && cnum b >= cnum b'
+    && cnum e <= cnum e'
+  | _ -> false
+
+
 let from_same_file = function
   | Cerb_location.Loc_unknown, _ | Loc_other _, _ | Loc_regions ([], _), _ -> false
   | Loc_point pos, Cerb_location.Loc_point pos'

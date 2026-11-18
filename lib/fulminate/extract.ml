@@ -17,10 +17,15 @@ let statements_free_vars statements =
   |> List.fold_left Sym.Set.union Sym.Set.empty
 
 
-type loop = bool * Locations.t * Locations.t * statements ArgumentTypes.t
+type loop =
+  { contains_user_spec : bool;
+    cond_loc : Locations.t;
+    loop_loc : Locations.t;
+    invariant : unit ArgumentTypes.t (* invariant, with nothing at leaf *)
+  }
 
-let loop_subst subst ((contains_user_spec, cond_loc, loop_loc, at) : loop) =
-  (contains_user_spec, cond_loc, loop_loc, ArgumentTypes.subst statements_subst subst at)
+let loop_subst subst (loop : loop) =
+  { loop with invariant = ArgumentTypes.subst (fun _ () -> ()) subst loop.invariant }
 
 
 type loops = loop list
@@ -85,19 +90,6 @@ let rec stmts_in_expr (Mucore.Expr (loc, _, _, e_)) =
   | CN_progs (_stmts_s, stmts_i) -> [ (loc, stmts_i) ]
 
 
-let from_loop ((_label_sym : Sym.t), (label_def : _ label_def)) : loop option =
-  match label_def with
-  | To_inline _ | Return _ -> None
-  | Loop
-      ( _loc,
-        label_args_and_body,
-        _annots,
-        `Aux_info (loop_condition_loc, loop_loc, contains_user_spec) ) ->
-    let label_args_and_body = Core_to_mucore.at_of_arguments Fun.id label_args_and_body in
-    let label_args_and_statements = ArgumentTypes.map stmts_in_expr label_args_and_body in
-    Some (contains_user_spec, loop_condition_loc, loop_loc, label_args_and_statements)
-
-
 let from_fn (file : _ Mucore.file) (fn, decl) =
   match decl with
   | ProcDecl (fn_loc, _fn) ->
@@ -114,8 +106,26 @@ let from_fn (file : _ Mucore.file) (fn, decl) =
     let internal =
       ArgumentTypes.map
         (fun (body, labels, rt) ->
-           let stmts = stmts_in_expr body in
-           let loops = List.filter_map from_loop (Pmap.bindings_list labels) in
+           (* Collect CN statements and loop invariants *)
+           let stmts, loops =
+             List.fold_left
+               (fun (stmts, loops) (_, label) ->
+                  match label with
+                  | To_inline (_, _, _, _, body) ->
+                    (stmts @ stmts_in_expr body, loops) (* Collect CN statements *)
+                  | Loop (_, args, _, `Aux_info (cond_loc, loop_loc, contains_user_spec))
+                    ->
+                    let at = Core_to_mucore.at_of_arguments Fun.id args in
+                    (* Separate loop invariant from CN statements associated with Loop *)
+                    let invariant = ArgumentTypes.map (fun _ -> ()) at in
+                    ( stmts @ stmts_in_expr (ArgumentTypes.get_return at),
+                      { contains_user_spec; cond_loc; loop_loc; invariant } :: loops )
+                  | Return _ ->
+                    (* Nothing to collect *)
+                    (stmts, loops))
+               (stmts_in_expr body, [])
+               (Pmap.bindings_list labels)
+           in
            (rt, (stmts, loops)))
         args_and_body
     in
