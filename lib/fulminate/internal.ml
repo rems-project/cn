@@ -819,7 +819,6 @@ let generate_global_assignments
 
 (* Needed for handling typedef definitions *)
 let generate_tag_definition_injs (tag_defs : CF.AilSyntax.sigma_tag_definition list) =
-  (* a definition nested in another's is covered by the enclosing one's injection *)
   let tag_defs' = ref [] in
   List.iter
     (fun ((sym, (loc, _, _)) as tag_def) ->
