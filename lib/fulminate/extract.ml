@@ -17,10 +17,11 @@ let statements_free_vars statements =
   |> List.fold_left Sym.Set.union Sym.Set.empty
 
 
-type loop = bool * Locations.t * Locations.t * statements ArgumentTypes.t
+(* a loop's invariant, as its argument types; nothing at the leaf *)
+type loop = bool * Locations.t * Locations.t * unit ArgumentTypes.t
 
 let loop_subst subst ((contains_user_spec, cond_loc, loop_loc, at) : loop) =
-  (contains_user_spec, cond_loc, loop_loc, ArgumentTypes.subst statements_subst subst at)
+  (contains_user_spec, cond_loc, loop_loc, ArgumentTypes.subst (fun _ () -> ()) subst at)
 
 
 type loops = loop list
@@ -115,7 +116,7 @@ let from_fn (file : _ Mucore.file) (fn, decl) =
                   | Loop (_, args, _, `Aux_info (cond_loc, loop_loc, contains_user_spec))
                     ->
                     let at = Core_to_mucore.at_of_arguments Fun.id args in
-                    let invariant = ArgumentTypes.map (fun _ -> []) at in
+                    let invariant = ArgumentTypes.map (fun _ -> ()) at in
                     let in_loop =
                       List.filter
                         (fun (loc, _) -> Utils.is_sub_location loc loop_loc)

@@ -3169,10 +3169,7 @@ let extract_global_variables ?(prune_unused = false) (prog5 : _ Mucore.file) =
                   let from_loops =
                     loops
                     |> List.map (fun (_, _, _, at) -> at)
-                    |> List.map (AT.map (List.map snd))
-                    |> List.map (AT.map List.flatten)
-                    |> List.map
-                         (AT.free_vars (Cnprog.free_vars_list Cnstatement.free_vars))
+                    |> List.map (AT.free_vars (fun () -> Sym.Set.empty))
                   in
                   List.fold_left
                     Sym.Set.union
@@ -3815,7 +3812,7 @@ let rec cn_to_ail_lat_internal_loop
   | LAT.Resource ((name, (ret, _bt)), (loc, _str_opt), lat) ->
     let upd_s = generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) () in
     let pop_s = generate_cn_pop_msg_info () in
-    let free_vars_in_rest_of_inv = LAT.free_vars ESE.statements_free_vars lat in
+    let free_vars_in_rest_of_inv = LAT.free_vars (fun () -> Sym.Set.empty) lat in
     let free_vars_in_cn_stats = ESE.statements_free_vars cn_stats in
     let is_used =
       Sym.Set.mem name (Sym.Set.union free_vars_in_rest_of_inv free_vars_in_cn_stats)
@@ -3868,16 +3865,7 @@ let rec cn_to_ail_lat_internal_loop
         lat
     in
     (b1 @ b2, ss @ s2)
-  | LAT.I ss ->
-    let ail_statements =
-      List.map
-        (fun stat_pair ->
-           cn_to_ail_statements ~without_lemma_checks env ~spec_mode stat_pair)
-        ss
-    in
-    let _, bs_and_ss = List.split ail_statements in
-    let bs, ss = List.split bs_and_ss in
-    (List.concat bs, List.concat ss)
+  | LAT.I () -> ([], [])
 
 
 let rec cn_to_ail_loop_inv_aux
@@ -4104,7 +4092,7 @@ let rec cn_to_ail_lat_2
            let stats_free_vars = ESE.statements_free_vars stats in
            let loop_free_vars =
              List.map (fun (_, _, _, at) -> at) loops
-             |> List.map (AT.free_vars ESE.statements_free_vars)
+             |> List.map (AT.free_vars (fun () -> Sym.Set.empty))
              |> List.fold_left Sym.Set.union Sym.Set.empty
            in
            List.fold_left

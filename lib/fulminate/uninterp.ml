@@ -253,7 +253,7 @@ let remove_uninterp_rest_of_spec u_vars (post, (stats, loops)) =
          ( contains_user_spec,
            cond_loc,
            loop_loc,
-           remove_uninterp_at u_vars remove_uninterp_statements at ))
+           remove_uninterp_at u_vars (fun _ () -> ()) at ))
       loops
   in
   (new_post, (new_stats, new_loops))

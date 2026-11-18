@@ -4,8 +4,9 @@ type statements = statement list
 
 val statements_free_vars : statements -> Sym.Set.t
 
-type loop = bool * Locations.t * Locations.t * statements ArgumentTypes.t
-(* first location is for the loop condition; second is for the entire loop *)
+type loop = bool * Locations.t * Locations.t * unit ArgumentTypes.t
+(* first location is for the loop condition; second is for the entire loop; the argument
+   types are the invariant *)
 
 type loops = loop list
 
