@@ -124,10 +124,10 @@ let from_fn (file : _ Mucore.file) (fn, decl) =
         (fun (body, labels, rt) ->
            (* the function's CN statements and its loops' invariants.  The body holds the
               statements outside loops and labels; a loop's label holds its invariant around
-              the loop body, and after it a copy of what follows the loop (which the body
-              holds too), so only the statements within the loop are taken from it; a
-              To_inline label (a case, a named label) holds its own.  Taken with the
-              invariant, a label's statements ran before every test of the condition. *)
+              the loop body (and after it a copy of what follows the loop, which the body
+              holds too); a To_inline label (a case, a named label) holds its own.  Taken
+              with the invariant, a label's statements ran before every test of the
+              condition. *)
            (* Collect CN statements and loop invariants *)
            let stmts, loops =
              List.fold_left
@@ -138,12 +138,7 @@ let from_fn (file : _ Mucore.file) (fn, decl) =
                     ->
                     let at = Core_to_mucore.at_of_arguments Fun.id args in
                     let invariant = ArgumentTypes.map (fun _ -> ()) at in
-                    let in_loop =
-                      List.filter
-                        (fun (loc, _) -> Utils.is_sub_location loc loop_loc)
-                        (stmts_in_expr (ArgumentTypes.get_return at))
-                    in
-                    ( stmts @ in_loop,
+                    ( stmts @ stmts_in_expr (ArgumentTypes.get_return at),
                       { contains_user_spec; cond_loc; loop_loc; invariant } :: loops )
                   | Return _ -> (stmts, loops))
                (stmts_in_expr body, [])
