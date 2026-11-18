@@ -119,7 +119,6 @@ let add_records_to_map_from_instrumentation (i : Extract.instrumentation) =
     let rt, (stmts, loops) = aux_at instr in
     aux_rt rt;
     List.iter add_records_to_map_from_cnprogs stmts;
-    (* a loop's CN statements are among the function's; its invariant is walked for records *)
     List.iter (fun (loop : Extract.loop) -> aux_at loop.invariant) loops
 
 
