@@ -1,0 +1,6 @@
+return code: 0
+[1/5]: while_single -- pass
+[2/5]: for_single -- pass
+[3/5]: while_continue -- pass
+[4/5]: do_return -- pass
+[5/5]: do_break -- pass
