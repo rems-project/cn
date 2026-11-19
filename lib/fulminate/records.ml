@@ -198,13 +198,17 @@ let generate_c_record_funs (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigm
   let record_map_get_functions =
     List.concat (List.map Cn_to_ail.generate_record_map_get cn_record_info)
   in
+  let record_map_set_functions =
+    List.concat (List.map Cn_to_ail.generate_record_map_set cn_record_info)
+  in
   let eq_decls, eq_defs = List.split record_equality_functions in
   let default_decls, default_defs = List.split record_default_functions in
   let mapget_decls, mapget_defs = List.split record_map_get_functions in
+  let mapset_decls, mapset_defs = List.split record_map_set_functions in
   let modified_prog1 : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma =
     { sigm with
-      declarations = eq_decls @ default_decls @ mapget_decls;
-      function_definitions = eq_defs @ default_defs @ mapget_defs
+      declarations = eq_decls @ default_decls @ mapget_decls @ mapset_decls;
+      function_definitions = eq_defs @ default_defs @ mapget_defs @ mapset_defs
     }
   in
   let fun_doc =

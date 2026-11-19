@@ -227,11 +227,11 @@ cn_map* cn_map_deep_copy(cn_map* m1);
 cn_bool* cn_map_equality(
     cn_map* m1, cn_map* m2, cn_bool*(value_equality_fun)(void*, void*));
 
-#define convert_to_cn_map(c_ptr, cntype_conversion_fn, num_elements)                     \
+#define convert_to_cn_map(c_ptr, cntype, num_elements)                                   \
   ({                                                                                     \
     cn_map* m = map_create();                                                            \
     for (int i = 0; i < num_elements; i++) {                                             \
-      cn_map_set(m, convert_to_cn_integer(i), cntype_conversion_fn((c_ptr)[i]));         \
+      cn_map_set_##cntype(m, convert_to_cn_integer(i), convert_to_##cntype((c_ptr)[i])); \
     }                                                                                    \
     m;                                                                                   \
   })

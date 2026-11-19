@@ -507,11 +507,10 @@ let wrap_with_convert ?sct ~convert_from ail_expr_ bt =
     let args =
       match bt with
       | BT.Map (_bt1, bt2) ->
-        let cntype_conversion_fn_str_opt = conversion_str_function bt2 in
-        let cntype_conversion_fn_str =
-          match cntype_conversion_fn_str_opt with
+        let cntype_str =
+          match get_underscored_typedef_string_from_bt bt2 with
           | Some str -> str
-          | None -> failwith (__LOC__ ^ ": No conversion function for map values")
+          | None -> failwith (__LOC__ ^ ": No CN type name for map values")
         in
         let num_elements' =
           match sct with
@@ -523,11 +522,7 @@ let wrap_with_convert ?sct ~convert_from ail_expr_ bt =
             AilEconst
               (ConstantInteger (IConstant (Z.of_int num_elements', Decimal, None))))
         in
-        A.
-          [ ail_expr_;
-            AilEident (Sym.fresh cntype_conversion_fn_str);
-            converted_num_elements
-          ]
+        A.[ ail_expr_; AilEident (Sym.fresh cntype_str); converted_num_elements ]
       | _ -> [ ail_expr_ ]
     in
     A.(
@@ -1941,8 +1936,51 @@ let generate_datatype_equality_function (env : env) (cn_datatype : _ cn_datatype
   [ (decl, def) ]
 
 
+(* Map set function for CN structs, records and datatypes, which are all C structs in the output *)
+let generate_map_set sym =
+  let ctype_str = "struct_" ^ Sym.pp_string sym in
+  let fn_sym = Sym.fresh ("cn_map_set_" ^ ctype_str) in
+  let m_sym = Sym.fresh "m" in
+  let key_sym = Sym.fresh "key" in
+  let value_sym = Sym.fresh "value" in
+  let map_ctype = bt_to_ail_ctype (BT.Map (Integer, Struct sym)) in
+  let value_ctype = mk_ctype C.(Pointer (C.no_qualifiers, mk_ctype (Struct sym))) in
+  let param_types =
+    List.map
+      (fun ctype -> (C.no_qualifiers, ctype, false))
+      [ map_ctype; bt_to_ail_ctype BT.Integer; value_ctype ]
+  in
+  let set_fcall =
+    A.(
+      AilEcall
+        ( mk_expr (AilEident (Sym.fresh "cn_map_set")),
+          List.map (fun sym -> mk_expr (AilEident sym)) [ m_sym; key_sym; value_sym ] ))
+  in
+  let decl =
+    ( fn_sym,
+      ( Cerb_location.unknown,
+        empty_attributes,
+        A.(
+          Decl_function
+            (false, (C.no_qualifiers, map_ctype), param_types, false, false, false)) ) )
+  in
+  let def =
+    ( fn_sym,
+      ( Cerb_location.unknown,
+        0,
+        empty_attributes,
+        [ m_sym; key_sym; value_sym ],
+        mk_stmt A.(AilSblock ([], [ mk_stmt (AilSreturn (mk_expr set_fcall)) ])) ) )
+  in
+  [ (decl, def) ]
+
+
 let generate_datatype_map_get (cn_datatype : _ cn_datatype) =
   generate_map_get cn_datatype.cn_dt_name
+
+
+let generate_datatype_map_set (cn_datatype : _ cn_datatype) =
+  generate_map_set cn_datatype.cn_dt_name
 
 
 let generate_datatype_default_function (cn_datatype : _ cn_datatype) =
@@ -2253,6 +2291,16 @@ let generate_struct_map_get ((sym, (_loc, _attrs, tag_def)) : A.sigma_tag_defini
   | C.UnionDef _ -> []
 
 
+let generate_struct_map_set ((sym, (_loc, _attrs, tag_def)) : A.sigma_tag_definition)
+  : (A.sigma_declaration * CF.GenTypes.genTypeCategory A.sigma_function_definition) list
+  =
+  match tag_def with
+  | C.StructDef _ ->
+    let cn_sym = generate_sym_with_suffix ~suffix:"_cn" sym in
+    generate_map_set cn_sym
+  | C.UnionDef _ -> []
+
+
 let transform_if_union (_bt, sct) ail_expr =
   let is_union = match sct with Sctypes.Union _ -> true | _ -> false in
   if !experimental_unions && is_union then (
@@ -2551,6 +2599,8 @@ let generate_record_default_function _dts (sym, (members : BT.member_types))
 
 
 let generate_record_map_get (sym, _) = generate_map_get sym
+
+let generate_record_map_set (sym, _) = generate_map_set sym
 
 let cn_to_ail_struct ((sym, (loc, attrs, tag_def)) : A.sigma_tag_definition)
   : A.sigma_tag_definition list
