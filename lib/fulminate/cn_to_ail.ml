@@ -475,6 +475,19 @@ let get_underscored_typedef_string_from_bt ?(is_record = false) bt =
      | _ -> None)
 
 
+(* The runtime's scalar CN types have monomorphised map and ghost-frame helpers *)
+let is_scalar bt =
+  match bt with
+  | BT.Bool | BT.Integer | BT.Bits _ | BT.Loc _ | BT.Alloc_id -> true
+  | _ -> false
+
+
+let map_set_fn_str bt =
+  match get_underscored_typedef_string_from_bt bt with
+  | Some str when is_scalar bt -> "cn_map_set_" ^ str
+  | _ -> "cn_map_set"
+
+
 let get_conversion_to_fn_str (bt : BT.t) : string option =
   let open Option in
   let@ ty_str = get_underscored_typedef_string_from_bt bt in
@@ -498,11 +511,10 @@ let wrap_with_convert ?sct ~convert_from ail_expr_ bt =
     let args =
       match bt with
       | BT.Map (_bt1, bt2) ->
-        let cntype_conversion_fn_str_opt = conversion_str_function bt2 in
-        let cntype_conversion_fn_str =
-          match cntype_conversion_fn_str_opt with
+        let cntype_str =
+          match get_underscored_typedef_string_from_bt bt2 with
           | Some str -> str
-          | None -> failwith (__LOC__ ^ ": No conversion function for map values")
+          | None -> failwith (__LOC__ ^ ": No CN type name for map values")
         in
         let num_elements' =
           match sct with
@@ -514,11 +526,7 @@ let wrap_with_convert ?sct ~convert_from ail_expr_ bt =
             AilEconst
               (ConstantInteger (IConstant (Z.of_int num_elements', Decimal, None))))
         in
-        A.
-          [ ail_expr_;
-            AilEident (Sym.fresh cntype_conversion_fn_str);
-            converted_num_elements
-          ]
+        A.[ ail_expr_; AilEident (Sym.fresh cntype_str); converted_num_elements ]
       | _ -> [ ail_expr_ ]
     in
     A.(
@@ -1344,7 +1352,7 @@ let rec cn_to_ail_expr_aux
     let map_set_fcall =
       A.(
         AilEcall
-          ( mk_expr (AilEident (Sym.fresh "cn_map_set")),
+          ( mk_expr (AilEident (Sym.fresh (map_set_fn_str (TN.get_bt value)))),
             [ mk_expr A.(AilEident new_map_sym); e2; e3 ] ))
     in
     dest
@@ -1947,9 +1955,51 @@ let generate_datatype_equality_function (env : env) (cn_datatype : _ cn_datatype
   [ (decl, def) ]
 
 
+(* Map set function for CN structs, records and datatypes, which are all C structs in the output *)
+let generate_map_set sym =
+  let ctype_str = "struct_" ^ Sym.pp_string sym in
+  let fn_sym = Sym.fresh ("cn_map_set_" ^ ctype_str) in
+  let m_sym = Sym.fresh "m" in
+  let key_sym = Sym.fresh "key" in
+  let value_sym = Sym.fresh "value" in
+  let map_ctype = bt_to_ail_ctype (BT.Map (Integer, Struct sym)) in
+  let value_ctype = mk_ctype C.(Pointer (C.no_qualifiers, mk_ctype (Struct sym))) in
+  let param_types =
+    List.map
+      (fun ctype -> (C.no_qualifiers, ctype, false))
+      [ map_ctype; bt_to_ail_ctype BT.Integer; value_ctype ]
+  in
+  let set_fcall =
+    A.(
+      AilEcall
+        ( mk_expr (AilEident (Sym.fresh "cn_map_set")),
+          List.map (fun sym -> mk_expr (AilEident sym)) [ m_sym; key_sym; value_sym ] ))
+  in
+  let decl =
+    ( fn_sym,
+      ( Cerb_location.unknown,
+        empty_attributes,
+        A.(
+          Decl_function
+            (false, (C.no_qualifiers, map_ctype), param_types, false, false, false)) ) )
+  in
+  let def =
+    ( fn_sym,
+      ( Cerb_location.unknown,
+        0,
+        empty_attributes,
+        [ m_sym; key_sym; value_sym ],
+        mk_stmt A.(AilSblock ([], [ mk_stmt (AilSreturn (mk_expr set_fcall)) ])) ) )
+  in
+  [ (decl, def) ]
+
+
 let generate_datatype_map_get (cn_datatype : _ cn_datatype) =
-  let cn_sym = cn_datatype.cn_dt_name in
-  generate_map_get cn_sym
+  generate_map_get cn_datatype.cn_dt_name
+
+
+let generate_datatype_map_set (cn_datatype : _ cn_datatype) =
+  generate_map_set cn_datatype.cn_dt_name
 
 
 let generate_datatype_default_function (cn_datatype : _ cn_datatype) =
@@ -2260,6 +2310,16 @@ let generate_struct_map_get ((sym, (_loc, _attrs, tag_def)) : A.sigma_tag_defini
   | C.UnionDef _ -> []
 
 
+let generate_struct_map_set ((sym, (_loc, _attrs, tag_def)) : A.sigma_tag_definition)
+  : (A.sigma_declaration * CF.GenTypes.genTypeCategory A.sigma_function_definition) list
+  =
+  match tag_def with
+  | C.StructDef _ ->
+    let cn_sym = generate_sym_with_suffix ~suffix:"_cn" sym in
+    generate_map_set cn_sym
+  | C.UnionDef _ -> []
+
+
 let transform_if_union (_bt, sct) ail_expr =
   let is_union = match sct with Sctypes.Union _ -> true | _ -> false in
   if !experimental_unions && is_union then (
@@ -2559,6 +2619,8 @@ let generate_record_default_function _dts (sym, (members : BT.member_types))
 
 let generate_record_map_get (sym, _) = generate_map_get sym
 
+let generate_record_map_set (sym, _) = generate_map_set sym
+
 let cn_to_ail_struct ((sym, (loc, attrs, tag_def)) : A.sigma_tag_definition)
   : A.sigma_tag_definition list
   =
@@ -2813,7 +2875,7 @@ let cn_to_ail_resource
     let start_assign = A.(AilSdeclaration [ (i_sym, Some e_start) ]) in
     let end_binding = create_binding end_sym cn_integer_ptr_ctype in
     let end_assign = A.(AilSdeclaration [ (end_sym, Some e_end) ]) in
-    let return_ctype, _return_bt = calculate_resource_return_type preds loc q.name in
+    let return_ctype, return_bt = calculate_resource_return_type preds loc q.name in
     (* Translation of q.pointer *)
     let i_it = IT (Sym i_sym, i_bt, Cerb_location.unknown) in
     let value_it =
@@ -3038,7 +3100,7 @@ let cn_to_ail_resource
             let map_set_expr_ =
               A.(
                 AilEcall
-                  ( mk_expr (AilEident (Sym.fresh "cn_map_set")),
+                  ( mk_expr (AilEident (Sym.fresh (map_set_fn_str return_bt))),
                     List.map mk_expr [ AilEident sym; i_expr ] @ [ rhs ] ))
             in
             let loop_body_bs, loop_body_ss =
@@ -3686,10 +3748,16 @@ let rec cn_to_ail_cnprog_ghost_arg env ~spec_mode i = function
     let upd_s = generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) () in
     let pop_s = generate_cn_pop_msg_info () in
     let bs, ss, e = cn_to_ail_expr env ~spec_mode ghost_it PassBack in
+    let bt = TN.get_bt ghost_it in
+    let add_fn_str =
+      match get_underscored_typedef_string_from_bt bt with
+      | Some str when is_scalar bt -> "add_" ^ str ^ "_arg"
+      | _ -> "add_arg_to_ghost_frame"
+    in
     let add_arg_to_ghost_frame_call =
       mk_expr
         (AilEcall
-           ( mk_expr (AilEident (Sym.fresh "add_arg_to_ghost_frame")),
+           ( mk_expr (AilEident (Sym.fresh add_fn_str)),
              [ mk_expr
                  (AilEconst (ConstantInteger (IConstant (Z.of_int i, Decimal, None))));
                e
@@ -4319,17 +4387,23 @@ let rec cn_to_ail_pre_post_aux
         let cn_ctype = bt_to_ail_ctype bt in
         let binding = create_binding cn_sym cn_ctype in
         let gen_load_arg_from_ghost_frame cn_ctype ghost_idx =
-          A.AilEcast
-            ( C.no_qualifiers,
-              cn_ctype,
-              mk_expr
-                (AilEcall
-                   ( mk_expr (AilEident (Sym.fresh "load_arg_from_ghost_frame")),
-                     [ mk_expr
-                         (AilEconst
-                            (ConstantInteger
-                               (IConstant (Z.of_int ghost_idx, Decimal, None))))
-                     ] )) )
+          let idx_expr =
+            mk_expr
+              (AilEconst (ConstantInteger (IConstant (Z.of_int ghost_idx, Decimal, None))))
+          in
+          match get_underscored_typedef_string_from_bt bt with
+          | Some str when is_scalar bt ->
+            A.AilEcall
+              ( mk_expr (AilEident (Sym.fresh ("load_" ^ str ^ "_arg"))),
+                [ idx_expr ] )
+          | _ ->
+            A.AilEcast
+              ( C.no_qualifiers,
+                cn_ctype,
+                mk_expr
+                  (AilEcall
+                     ( mk_expr (AilEident (Sym.fresh "load_arg_from_ghost_frame")),
+                       [ idx_expr ] )) )
         in
         let rhs = gen_load_arg_from_ghost_frame cn_ctype ghost_idx in
         let decl = A.(AilSdeclaration [ (cn_sym, Some (mk_expr rhs)) ]) in
@@ -4797,7 +4871,7 @@ let cn_to_ail_assume_resource
     let start_assign = A.(AilSdeclaration [ (i_sym, Some e_start) ]) in
     let end_binding = create_binding end_sym cn_integer_ptr_ctype in
     let end_assign = A.(AilSdeclaration [ (end_sym, Some e_end) ]) in
-    let return_ctype, _return_bt = calculate_return_type q.name in
+    let return_ctype, return_bt = calculate_return_type q.name in
     (* Translation of q.pointer *)
     let i_it = IT (Sym i_sym, i_bt, Cerb_location.unknown) in
     let value_it =
@@ -4918,7 +4992,7 @@ let cn_to_ail_assume_resource
         let map_set_expr_ =
           A.(
             AilEcall
-              ( mk_expr (AilEident (Sym.fresh "cn_map_set")),
+              ( mk_expr (AilEident (Sym.fresh (map_set_fn_str return_bt))),
                 List.map mk_expr [ AilEident sym; i_expr ] @ [ rhs ] ))
         in
         let if_stat =
