@@ -669,22 +669,35 @@ let gen_bool_while_loop
            (AilEcall (mk_expr (AilEident (Sym.fresh incr_func_name)), [ mk_expr incr_var ]))))
   in
   let while_cond_with_conversion = wrap_with_convert_from_cn_bool while_cond in
+  let bump_alloc_binding, bump_alloc_start_stat_, bump_alloc_end_stat_ =
+    gen_bump_alloc_bs_and_ss ()
+  in
   let loop_body =
     match if_cond_opt with
     | Some if_cond_expr ->
       List.map
         mk_stmt
-        [ A.(
+        [ bump_alloc_start_stat_;
+          A.(
             AilSif
               ( wrap_with_convert_from_cn_bool if_cond_expr,
                 mk_stmt (AilSblock ([], List.map mk_stmt (ss @ [ inplace_and_stat ]))),
                 mk_stmt (AilSblock ([], [ mk_stmt AilSskip ])) ));
+          bump_alloc_end_stat_;
           incr_stat
         ]
-    | None -> List.map mk_stmt (ss @ [ inplace_and_stat; incr_stat ])
+    | None ->
+      List.map
+        mk_stmt
+        ((bump_alloc_start_stat_ :: ss)
+         @ [ inplace_and_stat; bump_alloc_end_stat_; incr_stat ])
   in
   let while_loop =
-    A.(AilSwhile (while_cond_with_conversion, mk_stmt (AilSblock (bs, loop_body)), 0))
+    A.(
+      AilSwhile
+        ( while_cond_with_conversion,
+          mk_stmt (AilSblock (bump_alloc_binding :: bs, loop_body)),
+          0 ))
   in
   let block =
     A.(
