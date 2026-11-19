@@ -469,6 +469,15 @@ static inline int ipow(int base, int exp) {
 cn_map* default_cn_map(void);
 cn_bool* default_cn_bool(void);
 
+/* Ghost arguments */
+void init_ghost_frame_stack(void);
+void push_ghost_frame(int tag, int size);
+void add_arg_to_ghost_frame(int i, void* ptr_to_ghost_arg);
+void* load_arg_from_ghost_frame(int i);
+int top_ghost_frame_tag(void);
+void pop_ghost_frame(void);
+void free_ghost_frame_stack(void);
+
 #define CN_GEN_MAP_GET(CNTYPE)                                                           \
   static inline void* cn_map_get_##CNTYPE(cn_map* m, cn_integer* key) {                  \
     int64_t* key_ptr = (int64_t*)fulm_malloc(sizeof(int64_t), &fulm_default_alloc);      \
@@ -479,6 +488,19 @@ cn_bool* default_cn_bool(void);
       return (void*)default_##CNTYPE();                                                  \
     }                                                                                    \
     return res;                                                                          \
+  }
+
+#define CN_GEN_MAP_SET(CNTYPE)                                                           \
+  static inline cn_map* cn_map_set_##CNTYPE(cn_map* m, cn_integer* key, CNTYPE* value) { \
+    return cn_map_set(m, key, value);                                                    \
+  }
+
+#define CN_GEN_GHOST_ARG(CNTYPE)                                                         \
+  static inline void add_##CNTYPE##_arg(int i, CNTYPE* value) {                          \
+    add_arg_to_ghost_frame(i, value);                                                    \
+  }                                                                                      \
+  static inline CNTYPE* load_##CNTYPE##_arg(int i) {                                     \
+    return (CNTYPE*)load_arg_from_ghost_frame(i);                                        \
   }
 
 #define CN_GEN_CASTS_INNER(CTYPE, CNTYPE)                                                \
@@ -530,7 +552,9 @@ cn_bool* default_cn_bool(void);
   CN_GEN_PTR_ADD(CNTYPE)                                                                 \
   CN_GEN_CASTS_INNER(CTYPE, CNTYPE)                                                      \
   CN_GEN_DEFAULT(CNTYPE)                                                                 \
-  CN_GEN_MAP_GET(CNTYPE)
+  CN_GEN_MAP_GET(CNTYPE)                                                                 \
+  CN_GEN_MAP_SET(CNTYPE)                                                                 \
+  CN_GEN_GHOST_ARG(CNTYPE)
 
 CN_GEN_ALL(uint8_t, int8_t, cn_bits_i8)
 CN_GEN_ALL(uint16_t, int16_t, cn_bits_i16)
@@ -563,6 +587,13 @@ CN_GEN_CONVERT(uint8_t, cn_alloc_id)
 CN_GEN_EQUALITY(cn_alloc_id)
 CN_GEN_DEFAULT(cn_pointer)
 CN_GEN_MAP_GET(cn_pointer)
+CN_GEN_MAP_SET(cn_pointer)
+CN_GEN_GHOST_ARG(cn_pointer)
+CN_GEN_MAP_GET(cn_bool)
+CN_GEN_MAP_SET(cn_bool)
+CN_GEN_GHOST_ARG(cn_bool)
+CN_GEN_MAP_SET(cn_alloc_id)
+CN_GEN_GHOST_ARG(cn_alloc_id)
 CN_GEN_MAP_GET(cn_map)
 
 /* OWNERSHIP */
@@ -605,14 +636,6 @@ enum region_owned c_ownership_check(char* access_kind,
     signed long expected_stack_depth,
     enum spec_mode spec_mode);
 
-/* Ghost arguments */
-void init_ghost_frame_stack(void);
-void push_ghost_frame(int tag, int size);
-void add_arg_to_ghost_frame(int i, void* ptr_to_ghost_arg);
-void* load_arg_from_ghost_frame(int i);
-int top_ghost_frame_tag(void);
-void pop_ghost_frame(void);
-void free_ghost_frame_stack(void);
 void cn_ghost_arg_failure(void);
 
 // Unused
