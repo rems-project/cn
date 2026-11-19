@@ -474,11 +474,22 @@ let generate_cn_versions_of_structs c_structs =
 (* Needed for accept_uninterp, for overriding default stubs with user-defined bodies *)
 let uninterp_stub_macro sym = "CN_STUB_" ^ Sym.pp_string sym
 
-let generate_fun_def_and_decl_docs ~uninterps funs =
-  let one_def_prog (decl, def) =
-    { A.empty_sigma with declarations = [ decl ]; function_definitions = [ def ] }
+let generate_fun_def_and_decl_docs ~uninterps ?prefix funs =
+  let prefixed sym =
+    match prefix with
+    | Some prefix -> Sym.fresh (prefix ^ Sym.pp_string sym)
+    | None -> sym
   in
-  let one_decl_prog decl = { A.empty_sigma with declarations = [ decl ] } in
+  let one_def_prog ((sym, decl), (_, def)) =
+    let sym = prefixed sym in
+    { A.empty_sigma with
+      declarations = [ (sym, decl) ];
+      function_definitions = [ (sym, def) ]
+    }
+  in
+  let one_decl_prog (sym, decl) =
+    { A.empty_sigma with declarations = [ (prefixed sym, decl) ] }
+  in
   let pp_it x =
     !^"static "
     ^^ CF.Pp_ail.(with_executable_spec (pp_program ~show_include:true) (None, x))
@@ -509,9 +520,10 @@ let generate_fun_def_and_decl_docs ~uninterps funs =
   (defs_doc, decls_doc)
 
 
-let generate_defined_fun_def_and_decl_docs ?(uninterps = Sym.Set.empty) funs =
+let generate_defined_fun_def_and_decl_docs ?(uninterps = Sym.Set.empty) ?prefix funs =
   generate_fun_def_and_decl_docs
     ~uninterps
+    ?prefix
     (List.map (fun (decl, def) -> (decl, Some def)) funs)
 
 
@@ -553,7 +565,9 @@ let generate_c_functions
       Sym.Set.empty
   in
   let decl_str_comment = "\n/* CN FUNCTIONS */\n\n" in
-  let defs_doc, decls_doc = generate_fun_def_and_decl_docs ~uninterps decls_and_defs in
+  let defs_doc, decls_doc =
+    generate_fun_def_and_decl_docs ~uninterps ~prefix:"cn_" decls_and_defs
+  in
   (doc_to_pretty_string defs_doc, decl_str_comment ^ doc_to_pretty_string decls_doc, locs)
 
 
@@ -603,7 +617,10 @@ let generate_c_predicates
       Sym.Set.empty
   in
   let defs_doc, decls_doc =
-    generate_defined_fun_def_and_decl_docs ~uninterps (List.combine decls defs)
+    generate_defined_fun_def_and_decl_docs
+      ~uninterps
+      ~prefix:"cn_"
+      (List.combine decls defs)
   in
   ( "\n/* CN PREDICATES */\n\n" ^ doc_to_pretty_string defs_doc,
     doc_to_pretty_string decls_doc,
@@ -620,7 +637,7 @@ let generate_c_lemmas env (remove_uninterp : bool) (prog5 : unit Mucore.file) =
   let ail_funs = Cn_to_ail.cn_to_ail_lemmas env prog5.resource_predicates cn_lemmas in
   let decls, defs = List.split ail_funs in
   let defs_doc, decls_doc =
-    generate_defined_fun_def_and_decl_docs (List.combine decls defs)
+    generate_defined_fun_def_and_decl_docs ~prefix:"cn_" (List.combine decls defs)
   in
   ("\n/* CN LEMMAS */\n\n" ^ doc_to_pretty_string defs_doc, doc_to_pretty_string decls_doc)
 
