@@ -49,7 +49,10 @@ let compile_assumes
               let compare a b = compare (Hashtbl.hash a) (Hashtbl.hash b)
             end)
           in
-         !CtA.ownership_ctypes |> CtypeSet.of_list |> CtypeSet.to_seq |> List.of_seq)
+         List.map Sctypes.to_ctype (CtA.owned_sctypes ())
+         |> CtypeSet.of_list
+         |> CtypeSet.to_seq
+         |> List.of_seq)
        @ CtA.cn_to_ail_assume_predicates
            env
            prog5.resource_predicates
@@ -248,7 +251,7 @@ let compile_test_file
     generate_conversion_and_equality_functions env sigma
   in
   let ownership_function_defs, ownership_function_decls =
-    generate_ownership_functions without_ownership_checking !Cn_to_ail.ownership_ctypes
+    generate_ownership_functions without_ownership_checking (Cn_to_ail.owned_sctypes ())
   in
   let ordered_ail_tag_defs = order_ail_tag_definitions sigma.tag_definitions in
   let c_struct_decls = generate_c_tag_def_strs ordered_ail_tag_defs in
