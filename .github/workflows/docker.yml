@@ -27,9 +27,13 @@ jobs:
     name: Docker -- Build and Release
 
     strategy:
+      # Don't let one flaky build cancel the other architectures/images.
+      fail-fast: false
       matrix:
         os: [ubuntu, redhat, devcontainer]
-        runner: [latest, 24.04-arm]
+        # Pin both runners to the same Ubuntu release so amd64 and arm64 get
+        # the same Docker version and push images in the same format.
+        runner: [24.04, 24.04-arm]
 
     runs-on: ubuntu-${{ matrix.runner }}
 
@@ -82,11 +86,14 @@ jobs:
 
     - name: Create ${{ matrix.os }} manifest and push
       run: |
-        docker manifest create \
-          ${{ env.CN_IMAGE_ID }}:release-${{ matrix.os }} \
-          --amend ${{ env.CN_IMAGE_ID }}:release-${{ matrix.os }}-latest \
-          --amend ${{ env.CN_IMAGE_ID }}:release-${{ matrix.os }}-24.04-arm
-        docker manifest push ${{ env.CN_IMAGE_ID }}:release-${{ matrix.os }}
+        # `docker manifest create` rejects sources that are already image
+        # indexes (e.g. when buildx attaches provenance attestations), which
+        # depends on the runner's Docker setup. `imagetools create` accepts
+        # both plain manifests and indexes.
+        docker buildx imagetools create \
+          -t ${{ env.CN_IMAGE_ID }}:release-${{ matrix.os }} \
+          ${{ env.CN_IMAGE_ID }}:release-${{ matrix.os }}-24.04 \
+          ${{ env.CN_IMAGE_ID }}:release-${{ matrix.os }}-24.04-arm
 
 # Other CI is testing anyway - if need be, can run tests in Dockerfile itself
   test-docker-images:
