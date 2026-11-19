@@ -471,18 +471,17 @@ let get_underscored_typedef_string_from_bt ?(is_record = false) bt =
      | _ -> None)
 
 
-(* The runtime's scalar CN types have typed map and ghost-frame helpers *)
-let scalar_typedef_string_of_bt bt =
+(* The runtime's scalar CN types have monomorphised map and ghost-frame helpers *)
+let is_scalar bt =
   match bt with
-  | BT.Bool | BT.Integer | BT.Bits _ | BT.Loc _ | BT.Alloc_id ->
-    get_underscored_typedef_string_from_bt bt
-  | _ -> None
+  | BT.Bool | BT.Integer | BT.Bits _ | BT.Loc _ | BT.Alloc_id -> true
+  | _ -> false
 
 
-let map_set_fn_str_of_bt bt =
-  match scalar_typedef_string_of_bt bt with
-  | Some str -> "cn_map_set_" ^ str
-  | None -> "cn_map_set"
+let map_set_fn_str bt =
+  match get_underscored_typedef_string_from_bt bt with
+  | Some str when is_scalar bt -> "cn_map_set_" ^ str
+  | _ -> "cn_map_set"
 
 
 let get_conversion_to_fn_str (bt : BT.t) : string option =
@@ -1341,7 +1340,7 @@ let rec cn_to_ail_expr_aux
     let map_set_fcall =
       A.(
         AilEcall
-          ( mk_expr (AilEident (Sym.fresh (map_set_fn_str_of_bt (TN.get_bt value)))),
+          ( mk_expr (AilEident (Sym.fresh (map_set_fn_str (TN.get_bt value)))),
             [ mk_expr A.(AilEident new_map_sym); e2; e3 ] ))
     in
     dest
@@ -3032,7 +3031,7 @@ let cn_to_ail_resource
             let map_set_expr_ =
               A.(
                 AilEcall
-                  ( mk_expr (AilEident (Sym.fresh (map_set_fn_str_of_bt return_bt))),
+                  ( mk_expr (AilEident (Sym.fresh (map_set_fn_str return_bt))),
                     List.map mk_expr [ AilEident sym; i_expr ] @ [ rhs ] ))
             in
             let loop_body_bs, loop_body_ss =
@@ -3675,10 +3674,11 @@ let rec cn_to_ail_cnprog_ghost_arg env ~spec_mode i = function
     let upd_s = generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) () in
     let pop_s = generate_cn_pop_msg_info () in
     let bs, ss, e = cn_to_ail_expr env ~spec_mode ghost_it PassBack in
+    let bt = TN.get_bt ghost_it in
     let add_fn_str =
-      match scalar_typedef_string_of_bt (TN.get_bt ghost_it) with
-      | Some str -> "add_" ^ str ^ "_arg"
-      | None -> "add_arg_to_ghost_frame"
+      match get_underscored_typedef_string_from_bt bt with
+      | Some str when is_scalar bt -> "add_" ^ str ^ "_arg"
+      | _ -> "add_arg_to_ghost_frame"
     in
     let add_arg_to_ghost_frame_call =
       mk_expr
@@ -4317,12 +4317,12 @@ let rec cn_to_ail_pre_post_aux
             mk_expr
               (AilEconst (ConstantInteger (IConstant (Z.of_int ghost_idx, Decimal, None))))
           in
-          match scalar_typedef_string_of_bt bt with
-          | Some str ->
+          match get_underscored_typedef_string_from_bt bt with
+          | Some str when is_scalar bt ->
             A.AilEcall
               ( mk_expr (AilEident (Sym.fresh ("load_" ^ str ^ "_arg"))),
                 [ idx_expr ] )
-          | None ->
+          | _ ->
             A.AilEcast
               ( C.no_qualifiers,
                 cn_ctype,
@@ -4918,7 +4918,7 @@ let cn_to_ail_assume_resource
         let map_set_expr_ =
           A.(
             AilEcall
-              ( mk_expr (AilEident (Sym.fresh (map_set_fn_str_of_bt return_bt))),
+              ( mk_expr (AilEident (Sym.fresh (map_set_fn_str return_bt))),
                 List.map mk_expr [ AilEident sym; i_expr ] @ [ rhs ] ))
         in
         let if_stat =
