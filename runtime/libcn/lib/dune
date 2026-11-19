@@ -1,0 +1,42 @@
+(env
+ (release
+  (c_flags -std=gnu11 -O2 -g -Wall -fdiagnostics-color=always))
+ (dev
+  ; Flags are kept in c_flags.sexp so CI (.github/workflows/style.yml, the
+  ; "C compiler warnings" job) can compile libcn with the exact same set.
+  (c_flags
+   (:include c_flags.sexp))))
+
+(rule
+ (target libcn_exec.a)
+ (deps
+  (:headers
+   (glob_files ../include/cn-executable/*.h))
+  (:src
+   (glob_files ../src/cn-executable/*.c)))
+ (action
+  (progn
+   (run mkdir -p cn-executable)
+   (chdir
+    cn-executable
+    (run %{cc} -I ../../include -c %{src}))
+   (run
+    ar
+    -rcs
+    %{target}
+    cn-executable/fulminate_alloc.o
+    cn-executable/bump_alloc.o
+    cn-executable/hash_table.o
+    cn-executable/rmap.o
+    cn-executable/utils.o))))
+
+;; Only Fulminate's runtime is built and installed. The property-based testing
+;; runtimes (bennet, cn-testing, cn-replicate, cn-smt) have moved to their own
+;; repository; their sources remain under runtime/libcn for now but are not
+;; built.
+
+(install
+ (files
+  (libcn_exec.a as runtime/libcn_exec.a))
+ (section lib)
+ (package cn))

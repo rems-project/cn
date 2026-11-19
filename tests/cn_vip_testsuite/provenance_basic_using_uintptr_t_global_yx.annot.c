@@ -1,0 +1,43 @@
+#include "refinedc.h"
+
+//CN_VIP #include <stdio.h>
+#include <string.h>
+#include <stdint.h>
+#include <inttypes.h>
+#include "cn_lemmas.h"
+int y=2, x=1;
+int main()
+/*CN_VIP*//*@ accesses x; accesses y; requires x == 1; @*/
+{
+  uintptr_t ux = (uintptr_t)&x;
+  uintptr_t uy = (uintptr_t)&y;
+  uintptr_t offset = 4;
+  ux = ux + offset;
+  /*@ apply assert_equal(ux, uy); @*/
+#ifdef ANNOT
+  int *p = copy_alloc_id(ux, &y);
+#else
+  int *p = (int *)ux; // does this have undefined behaviour?
+#endif
+  int *q = &y;
+  /*@ derive_constraints(RW<int*>(&p), RW<int*>(&q)); @*/
+  //CN_VIP printf("Addresses: &x=%p p=%p &y=%"PRIxPTR\
+         "\n",(void*)&x,(void*)p,(unsigned long)uy);
+  /*CN_VIP*//*@ to_bytes RW<int*>(&p); @*/
+  /*CN_VIP*//*@ to_bytes RW<int*>(&q); @*/
+  /*CN_VIP*//*@ focus RW<byte>, 0,1,2,3,4,5,6,7; @*/
+  /*CN_VIP*//*@ apply byte_array_init_8(&p, &q, sizeof<int*>); @*/
+  /*CN_VIP*/int result = _memcmp((byte*)&p, (byte*)&q, sizeof(p));
+  /*CN_VIP*//*@ from_bytes RW<int*>(&p); @*/
+  /*CN_VIP*//*@ from_bytes RW<int*>(&q); @*/
+  if (result == 0) {
+    *p = 11; // CN VIP UB (no annot)
+    //CN_VIP printf("x=%d  y=%d  *p=%d  *q=%d\n",x,y,*p,*q);
+    /*CN_VIP*//*@ assert(x == 1 && y == 11 && *p == 11 && *q == 11); @*/
+  }
+}
+
+// The evaluation table in the appendix of the VIP paper is misleading.
+// This file has UB under PNVI-ae-udi without annotations because
+// of allocation address non-determinism (demonic)
+// The desired behaviour can be obtained by asserting the addresses are adjacent.

@@ -1,0 +1,549 @@
+module MT = MakeTerm
+module LC = LogicalConstraints
+module Req = Request
+open Typing
+
+module General = struct
+  type one =
+    { one_index : Terms.Normal.t;
+      value : Terms.Normal.t
+    }
+
+  type many =
+    { many_guard : Terms.Normal.t;
+      value : Terms.Normal.t
+    }
+
+  type uiinfo = Error_common.situation * TypeErrors.RequestChain.t
+
+  type case =
+    | One of one
+    | Many of many
+
+  type cases = C of case list
+
+  let add_case case (C cases) = C (cases @ [ case ])
+
+  let cases_to_map loc (qs, qbt) item_bt (C cases) =
+    let here = Locations.other __LOC__ in
+    let update_with_ones base_array ones =
+      List.fold_left
+        (fun m { one_index; value } -> MT.map_set_ m (one_index, value) here)
+        base_array
+        ones
+    in
+    let ones, manys =
+      List.partition_map (function One c -> Left c | Many c -> Right c) cases
+    in
+    let vbt = BaseTypes.Map (qbt, item_bt) in
+    match manys with
+    | [] -> return (update_with_ones (MT.default_ vbt here) ones)
+    | [ { many_guard = _; value } ] -> return (update_with_ones value ones)
+    | _ ->
+      let vsym = Sym.fresh_make_uniq "merged_array" in
+      let v = MT.sym_ (vsym, vbt, here) in
+      let@ () = add_l vsym vbt (loc, lazy (Sym.pp vsym)) in
+      let cs1 =
+        List.map
+          (fun { one_index; value } ->
+             LC.T MT.(eq_ (map_get_ v one_index here, value) here))
+          ones
+      in
+      Pp.(print stdout !^"Using quantifiers to describe result of an array merge.");
+      let cs2 =
+        let q = MT.sym_ (qs, qbt, here) in
+        List.map
+          (fun { many_guard; value } ->
+             let equality = MT.(eq_ (map_get_ v q here, map_get_ value q here) here) in
+             LC.forall_ (qs, qbt) (MT.impl_ (many_guard, equality) here))
+          manys
+      in
+      let@ () = add_cs here (cs1 @ cs2) in
+      return v
+
+
+  (* this version is parametric in resource_request (defined below) to ensure the
+     return-type (also parametric) is as general as possible *)
+  let parametric_ftyp_args_request_step
+        resource_request
+        rt_subst
+        loc
+        (uiinfo : uiinfo)
+        _original_resources
+        ftyp
+    =
+    (* take one step of the "spine" judgement, reducing a function-type by claiming an
+       argument resource or otherwise reducing towards an instantiated return-type *)
+    let@ simp_ctxt = simp_ctxt () in
+    let module LAT = LogicalArgumentTypes in
+    match ftyp with
+    | LAT.Resource ((s, (resource, _bt)), info, ftyp) ->
+      let resource = Simplify.Request.simp simp_ctxt resource in
+      let situation, request_chain = uiinfo in
+      let step =
+        TypeErrors.RequestChain.
+          { resource; loc = Some (fst info); reason = Some ("arg " ^ Sym.pp_string s) }
+      in
+      let request_chain = step :: request_chain in
+      let uiinfo = (situation, request_chain) in
+      let@ o_re_oarg = resource_request loc uiinfo resource in
+      (match o_re_oarg with
+       | None ->
+         let here = Locations.other __LOC__ in
+         let@ provable = provable loc in
+         (match provable (LC.T (MT.bool_ false here)) with
+          | `False ->
+            let@ model = model () in
+            fail (fun ctxt ->
+              (* let ctxt = { ctxt with resources = original_resources } in *)
+              let msg =
+                TypeErrors.Missing_resource
+                  { requests = request_chain; situation; model; ctxt }
+              in
+              { loc; msg })
+          | `True -> assert false)
+       | Some ((re, Resource.O oargs), l) ->
+         assert (Request.equal re resource);
+         let oargs = Simplify.Terms.simp simp_ctxt oargs in
+         return (LAT.subst rt_subst (Terms.Normal.make_subst [ (s, oargs) ]) ftyp, l))
+    | Define ((s, it), _info, ftyp) ->
+      let it = Simplify.Terms.simp simp_ctxt it in
+      return (LAT.subst rt_subst (Terms.Normal.make_subst [ (s, it) ]) ftyp, [])
+    | Constraint (c, info, ftyp) ->
+      let@ provable = provable loc in
+      Pp.(debug 9 (lazy (item "checking constraint" (LC.pp c))));
+      let res = provable ~purpose:"constraint" c in
+      (match res with
+       | `True -> return (ftyp, [])
+       | `False ->
+         let@ model = model () in
+         let@ all_cs = get_cs () in
+         let () = assert (not (LC.Set.mem c all_cs)) in
+         fail (fun ctxt ->
+           (* let ctxt = { ctxt with resources = original_resources } in *)
+           { loc;
+             msg =
+               TypeErrors.Unproven_constraint
+                 { constr = c; info; requests = snd uiinfo; ctxt; model }
+           }))
+    | I _rt -> return (ftyp, [])
+
+
+  let predicate_request_scan loc requested =
+    Pp.(debug 7 (lazy (item __LOC__ (Req.pp (P requested)))));
+    let here = Locations.other __LOC__ in
+    let@ oarg_bt = WellTyped.oarg_bt_of_pred loc requested.name in
+    let@ provable = provable loc in
+    let provable = provable ~purpose:"predicate_request" in
+    let@ simp_ctxt = simp_ctxt () in
+    let provable_simp lc =
+      match Simplify.LogicalConstraints.simp simp_ctxt lc with
+      | LC.T t when Terms.is_true t -> `True
+      | _ -> `False
+    in
+    let resource_scan fast_path re ((needed : bool), oargs) =
+      let continue = (Unchanged, (needed, oargs)) in
+      if not needed then
+        continue
+      else (
+        match re with
+        | Req.P p', p'_oarg when Req.subsumed requested.name p'.name ->
+          let addr_eq =
+            MT.(eq_ ((addr_ requested.pointer) here, addr_ p'.pointer here) here)
+          in
+          let iargs_eq =
+            List.map2 (fun x y -> MT.eq__ x y here) requested.iargs p'.iargs
+          in
+          let alloc_id_eq =
+            MT.(eq_ (allocId_ requested.pointer here, allocId_ p'.pointer here) here)
+          in
+          let eqs = addr_eq :: alloc_id_eq :: iargs_eq in
+          let debug_failure msg = Pp.debug 9 (lazy (Pp.item msg (Req.pp (fst re)))) in
+          (match
+             (if fast_path then provable_simp else provable) (LC.T (MT.and_ eqs here))
+           with
+           | `True ->
+             Pp.debug 9 (lazy (Pp.item "used resource" (Req.pp (fst re))));
+             (if fast_path then Pp.(debug 9 (lazy !^"syntactic match")));
+             (if not fast_path then
+                Pp.(
+                  debug
+                    9
+                    (lazy (item "solver match" (Terms.Normal.pp (MT.and_ eqs here))))));
+             (Deleted, (false, p'_oarg))
+           | `False ->
+             if not fast_path then
+               debug_failure "couldn't use resource (pointer+iargs did not match)";
+             continue)
+        | _re -> continue)
+    in
+    let needed, oarg = (true, Resource.O (MT.default_ oarg_bt here)) in
+    let@ needed, oarg = map_and_fold_resources loc (resource_scan true) (needed, oarg) in
+    let@ needed, oarg = map_and_fold_resources loc (resource_scan false) (needed, oarg) in
+    let not_str = lazy Pp.(if needed then !^" not " else !^" ") in
+    Pp.(debug 9 (Lazy.map (fun x -> !^"resource was" ^^ x ^^ !^"found") not_str));
+    match needed with false -> return (Some (requested, oarg)) | true -> return None
+
+
+  let rec predicate_request loc (uiinfo : uiinfo) (requested : Req.Predicate.t)
+    : (Resource.predicate * Prooflog.log) option m
+    =
+    let@ found = predicate_request_scan loc requested in
+    match found with
+    | Some (requested, oarg) -> return (Some ((requested, oarg), []))
+    | None ->
+      let@ global = get_global () in
+      let@ provable = provable loc in
+      let here = Locations.other __LOC__ in
+      (match Pack.packing_ft ~full:true here global provable (P requested) with
+       | Some packing_ft ->
+         let ft_pp =
+           lazy (LogicalArgumentTypes.pp (fun _ -> Pp.string "resource") packing_ft)
+         in
+         Pp.debug 9 (Lazy.map (Pp.item "attempting to pack compound resource") ft_pp);
+         let@ o, log = ftyp_args_request_for_pack loc uiinfo packing_ft in
+         return (Some ((requested, Resource.O o), log))
+       | None ->
+         let req_pp = lazy (Req.pp (P requested)) in
+         Pp.debug 9 (Lazy.map (Pp.item "no pack rule for resource, failing") req_pp);
+         return None)
+
+
+  and qpredicate_request loc uiinfo (requested : Req.QPredicate.t) =
+    Pp.(debug 7 (lazy (item __LOC__ (Req.pp (Q requested)))));
+    let@ provable = provable loc in
+    let provable = provable ~purpose:"qpredicate_request_aux" in
+    let@ simp_ctxt = simp_ctxt () in
+    let needed = requested.permission in
+    let step = requested.step in
+    let@ needed, oarg =
+      map_and_fold_resources
+        loc
+        (fun re (needed, oarg) ->
+           let continue = (Unchanged, (needed, oarg)) in
+           if Terms.is_false needed then
+             continue
+           else (
+             match re with
+             | Q p', O p'_oarg
+               when Req.subsumed requested.name p'.name
+                    && Sctypes.equal step p'.step
+                    && BaseTypes.equal (snd requested.q) (snd p'.q) ->
+               let p' = Req.QPredicate.alpha_rename_ (fst requested.q) p' in
+               let here = Locations.other __LOC__ in
+               let pmatch =
+                 (* Work-around for https://github.com/Z3Prover/z3/issues/7352 *)
+                 Simplify.Terms.simp simp_ctxt
+                 @@ MT.eq_ (requested.pointer, p'.pointer) here
+               in
+               let iarg_match =
+                 let eq_here x y = MT.eq_ (x, y) here in
+                 MT.and_ (List.map2 eq_here requested.iargs p'.iargs) here
+               in
+               let took =
+                 MT.and_ [ iarg_match; requested.permission; p'.permission ] here
+               in
+               (match provable (LC.Forall (requested.q, MT.not_ took here)) with
+                | `True -> continue
+                | `False ->
+                  (match provable (LC.T pmatch) with
+                   | `True ->
+                     Pp.debug 9 (lazy (Pp.item "used resource" (Req.pp (fst re))));
+                     let open MT in
+                     let needed' =
+                       [ needed; not_ (and_ [ iarg_match; p'.permission ] here) here ]
+                     in
+                     let permission' =
+                       [ p'.permission; not_ (and_ [ iarg_match; needed ] here) here ]
+                     in
+                     let oarg =
+                       add_case (Many { many_guard = took; value = p'_oarg }) oarg
+                     in
+                     ( Changed
+                         (Q { p' with permission = and_ permission' here }, O p'_oarg),
+                       (Simplify.Terms.simp simp_ctxt (and_ needed' here), oarg) )
+                   | `False ->
+                     Pp.debug
+                       9
+                       (lazy (Pp.item "couldn't use q-resource" (Req.pp (fst re))));
+                     continue))
+             | _re -> continue))
+        (needed, C [])
+    in
+    let here = Locations.other __LOC__ in
+    let@ needed, oarg, l =
+      let@ movable_indices = get_movable_indices () in
+      let module Eff = Effectful.Make (Typing) in
+      Eff.ListM.fold_rightM
+        (fun (predicate_name, index) (needed, oarg, l) ->
+           let continue = return (needed, oarg, l) in
+           if
+             (not (Terms.is_false needed))
+             && Req.subsumed requested.name predicate_name
+             && BaseTypes.equal (snd requested.q) (Terms.Normal.get_bt index)
+           then (
+             let su = Terms.Normal.make_subst [ (fst requested.q, index) ] in
+             let needed_at_index = Terms.Normal.subst su needed in
+             match provable (LC.T needed_at_index) with
+             | `False -> continue
+             | `True ->
+               let@ c = get_typing_context () in
+               let pointer =
+                 MT.(arrayShift_ ~base:requested.pointer ~index requested.step here)
+               in
+               let sub_req : Req.Predicate.t =
+                 { name = requested.name;
+                   pointer;
+                   iargs = List.map (Terms.Normal.subst su) requested.iargs
+                 }
+               in
+               let@ o_re_index = predicate_request loc uiinfo sub_req in
+               (match o_re_index with
+                | None -> continue
+                | Some (((_p', O p'_oarg) as rr), l') ->
+                  let oarg = add_case (One { one_index = index; value = p'_oarg }) oarg in
+                  let sym, bt' = requested.q in
+                  let needed' =
+                    MT.(and_ [ needed; ne__ (sym_ (sym, bt', here)) index here ] here)
+                  in
+                  let@ c' = get_typing_context () in
+                  let hints =
+                    if Prooflog.is_enabled () then
+                      Prooflog.PredicateRequest (c, fst uiinfo, sub_req, rr, l', c') :: l
+                    else
+                      []
+                  in
+                  return (needed', oarg, hints)))
+           else
+             continue)
+        movable_indices
+        (needed, oarg, [])
+    in
+    let nothing_more_needed = LC.forall_ requested.q (MT.not_ needed here) in
+    Pp.debug 9 (lazy (Pp.item "checking resource remainder" (LC.pp nothing_more_needed)));
+    match provable nothing_more_needed with
+    | `True ->
+      let@ oarg_item_bt = WellTyped.oarg_bt_of_pred loc requested.name in
+      let@ oarg = cases_to_map loc requested.q oarg_item_bt oarg in
+      return (Some ((requested, Resource.O oarg), l))
+    | `False -> return None
+
+
+  and ftyp_args_request_for_pack loc uiinfo ftyp =
+    (* record the resources now, so errors are raised with all the resources present,
+       rather than those that remain after some arguments are claimed *)
+    let@ original_resources = all_resources loc in
+    let rec loop ftyp l =
+      match ftyp with
+      | LogicalArgumentTypes.I rt -> return (rt, l)
+      | _ ->
+        let@ ftyp, l' =
+          parametric_ftyp_args_request_step
+            (resource_request ~simplify_prooflog:true)
+            Terms.Normal.subst
+            loc
+            uiinfo
+            original_resources
+            ftyp
+        in
+        loop ftyp (l @ l')
+    in
+    loop ftyp []
+
+
+  and resource_request ?(simplify_prooflog = false) loc uiinfo (request : Req.t)
+    : (Resource.t * Prooflog.log) option m
+    =
+    match request with
+    | P request ->
+      let@ c = get_typing_context () in
+      let@ result = predicate_request loc uiinfo request in
+      let@ c' = get_typing_context () in
+      let@ simp_ctxt = simp_ctxt () in
+      return
+        (Option.map
+           (fun ((p, Resource.O o), l) ->
+              let hints =
+                if Prooflog.is_enabled () then (
+                  let p, o =
+                    if not simplify_prooflog then
+                      (p, o)
+                    else (
+                      let p = Simplify.Request.Predicate.simp simp_ctxt p in
+                      let o = Simplify.Terms.simp simp_ctxt o in
+                      (p, o))
+                  in
+                  [ Prooflog.PredicateRequest
+                      (c, fst uiinfo, request, (p, Resource.O o), l, c')
+                  ])
+                else
+                  []
+              in
+              ((Req.P p, Resource.O o), hints))
+           result)
+    | Q request ->
+      let@ result = qpredicate_request loc uiinfo request in
+      return (Option.map (fun ((q, o), l) -> ((Req.Q q, o), l)) result)
+
+
+  (*
+     This is called directly from check.ml. Maybe it should be in Special, as
+     predicate_request?
+  *)
+  let ftyp_args_request_step rt_subst loc situation original_resources ftyp =
+    let@ rt, l =
+      parametric_ftyp_args_request_step
+        (resource_request ~simplify_prooflog:false)
+        rt_subst
+        loc
+        situation
+        original_resources
+        ftyp
+    in
+    (* We started with top-level call of ftyp_args_request_step, so we need to
+       record the resource inference steps for the inner calls. They not nested
+       under anything, so we need to record them separately. *)
+    if Prooflog.is_enabled () then
+      List.iter Prooflog.record_resource_inference_step l
+    else
+      ();
+    return rt
+
+
+  let predicate_request loc uiinfo requested =
+    let start_time = Pp.time_start () in
+    let@ result = predicate_request loc uiinfo requested in
+    Pp.time_end "predicate_request" start_time;
+    return result
+
+
+  let qpredicate_request loc uiinfo requested =
+    let start_time = Pp.time_start () in
+    let@ result = qpredicate_request loc uiinfo requested in
+    Pp.time_end "qpredicate_request" start_time;
+    return result
+end
+
+module Special = struct
+  let fail_missing_resource loc (situation, requests) =
+    let here = Locations.other __LOC__ in
+    let@ provable = provable loc in
+    match provable (LC.T (MT.bool_ false here)) with
+    | `False ->
+      let@ model = model () in
+      fail (fun ctxt ->
+        let msg = TypeErrors.Missing_resource { requests; situation; model; ctxt } in
+        { loc; msg })
+    | `True -> assert false
+
+
+  let predicate_request loc situation (request, oinfo) =
+    let requests =
+      [ TypeErrors.RequestChain.
+          { resource = P request;
+            loc = Option.map fst oinfo;
+            reason = Option.map snd oinfo
+          }
+      ]
+    in
+    let uiinfo = (situation, requests) in
+    let@ c = get_typing_context () in
+    let@ result = General.predicate_request loc uiinfo request in
+    match result with
+    | Some (r, log) ->
+      let@ c' = get_typing_context () in
+      if Prooflog.is_enabled () then
+        Prooflog.record_resource_inference_step
+          (Prooflog.PredicateRequest (c, fst uiinfo, request, r, log, c'))
+      else
+        ();
+      return r
+    | None -> fail_missing_resource loc uiinfo
+
+
+  let has_predicate loc situation (request, oinfo) =
+    let@ result = sandbox @@ predicate_request loc situation (request, oinfo) in
+    return (Result.is_ok result)
+
+
+  (** This function checks whether [ptr1] belongs to a live allocation. It
+      searches the context (without modification) for either an Alloc(p) or an
+      Owned(p) such that (alloc_id) p == (alloc_id) ptr. *)
+  let check_live_alloc reason loc ptr =
+    let module Ans = struct
+      type t =
+        | Found
+        | No_res
+        | Model of (Solver.model_with_q * Terms.Normal.t)
+    end
+    in
+    let here = Locations.other __LOC__ in
+    let alloc_id_matches found res_ptr =
+      let@ found in
+      match found with
+      | Ans.Found -> return Ans.Found
+      | No_res | Model _ ->
+        let constr = MT.(eq_ (allocId_ ptr here, allocId_ res_ptr here) here) in
+        let@ provable = provable loc in
+        (match provable ~purpose:"check_live_alloc" (LC.T constr) with
+         | `True -> return Ans.Found
+         | `False ->
+           let@ model = model () in
+           return (Ans.Model (model, constr)))
+    in
+    let f res found =
+      let found =
+        match res with
+        | Req.Q _, _ -> found
+        | Req.P { name = Owned _; pointer; iargs = _ }, _ ->
+          alloc_id_matches found pointer
+        | Req.P { name = PName name; pointer; iargs = _ }, _ ->
+          if Sym.equal name Alloc.Predicate.sym then
+            alloc_id_matches found pointer
+          else
+            found
+      in
+      (Unchanged, found)
+    in
+    let@ found = map_and_fold_resources loc f (return Ans.No_res) in
+    let@ found in
+    match found with
+    | Ans.Found -> return ()
+    | No_res ->
+      fail (fun ctxt ->
+        let msg =
+          TypeErrors.Allocation_not_live { reason; ptr; model_constr = None; ctxt }
+        in
+        { loc; msg })
+    | Model (model, constr) ->
+      fail (fun ctxt ->
+        let msg =
+          TypeErrors.Allocation_not_live
+            { reason; ptr; model_constr = Some (model, constr); ctxt }
+        in
+        { loc; msg })
+
+
+  let qpredicate_request loc situation (request, oinfo) =
+    let requests =
+      [ TypeErrors.RequestChain.
+          { resource = Q request;
+            loc = Option.map fst oinfo;
+            reason = Option.map snd oinfo
+          }
+      ]
+    in
+    let uiinfo = (situation, requests) in
+    let@ result = General.qpredicate_request loc uiinfo request in
+    match result with
+    | Some (r, log) ->
+      (* We started with top-level call of qpredicate_request, so we need to
+         record the resource inference steps for the inner calls. They not
+         nested under anything, so we need to record them separately. *)
+      if Prooflog.is_enabled () then
+        List.iter Prooflog.record_resource_inference_step log
+      else
+        ();
+      return r
+    | None -> fail_missing_resource loc uiinfo
+end

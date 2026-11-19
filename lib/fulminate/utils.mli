@@ -1,0 +1,74 @@
+open Cerb_frontend
+
+val empty_attributes : Annot.attributes
+
+val mk_ctype : ?annots:Annot.annot list -> Ctype.ctype_ -> Ctype.ctype
+
+val rm_ctype : Ctype.ctype -> Ctype.ctype_
+
+val get_typedef_string : Ctype.ctype -> string option
+
+val mk_expr
+  :  ?loc:Cerb_location.t ->
+  GenTypes.genTypeCategory AilSyntax.expression_ ->
+  GenTypes.genTypeCategory AilSyntax.expression
+
+val mk_stmt : 'a AilSyntax.statement_ -> 'a AilSyntax.statement
+
+val rm_expr : 'a AilSyntax.expression -> 'a AilSyntax.expression_
+
+val empty_ail_expr : 'a AilSyntax.expression_
+
+val generate_sym_with_suffix
+  :  ?suffix:string ->
+  ?uppercase:bool ->
+  ?lowercase:bool ->
+  Ctype.union_tag ->
+  Ctype.union_tag
+
+val list_split_three : ('a * 'b * 'c) list -> 'a list * 'b list * 'c list
+
+val ifndef_wrap : string -> string -> string
+
+val generate_include_header : string * bool -> string
+
+val get_ctype_without_ptr : Ctype.ctype -> Ctype.ctype
+
+val str_of_ctype : Ctype.ctype -> string
+
+val create_binding
+  :  'a ->
+  'b ->
+  'a
+  * ((Cerb_location.t * AilSyntax.storageDuration * bool)
+    * 'c option
+    * Ctype.qualifiers
+    * 'b)
+
+val find_ctype_from_bindings : (Sym.t * ('a * 'b * 'c * 'd)) list -> Sym.t -> 'd
+
+val find_binding
+  :  (Sym.t * (('a * 'b * bool) * 'c * 'd * Ctype.ctype)) list ->
+  Sym.t ->
+  Sym.t * (('a * 'b * bool) * 'c * 'd * Ctype.ctype)
+
+val get_start_loc : ?offset:int -> Cerb_location.t -> Cerb_location.t
+
+val get_end_loc : ?offset:int -> Cerb_location.t -> Cerb_location.t
+
+val concat_map_newline : PPrint.document list -> PPrint.document
+
+val static_prefix : string -> string
+
+val remove_last_semicolon : string list -> string list
+
+val line_and_column_numbers : Cerb_location.t -> ((int * int) * (int * int)) option
+
+val from_same_file : Cerb_location.t * Cerb_location.t -> bool
+
+val is_sub_location : Cerb_location.t -> Cerb_location.t -> bool
+
+val separate_decls_and_assigns
+  :  GenTypes.genTypeCategory AilSyntax.statement_ list ->
+  GenTypes.genTypeCategory AilSyntax.statement_ list
+  * GenTypes.genTypeCategory AilSyntax.statement_ list

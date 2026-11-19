@@ -1,0 +1,212 @@
+module CF = Cerb_frontend
+module CB = Cerb_backend
+open Cn
+
+let run_seq_tests
+      (* Common *)
+        filename
+      cc
+      macros
+      permissive
+      lexicon
+      incl_dirs
+      incl_files
+      debug_level
+      print_level
+      csv_times
+      stdout_times
+      astprints
+      no_inherit_loc
+      magic_comment_char_dollar
+      allow_split_magic_comments
+      (* Executable spec *)
+        without_ownership_checking
+      source_locs_mode
+      correct_missing_ownership_mode
+      remove_uninterp
+      experimental_ownership_stack_mode
+      (* Test Generation *)
+        output_dir
+      print_steps
+      disable_shrink
+      num_calls
+      backtrack_attempts
+      num_tests
+  =
+  (* flags *)
+  Cerb_debug.debug_level := debug_level;
+  Pp.print_level := print_level;
+  Sym.executable_spec_enabled := true;
+  let handle_error (e : TypeErrors.t) =
+    let report = TypeErrors.pp_message e.msg in
+    Pp.error e.loc report.short (Option.to_list report.descr);
+    match e.msg with TypeErrors.Unsupported _ -> exit 2 | _ -> exit 1
+  in
+  let filename = Common.there_can_only_be_one filename in
+  let output_dir =
+    Common.mk_dir_if_not_exist_maybe_tmp ~mktemp:false SeqTest output_dir
+  in
+  let basefile = Filename.basename filename in
+  let pp_file = Filename.temp_file "cn_" basefile in
+  let out_file = Fulminate.get_instrumented_filename basefile in
+  Common.with_well_formedness_check (* CLI arguments *)
+    ~filename
+    ~cc
+    ~macros:(("__CN_SEQ_TEST", None) :: ("__CN_INSTRUMENT", None) :: macros)
+    ~permissive
+    ~lexicon
+    ~incl_dirs
+    ~incl_files
+    ~csv_times
+    ~stdout_times
+    ~coq_export_file:None
+    ~coq_mucore:false
+    ~coq_proof_log:false
+    ~coq_check_proof_log:false
+    ~astprints
+    ~no_inherit_loc
+    ~magic_comment_char_dollar
+    ~allow_split_magic_comments (* Callbacks *)
+    ~save_cpp:(Some pp_file)
+    ~disable_linemarkers:true
+    ~handle_error
+    ~f:(fun ~cerb_conf ~prog5 ~ail_prog ~statement_locs:_ ~paused:_ ->
+      Cerb_colour.without_colour
+        (fun () ->
+           let _, sigma = ail_prog in
+           Fulminate.Cn_to_ail.augment_record_map (BaseTypes.Record []);
+           Fulminate.main
+             ~cerb_conf
+             ~without_ownership_checking
+             ~without_loop_invariants:true
+             ~with_loop_leak_checks:false
+             ~without_lemma_checks:false
+             ~without_inline_statements:false
+             ~source_locs_mode
+             ~correct_missing_ownership_mode
+             ~accept_uninterp:false
+             ~remove_uninterp
+             ~experimental_ownership_stack_mode
+             ~with_testing:true
+             ~skip_and_only:([], [])
+             ~disable_ghost_arg_failure:true
+             filename
+             cc
+             pp_file
+             out_file
+             output_dir
+             ail_prog
+             prog5;
+           let config : SeqTests.seq_config =
+             { cc;
+               print_steps;
+               disable_shrink;
+               num_calls;
+               max_backtracks = backtrack_attempts;
+               num_tests
+             }
+           in
+           SeqTests.set_seq_config config;
+           let exit_code = SeqTests.run_seq ~output_dir ~filename sigma prog5 in
+           if exit_code <> 0 then
+             exit exit_code)
+        ();
+      Or_TypeError.return ())
+
+
+open Cmdliner
+
+(* Section for flags specific to [cn seq-test]. *)
+let s_seq_test = "SEQ-TEST OPTIONS"
+
+module Flags = struct
+  let output_dir =
+    let doc = "Place generated tests in the provided directory" in
+    Arg.(
+      value
+      & opt (some string) None
+      & info ~docs:s_seq_test [ "output-dir" ] ~docv:"DIR" ~doc)
+
+
+  let print_steps =
+    let doc =
+      "Print successful stages, such as directory creation, compilation and linking."
+    in
+    Arg.(value & flag & info ~docs:s_seq_test [ "print-steps" ] ~doc)
+
+
+  let disable_shrink =
+    let doc = "Disables shrinking." in
+    Arg.(value & flag & info ~docs:s_seq_test [ "disable-shrink" ] ~doc)
+
+
+  let gen_num_calls =
+    let doc = "Maximum number of calls per test" in
+    Arg.(
+      value
+      & opt int SeqTests.default_seq_cfg.num_calls
+      & info ~docs:s_seq_test [ "max-num-calls" ] ~doc)
+
+
+  let gen_backtrack_attempts =
+    let doc =
+      "Set the maximum attempts to satisfy a constraint before backtracking further, \
+       during input generation"
+    in
+    Arg.(
+      value
+      & opt int SeqTests.default_seq_cfg.max_backtracks
+      & info ~docs:s_seq_test [ "max-backtrack-attempts" ] ~doc)
+
+
+  let num_tests =
+    let doc = "Number of tests to generate" in
+    Arg.(
+      value
+      & opt int SeqTests.default_seq_cfg.num_tests
+      & info ~docs:s_seq_test [ "num-tests" ] ~doc)
+end
+
+let cmd =
+  let open Term in
+  let test_t =
+    const run_seq_tests
+    $ Common.Flags.file
+    $ Common.Flags.cc
+    $ Common.Flags.macros
+    $ Common.Flags.permissive
+    $ Common.Flags.lexicon
+    $ Common.Flags.incl_dirs
+    $ Common.Flags.incl_files
+    $ Common.Flags.debug_level
+    $ Common.Flags.print_level
+    $ Common.Flags.csv_times
+    $ Common.Flags.stdout_times
+    $ Common.Flags.astprints
+    $ Common.Flags.no_inherit_loc
+    $ Common.Flags.magic_comment_char_dollar
+    $ Common.Flags.allow_split_magic_comments
+    $ Instrument.Flags.without_ownership_checking
+    $ Instrument.Flags.source_locs_mode
+    $ Instrument.Flags.correct_missing_ownership_mode
+    $ Instrument.Flags.remove_uninterp
+    $ Instrument.Flags.experimental_ownership_stack_mode ~docs:Instrument.s_fulminate
+    $ Flags.output_dir
+    $ Flags.print_steps
+    $ Flags.disable_shrink
+    $ Flags.gen_num_calls
+    $ Flags.gen_backtrack_attempts
+    $ Flags.num_tests
+  in
+  let doc =
+    "Generates sequences of calls for the API in [FILE].\n\
+    \    The tests use randomized inputs or previous calls.\n\
+    \    A [.c] file containing the test harnesses will be placed in [output-dir]."
+  in
+  let info =
+    Cmd.info
+      "seq-test"
+      ~doc
+      ~man:[ `S s_seq_test; `S Instrument.s_fulminate; `S Common.s_cn ]
+  in
+  Cmd.v info test_t

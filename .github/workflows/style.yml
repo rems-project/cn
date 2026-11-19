@@ -1,0 +1,136 @@
+# Check style of codebase
+name: Style
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  ocaml-format:
+    strategy:
+      matrix:
+        version: [4.14.1]
+
+    name: OCamlFormat
+
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout CN
+        uses: actions/checkout@v6
+
+      - name: Install OPAM
+        run: sudo apt-get update && sudo apt-get install opam
+
+      - name: Restore OPAM cache
+        id: cache-opam-restore
+        uses: actions/cache/restore@v5
+        with:
+          path: ~/.opam
+          key: ${{ matrix.version }}-${{ hashFiles('cn.opam') }}
+    
+      - name: Setup OPAM
+        if: steps.cache-opam-restore.outputs.cache-hit != 'true'
+        run: |
+          opam init --yes --no-setup --shell=sh --compiler=${{ matrix.version }}
+          eval $(opam env --switch=${{ matrix.version }})
+          opam repo add --yes --this-switch coq-released https://coq.inria.fr/opam/released
+          opam install --deps-only --with-test --yes ./cn.opam z3
+  
+      - name: Save OPAM cache
+        uses: actions/cache/save@v5
+        if: steps.cache-opam-restore.outputs.cache-hit != 'true'
+        with:
+          path: ~/.opam
+          key: ${{ matrix.version }}-${{ hashFiles('cn.opam') }}
+  
+      - name: Install OCamlFormat
+        run: |
+          eval $(opam env --switch=${{ matrix.version }})
+          opam install --yes ocamlformat.0.27.0
+
+      - name: Check CN code formatting
+        run: |
+          eval $(opam env --switch=${{ matrix.version }})
+          dune build @fmt
+
+  clang-format:
+    name: ClangFormat
+
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout CN
+        uses: actions/checkout@v6
+
+      - name: Install ClangFormat
+        run: |
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc > /dev/null
+          sudo add-apt-repository "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-22 main"
+          sudo add-apt-repository "deb-src http://apt.llvm.org/jammy/ llvm-toolchain-jammy-22 main"
+          sudo apt-get update
+          sudo apt-get install clang-format-22
+
+      - name: Check LibCN code formatting
+        run: |
+          find runtime/libcn/ -iname '*.h' -o -iname '*.c' -o -iname '*.hpp' -o -iname '*.cpp' | xargs clang-format-22 --dry-run -Werror
+
+  c-warnings:
+    strategy:
+      matrix:
+        compiler: [gcc, clang]
+
+    name: C compiler warnings
+
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout CN
+        uses: actions/checkout@v6
+
+      - name: Install GCC
+        if: ${{ matrix.compiler == 'gcc' }}
+        run: |
+          sudo add-apt-repository ppa:ubuntu-toolchain-r/test
+          sudo apt-get update
+          sudo apt-get install gcc
+
+      - name: Install Clang
+        if: ${{ matrix.compiler == 'clang' }}
+        run: |
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc > /dev/null
+          sudo add-apt-repository "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-22 main"
+          sudo add-apt-repository "deb-src http://apt.llvm.org/jammy/ llvm-toolchain-jammy-22 main"
+          sudo apt-get update
+          sudo apt-get install clang-22
+          sudo ln -sf "$(command -v clang-22)" /usr/local/bin/clang
+
+      - name: Check compiler warnings
+        run: |
+          # Same flags as the libcn dune build (runtime/libcn/lib/dune reads this
+          # file via `(:include ...)`); strip the surrounding parens.
+          flags=$(tr -d '()' < runtime/libcn/lib/c_flags.sexp)
+          # Use xargs, not `find -exec ... ';'`, so a failing compile fails the step.
+          # Only Fulminate's runtime (cn-executable) is checked: the
+          # property-based testing runtimes (bennet, cn-testing, cn-replicate,
+          # cn-smt) have moved to their own repository and are not built here.
+          find runtime/libcn/src/cn-executable runtime/libcn/include/cn-executable \
+              -iname '*.c' -print0 \
+            | xargs -0 -n1 ${{ matrix.compiler }} -c -I runtime/libcn/include/ $flags -o /dev/null
+
+  shellcheck:
+    name: ShellCheck
+
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout CN
+        uses: actions/checkout@v6
+
+      - name: Install ShellCheck
+        run: sudo apt-get update && sudo apt-get install shellcheck
+
+      - name: Check test scripts
+        run: shellcheck -S error tests/**/*.sh

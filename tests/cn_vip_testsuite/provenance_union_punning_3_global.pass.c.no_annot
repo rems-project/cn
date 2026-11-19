@@ -1,0 +1,7 @@
+return code: 1
+[1/1]: main -- fail
+tests/cn_vip_testsuite/provenance_union_punning_3_global.pass.c:9:3: error: Missing resource for writing
+  u.up = p;
+  ~~~~~^~~ 
+Resource needed: W<signed int*>(&&u->up)
+State file: file:///tmp/state__provenance_union_punning_3_global.pass.c__main.html

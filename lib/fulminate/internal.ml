@@ -1,0 +1,851 @@
+open PPrint
+open Utils
+module CF = Cerb_frontend
+module C = CF.Ctype
+module A = CF.AilSyntax
+module AT = ArgumentTypes
+module OE = Ownership
+
+type executable_spec =
+  { pre_post : (CF.Symbol.sym * (string list * string list)) list;
+    in_stmt : (Cerb_location.t * string list) list;
+    returns :
+      (Cerb_location.t * (CF.GenTypes.genTypeCategory A.expression option * string list))
+        list
+  }
+
+let doc_to_pretty_string = CF.Pp_utils.to_plain_pretty_string
+
+let generate_ail_stat_strs
+      ?(with_newline = false)
+      (bs, (ail_stats_ : CF.GenTypes.genTypeCategory A.statement_ list))
+  =
+  let doc =
+    List.map
+      (fun s -> CF.Pp_ail.(with_executable_spec (pp_statement ~bs) (mk_stmt s)))
+      ail_stats_
+  in
+  let doc =
+    List.map
+      (fun d ->
+         let newline = if with_newline then PPrint.hardline else PPrint.empty in
+         newline ^^ d ^^ PPrint.hardline)
+      doc
+  in
+  List.map doc_to_pretty_string doc
+
+
+type stack_local_var_inj_info =
+  { entry_ownership_str : string list;
+    exit_ownership_str : string list;
+    block_ownership_stmts : (Cerb_location.t * string list) list;
+    return_ownership_stmts :
+      (Cerb_location.t * (CF.GenTypes.genTypeCategory A.expression option * string list))
+        list
+  }
+
+let generate_stack_local_var_inj_strs
+      ~contains_user_spec
+      cerb_conf
+      fn_sym
+      (sigm : _ CF.AilSyntax.sigma)
+  =
+  let fn_ownership_stats_opt, (block_ownership_injs, gcc_injs) =
+    OE.get_c_fn_local_ownership_checking_injs ~contains_user_spec cerb_conf fn_sym sigm
+  in
+  let (entry_ownership_str, exit_ownership_str), block_ownership_injs =
+    match fn_ownership_stats_opt with
+    | Some (entry_ownership_bs_and_ss, exit_ownership_bs_and_ss) ->
+      let entry_ownership_str = generate_ail_stat_strs entry_ownership_bs_and_ss in
+      let exit_ownership_str = generate_ail_stat_strs exit_ownership_bs_and_ss in
+      ((entry_ownership_str, exit_ownership_str), block_ownership_injs)
+    | None -> (([], []), [])
+  in
+  let rec get_return_and_non_return_injs return_ownership_stmts block_ownership_stmts
+    = function
+    | [] -> (return_ownership_stmts, block_ownership_stmts)
+    | (inj : OE.ownership_injection) :: injs ->
+      let strs = generate_ail_stat_strs ~with_newline:true inj.bs_and_ss in
+      (match inj.injection_kind with
+       | OE.ReturnInj return_kind ->
+         let return_inj_expr_opt =
+           match return_kind with ReturnExpr e -> Some e | ReturnVoid -> None
+         in
+         let return_ownership_stmt =
+           (inj.loc, (return_inj_expr_opt, [ String.concat "\n" strs ]))
+         in
+         get_return_and_non_return_injs
+           (return_ownership_stmt :: return_ownership_stmts)
+           block_ownership_stmts
+           injs
+       | NonReturnInj ->
+         let block_ownership_stmt = (inj.loc, [ String.concat "\n" strs ]) in
+         get_return_and_non_return_injs
+           return_ownership_stmts
+           (block_ownership_stmt :: block_ownership_stmts)
+           injs)
+  in
+  let return_ownership_stmts, block_ownership_stmts =
+    get_return_and_non_return_injs [] [] block_ownership_injs
+  in
+  { entry_ownership_str;
+    exit_ownership_str;
+    block_ownership_stmts = block_ownership_stmts @ gcc_injs;
+    return_ownership_stmts
+  }
+
+
+let generate_c_loop_invariants
+      without_loop_invariants
+      (ail_executable_spec : Cn_to_ail.ail_executable_spec)
+  =
+  if without_loop_invariants then
+    []
+  else (
+    let ail_loop_invariants = ail_executable_spec.loops in
+    (* A bit of a hack *)
+    let injs =
+      List.map
+        (fun (loop_info : Cn_to_ail.loop_info) ->
+           let loc, bs_and_ss = loop_info.cond in
+           let cond_inj =
+             ( get_start_loc loc,
+               Utils.remove_last_semicolon (generate_ail_stat_strs bs_and_ss) @ [ ", " ]
+             )
+           in
+           let decl_inj =
+             ( get_start_loc loop_info.loop_loc,
+               "{" :: generate_ail_stat_strs loop_info.loop_entry )
+           in
+           let end_internal_inj =
+             ( get_end_loc ~offset:(-1) loop_info.loop_loc,
+               generate_ail_stat_strs loop_info.loop_exit )
+           in
+           let end_external_inj =
+             ( get_end_loc loop_info.loop_loc,
+               generate_ail_stat_strs loop_info.loop_exit @ [ "}" ] )
+           in
+           [ cond_inj; decl_inj; end_internal_inj; end_external_inj ])
+        ail_loop_invariants
+    in
+    List.concat injs)
+
+
+let generate_fn_call_ghost_args_injs env (prog5 : unit Mucore.file) =
+  List.concat
+    (List.map
+       (fun (loc, ghost_args) ->
+          [ ( get_start_loc loc,
+              [ "(" ]
+              @ Utils.remove_last_semicolon
+                  (generate_ail_stat_strs
+                     (Cn_to_ail.cn_to_ail_cnprog_ghost_args
+                        env
+                        ~spec_mode:None
+                        ghost_args))
+              @ [ ", " ] );
+            (get_end_loc loc, [ ")" ])
+          ])
+       (Extract.ghost_args_and_their_call_locs prog5))
+
+
+type cn_spec_inj_info =
+  { pre_str : string list;
+    post_str : string list;
+    in_stmt_and_loop_inv_injs : (Cerb_location.t * string list) list
+  }
+
+let empty_cn_spec_inj_info : cn_spec_inj_info =
+  { pre_str = []; post_str = []; in_stmt_and_loop_inv_injs = [] }
+
+
+let generate_c_specs_from_cn_internal
+      disable_ghost_arg_failure
+      without_ownership_checking
+      without_loop_invariants
+      with_loop_leak_checks
+      without_lemma_checks
+      without_inline_statements
+      env
+      (instrumentation : Extract.instrumentation)
+      (sigm : _ CF.AilSyntax.sigma)
+      (prog5 : unit Mucore.file)
+  : cn_spec_inj_info
+  =
+  let preds = prog5.resource_predicates in
+  let c_return_type =
+    match List.assoc CF.Symbol.equal_sym instrumentation.fn sigm.A.declarations with
+    | _, _, A.Decl_function (_, (_, ret_ty), _, _, _, _) -> ret_ty
+    | _ -> failwith (__LOC__ ^ ": C function to be instrumented not found in Ail AST")
+  in
+  let ail_executable_spec =
+    Cn_to_ail.cn_to_ail_pre_post
+      ~without_ownership_checking
+      ~with_loop_leak_checks
+      ~without_lemma_checks
+      ~disable_ghost_arg_failure
+      ~is_lemma:false
+      ~without_inline_statements
+      env
+      preds
+      c_return_type
+      instrumentation.internal
+  in
+  let pre_str = generate_ail_stat_strs ail_executable_spec.pre in
+  let post_str = generate_ail_stat_strs ail_executable_spec.post in
+  (* Needed for extracting correct location for CN statement injection *)
+  let modify_magic_comment_loc loc =
+    match loc with
+    | Cerb_location.Loc_region (start_pos, end_pos, cursor) ->
+      Cerb_location.region
+        (Cerb_position.change_cnum start_pos (-3), Cerb_position.change_cnum end_pos 2)
+        cursor
+    | _ -> assert false (* loc should always be a region *)
+  in
+  let in_stmt =
+    List.map
+      (fun (loc, bs_and_ss) ->
+         (modify_magic_comment_loc loc, generate_ail_stat_strs bs_and_ss))
+      ail_executable_spec.in_stmt
+  in
+  let loop_invariant_injs =
+    generate_c_loop_invariants without_loop_invariants ail_executable_spec
+  in
+  { pre_str; post_str; in_stmt_and_loop_inv_injs = in_stmt @ loop_invariant_injs }
+
+
+let generate_c_specs_internal
+      cerb_conf
+      disable_ghost_arg_failure
+      without_ownership_checking
+      without_loop_invariants
+      with_loop_leak_checks
+      without_lemma_checks
+      without_inline_statements
+      env
+      (instrumentation : Extract.instrumentation)
+      (sigm : _ CF.AilSyntax.sigma)
+      (prog5 : unit Mucore.file)
+  =
+  let contains_user_spec = Cn_to_ail.has_cn_spec instrumentation in
+  (* C stack-local variable ownership checking: needed regardless of whether user has provided CN spec *)
+  let stack_local_var_inj_info : stack_local_var_inj_info =
+    generate_stack_local_var_inj_strs
+      ~contains_user_spec
+      cerb_conf
+      instrumentation.fn
+      sigm
+  in
+  let cn_spec_inj_info =
+    if contains_user_spec then
+      generate_c_specs_from_cn_internal
+        disable_ghost_arg_failure
+        without_ownership_checking
+        without_loop_invariants
+        with_loop_leak_checks
+        without_lemma_checks
+        without_inline_statements
+        env
+        instrumentation
+        sigm
+        prog5
+    else
+      empty_cn_spec_inj_info
+  in
+  let c_ownership_comment = "\n\t/* C OWNERSHIP */\n\n" in
+  let entry_strs =
+    if List.is_empty stack_local_var_inj_info.entry_ownership_str then
+      []
+    else
+      c_ownership_comment :: stack_local_var_inj_info.entry_ownership_str
+  in
+  let exit_strs =
+    if List.is_empty stack_local_var_inj_info.exit_ownership_str then
+      []
+    else
+      c_ownership_comment :: stack_local_var_inj_info.exit_ownership_str
+  in
+  (* NOTE - the nesting pre - entry - exit - post *)
+  ( [ ( instrumentation.fn,
+        (cn_spec_inj_info.pre_str @ entry_strs, exit_strs @ cn_spec_inj_info.post_str) )
+    ],
+    cn_spec_inj_info.in_stmt_and_loop_inv_injs
+    @ stack_local_var_inj_info.block_ownership_stmts,
+    stack_local_var_inj_info.return_ownership_stmts )
+
+
+let generate_c_assume_pres_internal
+      env
+      without_ownership_checking
+      (insts : (bool * Extract.instrumentation) list)
+      (sigma : CF.GenTypes.genTypeCategory A.sigma)
+      (prog5 : unit Mucore.file)
+  =
+  let aux ((is_static, inst) : bool * Extract.instrumentation) =
+    let preds = prog5.resource_predicates in
+    let args =
+      match List.assoc Sym.equal inst.fn sigma.declarations with
+      | _, _, Decl_function (_, _, args, _, _, _) ->
+        let arg_names = AT.get_computational (Option.get inst.internal) in
+        let arg_cts = List.map (fun (_, ct, _) -> ct) args in
+        List.map (fun ((x, bt), ct) -> (x, (bt, ct))) (List.combine arg_names arg_cts)
+      | _ -> failwith ("unreachable @ " ^ __LOC__)
+    in
+    let fsym =
+      if is_static then
+        Sym.fresh
+          (Utils.static_prefix env.Cn_to_ail.filename ^ "_" ^ Sym.pp_string inst.fn)
+      else
+        inst.fn
+    in
+    Cn_to_ail.cn_to_ail_assume_pre
+      env
+      fsym
+      args
+      preds
+      without_ownership_checking
+      (AT.get_lat (Option.get inst.internal))
+  in
+  insts
+  |> List.filter (fun ((_, inst) : bool * Extract.instrumentation) ->
+    Option.is_some inst.internal)
+  |> List.map aux
+
+
+(* Extract.instrumentation list -> executable_spec *)
+let generate_c_specs
+      cerb_conf
+      disable_ghost_arg_failure
+      without_ownership_checking
+      without_loop_invariants
+      with_loop_leak_checks
+      without_lemma_checks
+      without_inline_statements
+      env
+      instrumentation_list
+      (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
+      (prog5 : unit Mucore.file)
+  : executable_spec
+  =
+  let generate_c_spec (instrumentation : Extract.instrumentation) =
+    generate_c_specs_internal
+      cerb_conf
+      disable_ghost_arg_failure
+      without_ownership_checking
+      without_loop_invariants
+      with_loop_leak_checks
+      without_lemma_checks
+      without_inline_statements
+      env
+      instrumentation
+      sigm
+      prog5
+  in
+  let specs = List.map generate_c_spec instrumentation_list in
+  let pre_post, in_stmt, returns = Utils.list_split_three specs in
+  { pre_post = List.concat pre_post;
+    in_stmt = List.concat in_stmt;
+    returns = List.concat returns
+  }
+
+
+let generate_doc_from_ail_struct ail_struct =
+  CF.Pp_ail.(with_executable_spec pp_tag_definition ail_struct) ^^ PPrint.hardline
+
+
+let generate_struct_decl_str (tag, (_, _, def)) =
+  match def with
+  | C.StructDef _ -> Printf.sprintf "struct %s;\n" (Sym.pp_string tag)
+  | UnionDef _ -> ""
+
+
+let generate_c_records ail_structs =
+  let struct_docs = List.map generate_doc_from_ail_struct ail_structs in
+  doc_to_pretty_string (PPrint.concat struct_docs)
+
+
+let[@warning "-32" (* unused-value-declaration *)] generate_str_from_ail_struct ail_struct
+  =
+  doc_to_pretty_string (generate_doc_from_ail_struct ail_struct)
+
+
+module TagDefs = struct
+  module G = Graph.Persistent.Digraph.Concrete (Sym)
+  module Components = Graph.Components.Make (G)
+
+  let tag_def_order tag_defs =
+    let tag_defs_of ms =
+      let rec aux = function
+        | [] -> []
+        | (_, (_, _, _, m_ctype)) :: ms' ->
+          (match Utils.rm_ctype m_ctype with
+           | C.Struct sym | Union sym -> sym :: aux ms'
+           | _ -> aux ms')
+      in
+      Sym.Set.of_list (aux ms)
+    in
+    let graph = G.empty in
+    let graph = Sym.Map.fold (fun tag _ graph -> G.add_vertex graph tag) tag_defs graph in
+    let graph =
+      Sym.Map.fold
+        (fun tag (_, _, tag_def) graph ->
+           let includes =
+             match tag_def with C.StructDef (ms, _) | C.UnionDef ms -> tag_defs_of ms
+           in
+           Sym.Set.fold (fun tag' graph -> G.add_edge graph tag tag') includes graph)
+        tag_defs
+        graph
+    in
+    let sccs = Components.scc_list graph in
+    sccs
+end
+
+let order_ail_tag_definitions tag_defs =
+  (* Dependency analysis and ordering *)
+  let struct_sym_map = ref Sym.Map.empty in
+  List.iter
+    (fun (sym, tag_def) -> struct_sym_map := Sym.Map.add sym tag_def !struct_sym_map)
+    tag_defs;
+  let ordered_syms = List.concat (TagDefs.tag_def_order !struct_sym_map) in
+  let ordered_tag_defs =
+    List.map
+      (fun sym ->
+         let tag_def_triple = Sym.Map.find sym !struct_sym_map in
+         (sym, tag_def_triple))
+      ordered_syms
+  in
+  ordered_tag_defs
+
+
+let generate_str_from_ail_structs ail_structs =
+  let docs = List.map generate_doc_from_ail_struct ail_structs in
+  doc_to_pretty_string (Utils.concat_map_newline docs)
+
+
+let generate_c_datatypes (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma) =
+  let ail_datatypes =
+    match sigm.cn_datatypes with
+    | [] -> []
+    | d :: ds ->
+      let ail_dt1 = Cn_to_ail.cn_to_ail_datatype ~first:true d in
+      let ail_dts = List.map Cn_to_ail.cn_to_ail_datatype ds in
+      ail_dt1 :: ail_dts
+  in
+  let locs_and_struct_strs =
+    List.map
+      (fun (loc, structs) ->
+         let doc =
+           Utils.concat_map_newline (List.map generate_doc_from_ail_struct structs)
+         in
+         (loc, doc_to_pretty_string doc))
+      ail_datatypes
+  in
+  locs_and_struct_strs
+
+
+let generate_ghost_enum prog5 =
+  let args_and_body_list = Extract.args_and_body_list_of_mucore prog5 in
+  let rec bts_of_args_and_body = function
+    | Mucore.Computational (_, _, args) -> bts_of_args_and_body args
+    | Ghost ((_, bt), _, args) -> bt :: bts_of_args_and_body args
+    | L _ -> []
+  in
+  let bts = List.map bts_of_args_and_body args_and_body_list in
+  let _, ghost_argss = List.split (Extract.ghost_args_and_their_call_locs prog5) in
+  let ail_ghost_enum = Cn_to_ail.cn_to_ail_ghost_enum bts ghost_argss in
+  let doc = generate_doc_from_ail_struct ail_ghost_enum in
+  doc_to_pretty_string doc
+
+
+let generate_c_tag_def_strs c_structs =
+  "\n/* ORIGINAL C STRUCTS AND UNIONS */\n\n" ^ generate_str_from_ail_structs c_structs
+
+
+let generate_c_tag_decl_strs c_structs =
+  "/* ORIGINAL C STRUCT AND UNION DECLARATIONS */\n"
+  :: List.map generate_struct_decl_str c_structs
+
+
+let generate_cn_versions_of_structs c_structs =
+  let ail_structs = List.concat (List.map Cn_to_ail.cn_to_ail_struct c_structs) in
+  "\n/* CN VERSIONS OF C STRUCTS */\n\n" ^ generate_str_from_ail_structs ail_structs
+
+
+(* Needed for accept_uninterp, for overriding default stubs with user-defined bodies *)
+let uninterp_stub_macro sym = "CN_STUB_" ^ Sym.pp_string sym
+
+let generate_fun_def_and_decl_docs ~uninterps ?prefix funs =
+  let prefixed sym =
+    match prefix with
+    | Some prefix -> Sym.fresh (prefix ^ Sym.pp_string sym)
+    | None -> sym
+  in
+  let one_def_prog ((sym, decl), (_, def)) =
+    let sym = prefixed sym in
+    { A.empty_sigma with
+      declarations = [ (sym, decl) ];
+      function_definitions = [ (sym, def) ]
+    }
+  in
+  let one_decl_prog (sym, decl) =
+    { A.empty_sigma with declarations = [ (prefixed sym, decl) ] }
+  in
+  let pp_it x =
+    !^"static "
+    ^^ CF.Pp_ail.(with_executable_spec (pp_program ~show_include:true) (None, x))
+  in
+  let guard_uninterp sym doc =
+    if Sym.Set.mem sym uninterps then
+      !^("#ifndef " ^ uninterp_stub_macro sym)
+      ^^ hardline
+      ^^ doc
+      ^^ !^"#endif"
+      ^^ hardline
+      ^^ hardline
+    else
+      doc
+  in
+  let defs_doc =
+    List.fold_left
+      (fun d (((sym, _) as decl), def_opt) ->
+         match def_opt with
+         | Some def -> guard_uninterp sym (pp_it (one_def_prog (decl, def))) ^^ d
+         | None -> d)
+      empty
+      funs
+  in
+  let decls_doc =
+    List.fold_left (fun d (decl, _) -> pp_it (one_decl_prog decl) ^^ d) empty funs
+  in
+  (defs_doc, decls_doc)
+
+
+let generate_defined_fun_def_and_decl_docs ?(uninterps = Sym.Set.empty) ?prefix funs =
+  generate_fun_def_and_decl_docs
+    ~uninterps
+    ?prefix
+    (List.map (fun (decl, def) -> (decl, Some def)) funs)
+
+
+let generate_c_functions
+      ~accept_uninterp
+      ~remove_uninterp
+      env
+      (prog5 : _ Mucore.file)
+      (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
+  =
+  let cn_funs =
+    if remove_uninterp then
+      List.filter
+        (fun (f_sym, _) -> not (Sym.Set.mem f_sym !Uninterp.u_fn_syms))
+        prog5.logical_predicates
+    else
+      prog5.logical_predicates
+  in
+  let ail_funs_and_records =
+    List.map
+      (fun cn_f ->
+         (fun r -> (cn_f, r))
+           (Cn_to_ail.cn_to_ail_function ~accept_uninterp env cn_f sigm.cn_functions))
+      cn_funs
+  in
+  let ail_funs =
+    List.map (fun (cn_f, (fn, _records)) -> (cn_f, fn)) ail_funs_and_records
+  in
+  let locs = List.map (fun (_, ((loc, _), _)) -> loc) ail_funs in
+  let decls_and_defs = List.map (fun (_, ((_, decl), def)) -> (decl, def)) ail_funs in
+  let uninterps =
+    if accept_uninterp then
+      Sym.Set.of_list
+        (List.filter_map
+           (fun (f_sym, lf_def) ->
+              if Definition.Function.is_uninterp lf_def then Some f_sym else None)
+           cn_funs)
+    else
+      Sym.Set.empty
+  in
+  let decl_str_comment = "\n/* CN FUNCTIONS */\n\n" in
+  let defs_doc, decls_doc =
+    generate_fun_def_and_decl_docs ~uninterps ~prefix:"cn_" decls_and_defs
+  in
+  (doc_to_pretty_string defs_doc, decl_str_comment ^ doc_to_pretty_string decls_doc, locs)
+
+
+let[@warning "-32" (* unused-value-declaration *)] rec remove_duplicates eq_fun = function
+  | [] -> []
+  | t :: ts ->
+    if List.mem eq_fun t ts then
+      remove_duplicates eq_fun ts
+    else
+      t :: remove_duplicates eq_fun ts
+
+
+let generate_c_predicates
+      ~accept_uninterp
+      ~remove_uninterp
+      env
+      without_ownership_checking
+      (prog5 : _ Mucore.file)
+      (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
+  =
+  let cn_preds =
+    if remove_uninterp then
+      List.filter
+        (fun (pred_sym, _) -> not (Sym.Set.mem pred_sym !Uninterp.u_pred_syms))
+        prog5.resource_predicates
+    else
+      prog5.resource_predicates
+  in
+  let ail_funs, _ =
+    Cn_to_ail.cn_to_ail_predicates
+      ~accept_uninterp
+      env
+      cn_preds
+      sigm.cn_predicates
+      without_ownership_checking
+  in
+  let locs_and_decls, defs = List.split ail_funs in
+  let locs, decls = List.split locs_and_decls in
+  let uninterps =
+    if accept_uninterp then
+      Sym.Set.of_list
+        (List.filter_map
+           (fun (pred_sym, rp_def) ->
+              if Definition.Predicate.is_uninterp rp_def then Some pred_sym else None)
+           cn_preds)
+    else
+      Sym.Set.empty
+  in
+  let defs_doc, decls_doc =
+    generate_defined_fun_def_and_decl_docs
+      ~uninterps
+      ~prefix:"cn_"
+      (List.combine decls defs)
+  in
+  ( "\n/* CN PREDICATES */\n\n" ^ doc_to_pretty_string defs_doc,
+    doc_to_pretty_string decls_doc,
+    locs )
+
+
+let generate_c_lemmas env (remove_uninterp : bool) (prog5 : unit Mucore.file) =
+  let cn_lemmas =
+    if remove_uninterp then
+      Uninterp.remove_uninterp_lemmas prog5.lemmata
+    else
+      prog5.lemmata
+  in
+  let ail_funs = Cn_to_ail.cn_to_ail_lemmas env prog5.resource_predicates cn_lemmas in
+  let decls, defs = List.split ail_funs in
+  let defs_doc, decls_doc =
+    generate_defined_fun_def_and_decl_docs ~prefix:"cn_" (List.combine decls defs)
+  in
+  ("\n/* CN LEMMAS */\n\n" ^ doc_to_pretty_string defs_doc, doc_to_pretty_string decls_doc)
+
+
+let generate_ownership_functions without_ownership_checking ownership_sctypes =
+  let ctypes = List.map Sctypes.to_ctype ownership_sctypes in
+  let deref_funs =
+    List.map
+      (fun ctype ->
+         Cn_to_ail.generate_get_or_put_ownership_function
+           ~without_ownership_checking:true
+           ctype)
+      ctypes
+  in
+  let owned_funs =
+    if not without_ownership_checking then
+      List.map
+        (fun ctype ->
+           Cn_to_ail.generate_get_or_put_ownership_function
+             ~without_ownership_checking:false
+             ctype)
+        ctypes
+    else
+      []
+  in
+  let defs_doc, decls_doc =
+    generate_defined_fun_def_and_decl_docs (owned_funs @ deref_funs)
+  in
+  let comment = "\n/* OWNERSHIP FUNCTIONS */\n\n" in
+  (comment ^ doc_to_pretty_string defs_doc, doc_to_pretty_string decls_doc)
+
+
+let generate_conversion_and_equality_functions
+      env
+      (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
+  =
+  let struct_conversion_funs =
+    List.map Cn_to_ail.generate_struct_conversion_to_function sigm.tag_definitions
+    @ List.map Cn_to_ail.generate_struct_conversion_from_function sigm.tag_definitions
+  in
+  let struct_equality_funs =
+    List.map Cn_to_ail.generate_struct_equality_function sigm.tag_definitions
+  in
+  let datatype_equality_funs =
+    List.map (Cn_to_ail.generate_datatype_equality_function env) sigm.cn_datatypes
+  in
+  let struct_map_get_funs =
+    List.map Cn_to_ail.generate_struct_map_get sigm.tag_definitions
+  in
+  let struct_default_funs =
+    List.map Cn_to_ail.generate_struct_default_function sigm.tag_definitions
+  in
+  let datatype_map_get_funs =
+    List.map Cn_to_ail.generate_datatype_map_get sigm.cn_datatypes
+  in
+  let datatype_default_funs =
+    List.map Cn_to_ail.generate_datatype_default_function sigm.cn_datatypes
+  in
+  let ail_funs =
+    List.fold_left
+      ( @ )
+      []
+      (List.map
+         List.concat
+         [ struct_conversion_funs;
+           struct_equality_funs;
+           datatype_equality_funs;
+           struct_map_get_funs;
+           struct_default_funs;
+           datatype_map_get_funs;
+           datatype_default_funs
+         ])
+  in
+  let defs_doc, decls_doc = generate_defined_fun_def_and_decl_docs ail_funs in
+  let comment = "\n/* GENERATED STRUCT FUNCTIONS */\n\n" in
+  (comment ^ doc_to_pretty_string defs_doc, comment ^ doc_to_pretty_string decls_doc)
+
+
+let get_main (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma) =
+  List.filter
+    (fun (fn_sym, _) -> String.equal "main" (Sym.pp_string fn_sym))
+    sigm.function_definitions
+
+
+let has_main (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma) =
+  List.non_empty (get_main sigm)
+
+
+let get_global_init_stats
+      ?max_bump_blocks
+      ?bump_block_size
+      ?(source_locs_mode = false)
+      ?(correct_missing_ownership_mode = false)
+      ?(experimental_ownership_stack_mode = false)
+      ()
+  =
+  let gen_ail_const_from_int i =
+    A.(AilEconst (ConstantInteger (IConstant (Z.of_int i, Decimal, None))))
+  in
+  let gen_ail_const_from_flag flag = gen_ail_const_from_int (Bool.to_int flag) in
+  let flags_struct_tag = Sym.fresh "fulm_init_flags" in
+  let flags_member_pairs =
+    [ ("with_ghost_args", true);
+      ("source_locs_mode", source_locs_mode);
+      ("correct_missing_ownership", correct_missing_ownership_mode);
+      ("ownership_stack_mode", experimental_ownership_stack_mode)
+    ]
+  in
+  let flags_struct_member_pairs =
+    List.map
+      (fun (str, flag) ->
+         (Id.make Cerb_location.unknown str, Some (mk_expr (gen_ail_const_from_flag flag))))
+      flags_member_pairs
+  in
+  let flags_struct_initialiser =
+    A.AilEstruct (flags_struct_tag, flags_struct_member_pairs)
+  in
+  let config_struct_tag = Sym.fresh "fulm_init_config" in
+  let config_member_pairs =
+    [ ("max_bump_blocks", Option.value max_bump_blocks ~default:0);
+      ("bump_block_size", Option.value bump_block_size ~default:0)
+    ]
+  in
+  let config_struct_member_pairs =
+    List.map
+      (fun (str, i) ->
+         (Id.make Cerb_location.unknown str, Some (mk_expr (gen_ail_const_from_int i))))
+      config_member_pairs
+  in
+  let config_flags_member =
+    (Id.make Cerb_location.unknown "flags", Some (mk_expr flags_struct_initialiser))
+  in
+  let config_struct_initialiser =
+    A.(
+      AilEstruct (config_struct_tag, config_struct_member_pairs @ [ config_flags_member ]))
+  in
+  let fulm_init_fcall_ident = A.(AilEident (Sym.fresh "fulminate_init")) in
+  let fulm_init_fcall =
+    mk_expr
+      A.(
+        AilEcall
+          (mk_expr fulm_init_fcall_ident, List.map mk_expr [ config_struct_initialiser ]))
+  in
+  A.(AilSexpr fulm_init_fcall)
+
+
+let generate_global_assignments
+      ?(source_locs_mode = false)
+      ?(correct_missing_ownership_mode = false)
+      ?(experimental_ownership_stack_mode = false)
+      ?max_bump_blocks
+      ?bump_block_size
+      (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
+      (prog5 : unit Mucore.file)
+  =
+  (* For the experimental ownership stack mode, source locations are required *)
+  let source_locs_mode =
+    if experimental_ownership_stack_mode then true else source_locs_mode
+  in
+  match get_main sigm with
+  | [] -> []
+  | (main_sym, _) :: _ ->
+    let globals = Cn_to_ail.extract_global_variables prog5 in
+    let global_map_stmts_ =
+      List.filter_map
+        (OE.generate_c_local_ownership_entry (* TODO *) ~is_register:false)
+        globals
+    in
+    let fulm_init_fcall =
+      get_global_init_stats
+        ?max_bump_blocks
+        ?bump_block_size
+        ~source_locs_mode
+        ~correct_missing_ownership_mode
+        ~experimental_ownership_stack_mode
+        ()
+    in
+    let init_str = generate_ail_stat_strs ([], [ fulm_init_fcall ]) in
+    let global_mapping_str = generate_ail_stat_strs ([], global_map_stmts_) in
+    let global_unmapping_stmts_ =
+      List.filter_map
+        (OE.generate_c_local_ownership_exit (* TODO *) ~is_register:false)
+        globals
+    in
+    let global_unmapping_str = generate_ail_stat_strs ([], global_unmapping_stmts_) in
+    [ (main_sym, (init_str @ global_mapping_str, global_unmapping_str)) ]
+
+
+(* Needed for handling typedef definitions *)
+let generate_tag_definition_injs (tag_defs : CF.AilSyntax.sigma_tag_definition list) =
+  let tag_defs' = ref [] in
+  List.iter
+    (fun ((sym, (loc, _, _)) as tag_def) ->
+       let nested =
+         List.exists
+           (fun (sym', (loc', _, _)) ->
+              (not (Sym.equal sym sym')) && Utils.is_sub_location loc loc')
+           tag_defs
+       in
+       if not nested then tag_defs' := tag_def :: !tag_defs')
+    tag_defs;
+  let all_tag_def_injs =
+    List.map
+      (fun (sym, (loc, _, tag_def)) ->
+         let tag_ctype_str =
+           match tag_def with CF.Ctype.StructDef _ -> "struct" | UnionDef _ -> "union"
+         in
+         (loc, [ tag_ctype_str ^ " " ^ Pp.plain (CF.Pp_ail.pp_id sym) ]))
+      !tag_defs'
+  in
+  all_tag_def_injs

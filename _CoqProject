@@ -1,0 +1,7 @@
+# This is top-level _CoqProject file. It is needed for vscode-coq to work.
+# It is *not* used by the build system.
+#
+-R _build/default/coq/Cerberus/ Cerberus
+-R _build/default/coq/Cn/ Cn
+-R _build/default/coq/Reasoning/ Reasoning
+-R _build/default/coq/CN_Lemmas/ CN_Lemmas

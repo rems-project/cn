@@ -1,0 +1,14 @@
+return code: 0
+tests/cn/extract_verbose.c:12:22: warning: 'focus' prefers a 'integer', but '1'u64' has type 'u64'.
+  /*@ focus RW<int>, 1u64; @*/
+                     ^
+tests/cn/extract_verbose.c:13:21: warning: 'focus' prefers a 'integer', but '1'u64' has type 'u64'.
+  /*@ focus W<int>, 1u64; @*/
+                    ^
+tests/cn/extract_verbose.c:12:7: warning: focus: index added, no effect on existing resources (yet).
+  /*@ focus RW<int>, 1u64; @*/
+      ^~~~~~~~~~~~~~~~~~~~ 
+tests/cn/extract_verbose.c:13:7: warning: focus: index added, no effect on existing resources (yet).
+  /*@ focus W<int>, 1u64; @*/
+      ^~~~~~~~~~~~~~~~~~~ 
+[1/1]: f -- pass

@@ -1,0 +1,8 @@
+return code: 1
+tests/cn/bitwise_and_type_left.error.c:3:21: error: Type error
+    /*@ assert (0 & 1i32 == 0i32); @*/
+                    ^
+Expression '1'i32' has type 'i32'.
+I expected it to have type 'integer' because of tests/cn/bitwise_and_type_left.error.c:3:17:
+    /*@ assert (0 & 1i32 == 0i32); @*/
+                ^

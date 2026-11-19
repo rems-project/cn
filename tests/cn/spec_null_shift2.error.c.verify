@@ -1,0 +1,10 @@
+return code: 1
+[1/2]: f -- fail
+[2/2]: main -- pass
+tests/cn/spec_null_shift2.error.c:5:1: error: Unprovable constraint
+void f(int *p)
+~~~~~^~~~~~~~~ 
+Constraint from tests/cn/spec_null_shift2.error.c:12:5:
+    ptr_eq(x, y);
+    ^~~~~~~~~~~~~ 
+State file: file:///tmp/state__spec_null_shift2.error.c__f.html

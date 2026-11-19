@@ -1,0 +1,379 @@
+module CF = Cerb_frontend
+module CB = Cerb_backend
+open Cn
+
+let verify
+      filename
+      cc
+      macros
+      permissive
+      lexicon
+      incl_dirs
+      incl_files
+      loc_pp
+      debug_level
+      print_level
+      print_sym_nums
+      no_timestamps
+      json
+      json_trace
+      output_dir
+      lemmata_coq
+      lemmata_lean
+      coq_export_file
+      coq_mucore
+      coq_proof_log
+      coq_check_proof_log
+      only
+      skip
+      csv_times
+      stdout_times
+      solver_logging
+      solver_flags
+      solver_path
+      solver_type
+      solver_inc_enabled
+      solver_inc_timeout
+      solver_hybrid
+      astprints
+      dont_use_vip
+      allow_implicit_each_bounds
+      fail_fast
+      quiet
+      no_inherit_loc
+      magic_comment_char_dollar
+      allow_split_magic_comments
+      disable_derived_lc1
+      try_hard
+      always_interp
+      disable_unfold_multiclause_preds
+      check_consistency (* integermode *)
+  =
+  if json then (
+    if debug_level > 0 then
+      Cerb_diagnostic.fatal "debug level must be 0 for json output";
+    if print_level > 0 then
+      Cerb_diagnostic.fatal "print level must be 0 for json output");
+  (*flags *)
+  Cerb_debug.debug_level := debug_level;
+  Pp.loc_pp := loc_pp;
+  Pp.print_level := print_level;
+  Sym.print_nums := print_sym_nums;
+  Pp.print_timestamps := not no_timestamps;
+  (* BaseTypes.cnBV := not integermode; *)
+  (match solver_logging with
+   | Some d ->
+     Solver.Logger.to_file := true;
+     Solver.Logger.dir := if String.equal d "" then None else Some d
+   | _ -> ());
+  Solver.solver_path := solver_path;
+  Solver.solver_type := solver_type;
+  Solver.solver_flags := solver_flags;
+  Solver.try_hard := try_hard;
+  Solver.always_interp := always_interp;
+  Solver.inc_enabled := solver_inc_enabled;
+  Solver.inc_timeout := solver_inc_timeout;
+  Solver.hybrid := solver_hybrid;
+  MakeTerm.use_vip := not dont_use_vip;
+  WellTyped.allow_implicit_each_bounds := allow_implicit_each_bounds;
+  Check.fail_fast := fail_fast;
+  Resource.disable_derived_lc1 := disable_derived_lc1;
+  (* Set the prooflog flag based on --coq-proof-log *)
+  Prooflog.set_enabled coq_proof_log;
+  Typing.unfold_multiclause_preds := not disable_unfold_multiclause_preds;
+  let filename = Common.there_can_only_be_one filename in
+  Common.with_well_formedness_check (* CLI arguments *)
+    ~filename
+    ~cc
+    ~macros:(("__CN_VERIFY", None) :: macros)
+    ~permissive
+    ~lexicon
+    ~incl_dirs
+    ~incl_files
+    ~coq_export_file
+    ~coq_mucore
+    ~coq_proof_log
+    ~coq_check_proof_log
+    ~csv_times
+    ~stdout_times
+    ~astprints
+    ~no_inherit_loc
+    ~magic_comment_char_dollar
+    ~allow_split_magic_comments
+    ~save_cpp:None
+    ~disable_linemarkers:false
+    ~handle_error:(Common.handle_type_error ~json ?output_dir ~serialize_json:json_trace)
+    ~f:(fun ~cerb_conf:_ ~prog5:_ ~ail_prog:_ ~statement_locs:_ ~paused ->
+      let check (functions, constraints_to_add, lemmas) =
+        let open Typing in
+        let@ errors =
+          Check.time_check_c_functions
+            (skip, only)
+            check_consistency
+            (constraints_to_add, functions)
+        in
+        if not quiet then
+          List.iter
+            (fun (fn, err) ->
+               Common.report_type_error
+                 ~json
+                 ?output_dir
+                 ~fn_name:fn
+                 ~serialize_json:json_trace
+                 err)
+            errors;
+        Option.fold ~none:() ~some:exit (Common.exit_code_of_errors (List.map snd errors));
+        Check.generate_lemmas lemmas lemmata_coq lemmata_lean
+      in
+      Typing.run_from_pause check paused)
+
+
+open Cmdliner
+
+(* Section for flags specific to [cn verify]. *)
+let s_verification = "VERIFICATION OPTIONS"
+
+module Flags = struct
+  let quiet =
+    let doc = "Only report success and failure, rather than rich errors" in
+    Arg.(value & flag & info ~docs:s_verification [ "quiet" ] ~doc)
+
+
+  let solver_logging =
+    let doc = "Log solver queries in SMT2 format to a directory." in
+    Arg.(
+      value
+      & opt (some string) None
+      & info ~docs:s_verification [ "solver-logging" ] ~docv:"DIR" ~doc)
+
+
+  let solver_flags =
+    let doc =
+      "Ovewrite default solver flags. Note that flags should enable at least incremental \
+       checking."
+    in
+    Arg.(
+      value
+      & opt (some (list string)) None
+      & info ~docs:s_verification [ "solver-flags" ] ~docv:"X,Y,Z" ~doc)
+
+
+  let solver_path =
+    let doc = "Path to SMT solver executable" in
+    Arg.(
+      value
+      & opt (some file) None
+      & info ~docs:s_verification [ "solver-path" ] ~docv:"FILE" ~doc)
+
+
+  let solver_type =
+    let doc = "Specify the SMT solver interface" in
+    Arg.(
+      value
+      & opt (some (enum [ ("z3", Simple_smt.Z3); ("cvc5", Simple_smt.CVC5) ])) None
+      & info ~docs:s_verification [ "solver-type" ] ~docv:"z3|cvc5" ~doc)
+
+
+  let solver_inc_enabled =
+    let doc = "Enable or disable incremental SMT solving." in
+    Arg.(
+      value
+      & opt bool !Solver.inc_enabled
+      & info ~docs:s_verification [ "incremental-solving" ] ~doc)
+
+
+  let solver_inc_timeout =
+    let doc =
+      "Timeout after which a non-incremental SMT solver replaces the incremental solver"
+    in
+    Arg.(
+      value
+      & opt (some int) !Solver.inc_timeout
+      & info ~docs:s_verification [ "incremental-solver-timeout" ] ~doc)
+
+
+  let solver_hybrid =
+    let doc =
+      "Enable or disable hybrid SMT solving (on incremental solver timeout, switch to \
+       non-incremental solver)."
+    in
+    Arg.(
+      value
+      & opt bool !Solver.hybrid
+      & info ~docs:s_verification [ "hybrid-solving" ] ~doc)
+
+
+  let try_hard =
+    let doc = "Try undecidable SMT solving using full set of assumptions" in
+    Arg.(value & flag & info ~docs:s_verification [ "try-hard" ] ~doc)
+
+
+  let always_interp =
+    let doc = "Always use interpreted functions, even for NIA." in
+    Arg.(value & flag & info ~docs:s_verification [ "always-interp" ] ~doc)
+
+
+  let only =
+    let doc = "Only type-check this function (or comma-separated names)" in
+    Arg.(value & opt (list string) [] & info ~docs:s_verification [ "only" ] ~doc)
+
+
+  let skip =
+    let doc = "Skip type-checking of this function (or comma-separated names)" in
+    Arg.(value & opt (list string) [] & info ~docs:s_verification [ "skip" ] ~doc)
+
+
+  let json =
+    let doc = "output summary in JSON format" in
+    Arg.(value & flag & info ~docs:s_verification [ "json" ] ~doc)
+
+
+  let json_trace =
+    let doc = "output state trace files as JSON, in addition to HTML" in
+    Arg.(value & flag & info ~docs:s_verification [ "json-trace" ] ~doc)
+
+
+  let output_dir =
+    let doc = "directory in which to output state files" in
+    Arg.(
+      value
+      & opt (some dir) None
+      & info ~docs:s_verification [ "output-dir" ] ~docv:"DIR" ~doc)
+
+
+  let disable_derived_lc1 =
+    let doc = "disable constraints derived from ownership of individual resources" in
+    Arg.(
+      value
+      & flag
+      & info ~docs:s_verification [ "disable-resource-derived-constraints" ] ~doc)
+
+
+  let disable_unfold_multiclause_preds =
+    let doc =
+      "do not automatically unfold predicates with multiple (if-then-else) clauses"
+    in
+    Arg.(
+      value
+      & flag
+      & info ~docs:s_verification [ "disable-multiclause-predicate-unfolding" ] ~doc)
+
+
+  let check_consistency =
+    let doc =
+      "check consistency of predicate definitions, function specifications, and lemmas"
+    in
+    Arg.(value & flag & info ~docs:s_verification [ "check-consistency" ] ~doc)
+
+  (* let integermode = *)
+  (*   let doc = *)
+  (*     "Use mathematical integers instead of bitvectors for representing C integers." *)
+  (*   in *)
+  (*   Arg.(value & flag & info ~docs:s_verification [ "integermode" ] ~doc) *)
+end
+
+module Lemma_flags_lean = struct
+  let lemmata =
+    let doc = "lemmata generation mode (target filename)" in
+    Arg.(
+      value
+      & opt (some string) None
+      & info ~docs:s_verification [ "lemmata_lean" ] ~docv:"FILE" ~doc)
+end
+
+module Lemma_flags_coq = struct
+  let lemmata =
+    let doc = "lemmata generation mode (target filename)" in
+    Arg.(
+      value
+      & opt (some string) None
+      & info ~docs:s_verification [ "lemmata_coq" ] ~docv:"FILE" ~doc)
+end
+
+module CoqExport_flags = struct
+  let coq_export =
+    let doc = "File to export to coq defintions" in
+    Arg.(
+      value
+      & opt (some string) None
+      & info ~docs:s_verification [ "coq-export-file" ] ~docv:"FILE" ~doc)
+end
+
+module CoqMucore_flags = struct
+  let coq_mucore =
+    let doc = "include mu-core AST in coq export" in
+    Arg.(value & flag & info ~docs:s_verification [ "coq-mucore" ] ~doc)
+end
+
+module CoqProofLog_flags = struct
+  let coq_proof_log =
+    let doc = "include proof log in coq export" in
+    Arg.(value & flag & info ~docs:s_verification [ "coq-proof-log" ] ~doc)
+end
+
+module CoqCheckProofLog_flags = struct
+  let coq_check_proof_log =
+    let doc = "Include statements to check proof log in coq exported file" in
+    Arg.(value & flag & info ~docs:s_verification [ "coq-check-proof-log" ] ~doc)
+end
+
+let verify_t : unit Term.t =
+  let open Term in
+  const verify
+  $ Common.Flags.file
+  $ Common.Flags.cc
+  $ Common.Flags.macros
+  $ Common.Flags.permissive
+  $ Common.Flags.lexicon
+  $ Common.Flags.incl_dirs
+  $ Common.Flags.incl_files
+  $ Common.Flags.loc_pp
+  $ Common.Flags.debug_level
+  $ Common.Flags.print_level
+  $ Common.Flags.print_sym_nums
+  $ Common.Flags.no_timestamps
+  $ Flags.json
+  $ Flags.json_trace
+  $ Flags.output_dir
+  $ Lemma_flags_coq.lemmata
+  $ Lemma_flags_lean.lemmata
+  $ CoqExport_flags.coq_export
+  $ CoqMucore_flags.coq_mucore
+  $ CoqProofLog_flags.coq_proof_log
+  $ CoqCheckProofLog_flags.coq_check_proof_log
+  $ Flags.only
+  $ Flags.skip
+  $ Common.Flags.csv_times
+  $ Common.Flags.stdout_times
+  $ Flags.solver_logging
+  $ Flags.solver_flags
+  $ Flags.solver_path
+  $ Flags.solver_type
+  $ Flags.solver_inc_enabled
+  $ Flags.solver_inc_timeout
+  $ Flags.solver_hybrid
+  $ Common.Flags.astprints
+  $ Common.Flags.dont_use_vip
+  $ Common.Flags.allow_implicit_each_bounds
+  $ Common.Flags.fail_fast
+  $ Flags.quiet
+  $ Common.Flags.no_inherit_loc
+  $ Common.Flags.magic_comment_char_dollar
+  $ Common.Flags.allow_split_magic_comments
+  $ Flags.disable_derived_lc1
+  $ Flags.try_hard
+  $ Flags.always_interp
+  $ Flags.disable_unfold_multiclause_preds
+  $ Flags.check_consistency
+
+
+(* $ Flags.integermode *)
+
+let cmd =
+  let doc =
+    "Verifies that functions meet\n\
+    \    their CN specifications and the\n\
+    \    absence of undefined behavior."
+  in
+  let info = Cmd.info "verify" ~doc ~man:[ `S s_verification; `S Common.s_cn ] in
+  Cmd.v info verify_t

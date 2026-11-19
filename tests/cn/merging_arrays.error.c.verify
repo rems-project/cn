@@ -1,0 +1,5 @@
+return code: 0
+[1/3]: half -- pass
+[2/3]: whole -- pass
+Using quantifiers to describe result of an array merge.
+[3/3]: main -- pass

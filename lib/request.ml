@@ -1,0 +1,204 @@
+open Pp.Infix
+module T = Terms.Normal
+
+let pp_maybe_oargs = function None -> Pp.empty | Some oargs -> Pp.parens (T.pp oargs)
+
+type init =
+  | Init
+  | Uninit
+[@@deriving eq, ord]
+
+let pp_init = function Init -> !^"Init" | Uninit -> !^"Uninit"
+
+type name =
+  | Owned of Sctypes.t * init
+  | PName of Sym.t
+[@@deriving eq, ord]
+
+let pp_name ?(no_nums = false) = function
+  | Owned (ct, Init) -> !^"RW" ^^ Pp.angles (Sctypes.pp ct)
+  | Owned (ct, Uninit) -> !^"W" ^^ Pp.angles (Sctypes.pp ct)
+  | PName pn -> if no_nums then Pp.string (Sym.pp_string_no_nums pn) else Sym.pp pn
+
+
+let dtree_of_name =
+  let open Cerb_frontend.Pp_ast in
+  function
+  | Owned (ty, init) ->
+    Dleaf (!^"Owned" ^^ Pp.angles (Sctypes.pp ty ^^ Pp.comma ^^ pp_init init))
+  | PName s -> Dleaf (Sym.pp s)
+
+
+let subsumed p1 p2 =
+  (* p1 subsumed by p2 *)
+  equal_name p1 p2
+  ||
+  match (p1, p2) with
+  | Owned (ct, Uninit), Owned (ct', Init) when Sctypes.equal ct ct' -> true
+  | _ -> false
+
+
+module Predicate = struct
+  let alloc = PName Alloc.Predicate.sym
+
+  type t =
+    { name : name;
+      pointer : T.t; (* I *)
+      iargs : T.t list (* I *)
+    }
+  [@@deriving eq, ord]
+
+  let pp_aux (p : t) oargs =
+    let args = List.map T.pp (p.pointer :: p.iargs) in
+    Pp.c_app (pp_name p.name) args ^^ pp_maybe_oargs oargs
+
+
+  let subst substitution (p : t) =
+    { name = p.name;
+      pointer = T.subst substitution p.pointer;
+      iargs = List.map (T.subst substitution) p.iargs
+    }
+
+
+  let dtree (pred : t) =
+    let open Cerb_frontend.Pp_ast in
+    Dnode
+      ( pp_ctor "pred",
+        dtree_of_name pred.name :: T.dtree pred.pointer :: List.map T.dtree pred.iargs )
+end
+
+let make_alloc pointer = Predicate.{ name = alloc; pointer; iargs = [] }
+
+module QPredicate = struct
+  type t =
+    { name : name;
+      pointer : T.t; (* I *)
+      q : Sym.t * BaseTypes.t;
+      q_loc : Locations.t; [@equal fun _ _ -> true] [@compare fun _ _ -> 0]
+      step : Sctypes.ctype;
+      permission : T.t; (* I, function of q *)
+      iargs : T.t list (* I, function of q *)
+    }
+  [@@deriving eq, ord]
+
+  let pp_aux (p : t) oargs =
+    let open Pp in
+    let pointer =
+      T.pp p.pointer ^^^ plus ^^^ Sym.pp (fst p.q) ^^^ at ^^^ Sctypes.pp p.step
+    in
+    let args = pointer :: List.map T.pp p.iargs in
+    !^"each"
+    ^^ parens (BaseTypes.pp (snd p.q) ^^^ Sym.pp (fst p.q) ^^ semi ^^^ T.pp p.permission)
+    ^/^ braces (c_app (pp_name p.name) args)
+    ^^ pp_maybe_oargs oargs
+
+
+  let alpha_rename_ (q' : Sym.t) (qp : t) =
+    let subst = T.make_rename ~from:(fst qp.q) ~to_:q' in
+    { name = qp.name;
+      pointer = qp.pointer;
+      q = (q', snd qp.q);
+      q_loc = qp.q_loc;
+      step = qp.step;
+      permission = T.subst subst qp.permission;
+      iargs = List.map (T.subst subst) qp.iargs
+    }
+
+
+  let alpha_rename qp = alpha_rename_ (Sym.fresh_same (fst qp.q)) qp
+
+  let subst substitution (qp : t) =
+    let qp =
+      if Sym.Set.mem (fst qp.q) substitution.Subst.relevant then
+        alpha_rename qp
+      else
+        qp
+    in
+    { name = qp.name;
+      pointer = T.subst substitution qp.pointer;
+      q = qp.q;
+      q_loc = qp.q_loc;
+      step = qp.step;
+      permission = T.subst substitution qp.permission;
+      iargs = List.map (T.subst substitution) qp.iargs
+    }
+
+
+  let dtree (qpred : t) =
+    let open Cerb_frontend.Pp_ast in
+    Dnode
+      ( pp_ctor "qpred",
+        Dleaf (Pp.parens (Pp.typ (Sym.pp (fst qpred.q)) (BaseTypes.pp (snd qpred.q))))
+        :: Dleaf (Sctypes.pp qpred.step)
+        :: T.dtree qpred.permission
+        :: dtree_of_name qpred.name
+        :: T.dtree qpred.pointer
+        :: List.map T.dtree qpred.iargs )
+
+
+  let get_lower_bound (qpred : t) : T.t =
+    TermBounds.get_lower_bound qpred.q qpred.permission
+
+
+  let get_upper_bound (qpred : t) : T.t =
+    TermBounds.get_upper_bound qpred.q qpred.permission
+
+
+  let get_bounds (qpred : t) : T.t * T.t = (get_lower_bound qpred, get_upper_bound qpred)
+end
+
+type t =
+  | P of Predicate.t
+  | Q of QPredicate.t
+[@@deriving eq, ord]
+
+let get_name = function P p -> p.name | Q p -> p.name
+
+(* resources of the same type as a request, such that the resource coult potentially be
+   used to fulfil the request *)
+let same_name r1 r2 = equal_name (get_name r1) (get_name r2)
+
+let pp_aux r o =
+  match r with P p -> Predicate.pp_aux p o | Q qp -> QPredicate.pp_aux qp o
+
+
+let pp r = pp_aux r None
+
+let json re : Yojson.Safe.t = `String (Pp.plain (pp re))
+
+let subst (substitution : _ Subst.t) = function
+  | P p -> P (Predicate.subst substitution p)
+  | Q qp -> Q (QPredicate.subst substitution qp)
+
+
+let free_vars_bts = function
+  | P p -> T.free_vars_bts_list (p.pointer :: p.iargs)
+  | Q p ->
+    Sym.Map.union
+      (fun _ bt1 bt2 ->
+         assert (BaseTypes.equal bt1 bt2);
+         Some bt1)
+      (T.free_vars_bts_list [ p.pointer ])
+      (Sym.Map.remove (fst p.q) (T.free_vars_bts_list (p.permission :: p.iargs)))
+
+
+let free_vars = function
+  | P p -> T.free_vars_list (p.pointer :: p.iargs)
+  | Q p ->
+    Sym.Set.union
+      (T.free_vars p.pointer)
+      (Sym.Set.remove (fst p.q) (T.free_vars_list (p.permission :: p.iargs)))
+
+
+let alpha_equivalent r1 r2 =
+  match (r1, r2) with
+  | P _, P _ -> equal r1 r2
+  | Q x, Q y ->
+    let y2 = QPredicate.alpha_rename_ (fst x.q) y in
+    equal (Q x) (Q y2)
+  | _ -> false
+
+
+let dtree = function P pred -> Predicate.dtree pred | Q qpred -> QPredicate.dtree qpred
+
+let get_pointer = function P pred -> pred.pointer | Q qpred -> qpred.pointer

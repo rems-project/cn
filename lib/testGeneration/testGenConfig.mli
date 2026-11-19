@@ -1,0 +1,326 @@
+type build_tool =
+  | Bash
+  | Make
+
+type engine =
+  | Bennet (* Backtracking random search *)
+  | Darcy (* Symbolic constraint-based generation *)
+  | Lucas (* Randomized refinement of abstract elements *)
+
+val all_of_engine : engine list
+
+val string_of_engine : engine -> string
+
+val cli_name : engine -> string
+
+val is_experimental : engine -> bool
+
+val stable_engine_names : string list
+
+val experimental_message : engine -> string
+
+type logging_level =
+  | None
+  | Error
+  | Info
+
+type trace_granularity =
+  | None
+  | Ends
+  | All
+
+type progress_level =
+  | Silent
+  | PerFunc
+  | PerTestCase
+
+type sizing_strategy =
+  | Uniform
+  | Constant
+  | QuickCheck
+
+type inline_mode =
+  | Nothing
+  | NonRecursive
+  | SemiRecursive
+  | Everything
+
+type smt_skewing_mode =
+  | Uniform
+  | Sized
+  | None
+
+type smt_solver =
+  | Z3
+  | CVC5
+
+type dynamic_absint_assign_mode =
+  | DynamicAbsIntAssignAlso
+  | DynamicAbsIntAssignOnly
+
+type t =
+  { (* Compile time *)
+    skip_and_only : string list * string list;
+    cc : string;
+    print_steps : bool;
+    num_samples : int;
+    max_backtracks : int;
+    build_tool : build_tool;
+    sanitizers : string option * string option;
+    inline : inline_mode;
+    experimental_struct_asgn_destruction : bool;
+    experimental_product_arg_destruction : bool;
+    experimental_arg_pruning : bool;
+    experimental_return_pruning : bool;
+    ad_pruning : bool;
+    static_absint : bool;
+    domains : string list;
+    local_iterations : int;
+    smt_pruning_before_absint : [ `None | `Fast | `Slow ];
+    smt_pruning_after_absint : [ `None | `Fast | `Slow ];
+    smt_pruning_remove_redundant_assertions : bool;
+    smt_pruning_at_runtime : bool;
+    runtime_assert_domain : bool;
+    engine : engine;
+    symbolic_timeout : int option; (* SMT solver timeout for symbolic solving (ms) *)
+    max_unfolds : int option; (* Maximum unfolds for symbolic execution *)
+    max_array_length : int; (* For symbolic execution *)
+    use_solver_eval : bool; (* Use solver-based evaluation *)
+    smt_solver : smt_solver;
+    disable_specialization : bool;
+    only_top_level_ite_lifting : bool;
+    (* Run time *)
+    print_seed : bool;
+    input_timeout : int option;
+    null_in_every : int option;
+    seed : string option;
+    logging_level : logging_level option;
+    trace_granularity : trace_granularity option;
+    progress_level : progress_level option;
+    until_timeout : int option;
+    exit_fast : bool;
+    max_stack_depth : int option;
+    max_depth_failures : int option;
+    max_generator_size : int option;
+    sizing_strategy : sizing_strategy option;
+    random_size_splits : bool;
+    allowed_size_split_backtracks : int option;
+    coverage : bool;
+    disable_passes : string list;
+    trap : bool;
+    no_replays : bool;
+    no_replicas : bool;
+    output_tyche : string option;
+      (** Dump the specification IR as AustenTest spec-module JSON here. *)
+    export_spec_json : string option;
+    print_size_info : bool;
+    print_backtrack_info : bool;
+    print_satisfaction_info : bool;
+    print_discard_info : bool;
+    print_timing_info : bool;
+    progress_backtracks : bool;
+    just_reset_solver : bool;
+    smt_skewing_mode : smt_skewing_mode;
+    smt_logging : string option;
+    smt_log_unsat_cores : string option;
+    max_bump_blocks : int option;
+    bump_block_size : int option;
+    max_input_alloc : int option;
+    smt_skew_pointer_order : bool;
+    dsl_log_dir : string option;
+    disable_extrema_skew : bool;
+    discard_factor : int;
+    dynamic_arbitrary_domain : bool;
+    dynamic_arbitrary_propagation : bool;
+    dynamic_assert_domain : bool;
+    dynamic_return_propagation : bool;
+    old_style_alloc : bool;
+    dynamic_absint_assign : dynamic_absint_assign_mode option;
+    dynamic_local_iterations : int
+  }
+
+val default : t
+
+module Options : sig
+  val build_tool : (string * build_tool) list
+
+  val logging_level : (string * logging_level) list
+
+  val trace_granularity : (string * trace_granularity) list
+
+  val progress_level : (string * progress_level) list
+
+  val sizing_strategy : (string * sizing_strategy) list
+
+  val inline_mode : (string * inline_mode) list
+
+  val smt_skewing_mode : (string * smt_skewing_mode) list
+
+  val smt_solver : (string * smt_solver) list
+
+  val dynamic_absint_assign_mode : (string * dynamic_absint_assign_mode) list
+end
+
+val initialize : t -> unit
+
+val get_skip_and_only : unit -> string list * string list
+
+val get_cc : unit -> string
+
+val is_print_steps : unit -> bool
+
+val is_print_seed : unit -> bool
+
+val get_num_samples : unit -> int
+
+val get_max_backtracks : unit -> int
+
+val get_build_tool : unit -> build_tool
+
+val has_sanitizers : unit -> string option * string option
+
+val get_inline_mode : unit -> inline_mode
+
+val is_experimental_struct_asgn_destruction : unit -> bool
+
+val is_experimental_product_arg_destruction : unit -> bool
+
+val is_experimental_arg_pruning : unit -> bool
+
+val is_experimental_return_pruning : unit -> bool
+
+val is_ad_pruning : unit -> bool
+
+val has_static_absint : unit -> bool
+
+val get_domains : unit -> string list
+
+val get_local_iterations : unit -> int
+
+val has_smt_pruning_before_absint : unit -> [ `None | `Fast | `Slow ]
+
+val has_smt_pruning_after_absint : unit -> [ `None | `Fast | `Slow ]
+
+val is_smt_pruning_remove_redundant_assertions : unit -> bool
+
+val is_smt_pruning_at_runtime : unit -> bool
+
+val is_runtime_assert_domain : unit -> bool
+
+val has_input_timeout : unit -> int option
+
+val has_null_in_every : unit -> int option
+
+val has_seed : unit -> string option
+
+val has_logging_level : unit -> logging_level option
+
+val has_logging_level_str : unit -> string option
+
+val has_trace_granularity : unit -> trace_granularity option
+
+val has_trace_granularity_str : unit -> string option
+
+val has_progress_level : unit -> progress_level option
+
+val has_progress_level_str : unit -> string option
+
+val is_until_timeout : unit -> int option
+
+val is_exit_fast : unit -> bool
+
+val has_max_stack_depth : unit -> int option
+
+val has_max_depth_failures : unit -> int option
+
+val has_max_generator_size : unit -> int option
+
+val has_sizing_strategy : unit -> sizing_strategy option
+
+val has_sizing_strategy_str : unit -> string option
+
+val is_random_size_splits : unit -> bool
+
+val has_allowed_size_split_backtracks : unit -> int option
+
+val is_coverage : unit -> bool
+
+val has_pass : string -> bool
+
+val is_trap : unit -> bool
+
+val has_no_replays : unit -> bool
+
+val has_no_replicas : unit -> bool
+
+val get_output_tyche : unit -> string option
+
+val get_export_spec_json : unit -> string option
+
+val will_print_size_info : unit -> bool
+
+val will_print_backtrack_info : unit -> bool
+
+val will_print_satisfaction_info : unit -> bool
+
+val will_print_discard_info : unit -> bool
+
+val will_print_timing_info : unit -> bool
+
+val is_progress_backtracks : unit -> bool
+
+val get_engine : unit -> engine
+
+val is_symbolic_enabled : unit -> bool
+
+val has_symbolic_timeout : unit -> int option
+
+val get_max_unfolds : unit -> int option
+
+val get_max_array_length : unit -> int
+
+val is_use_solver_eval : unit -> bool
+
+val get_smt_solver : unit -> smt_solver
+
+val is_just_reset_solver : unit -> bool
+
+val get_smt_skewing_mode : unit -> smt_skewing_mode
+
+val get_smt_logging : unit -> string option
+
+val get_smt_log_unsat_cores : unit -> string option
+
+val has_max_bump_blocks : unit -> int option
+
+val has_bump_block_size : unit -> int option
+
+val has_max_input_alloc : unit -> int option
+
+val is_smt_skew_pointer_order : unit -> bool
+
+val get_dsl_log_dir : unit -> string option
+
+val is_specialization_disabled : unit -> bool
+
+val is_only_top_level_ite_lifting : unit -> bool
+
+val is_extrema_skew_disabled : unit -> bool
+
+val get_discard_factor : unit -> int
+
+val has_dynamic_arbitrary_domain : unit -> bool
+
+val has_dynamic_arbitrary_propagation : unit -> bool
+
+val has_dynamic_assert_domain : unit -> bool
+
+val has_dynamic_return_propagation : unit -> bool
+
+val is_old_style_alloc : unit -> bool
+
+val string_of_dynamic_absint_assign_mode : dynamic_absint_assign_mode -> string
+
+val get_dynamic_absint_assign : unit -> dynamic_absint_assign_mode option
+
+val get_dynamic_local_iterations : unit -> int

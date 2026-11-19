@@ -1,0 +1,5 @@
+return code: 0
+tests/cn/predicate_else_if.c:6:16: warning: deprecated keyword 'Owned', use 'RW' instead
+      take X = Owned<int>(p);
+               ^~~~~ 
+[1/1]: main -- pass

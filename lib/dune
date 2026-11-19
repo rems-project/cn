@@ -1,0 +1,26 @@
+(include_subdirs qualified)
+
+(library
+ (name cn)
+ (public_name cn)
+ (libraries
+  cerberus-lib.backend_common
+  cerberus-lib.frontend
+  cerberus-lib.util
+  cerberus-lib.mem.vip
+  menhirLib
+  monomorphic
+  ocamlgraph
+  ppx_deriving_yojson.runtime
+  result
+  str
+  unix
+  yojson)
+ (preprocess
+  (pps
+   ppx_deriving.eq
+   ppx_deriving.fold
+   ppx_deriving.map
+   ppx_deriving.ord
+   ppx_deriving.show
+   ppx_deriving_yojson)))

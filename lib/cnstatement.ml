@@ -1,0 +1,164 @@
+module BT = BaseTypes
+module T = Terms.Normal
+module Loc = Locations
+module CF = Cerb_frontend
+module Req = Request
+module LC = LogicalConstraints
+
+type have_show =
+  | Have
+  | Show
+
+type extract = Id.t list * (Sym.t, Sctypes.t) CF.Cn.cn_to_extract * T.t list
+
+type predicate_or_predicate_name =
+  | Predicate of Request.Predicate.t
+  | PredicateName of Request.name
+
+type statement =
+  | Pack_unpack of CF.Cn.pack_unpack * predicate_or_predicate_name
+  | Derive_constraints of predicate_or_predicate_name list
+  | To_from_bytes of CF.Cn.to_from * Request.Predicate.t
+  | Have of LogicalConstraints.t
+  | Instantiate of (Sym.t, Sctypes.t) CF.Cn.cn_to_instantiate * T.t
+  | Split_case of LogicalConstraints.t
+  | Extract of extract
+  | Unfold of Sym.t * T.t list
+  | Apply of Sym.t * T.t list
+  | Assert of LogicalConstraints.t
+  | Inline of Sym.t list
+  | Print of T.t
+
+let subst_predicate_or_predicate_name substitution = function
+  | Predicate pt -> Predicate (Req.Predicate.subst substitution pt)
+  | PredicateName pn -> PredicateName pn
+
+
+let rec subst substitution = function
+  | Pack_unpack (pack_unpack, pt) ->
+    Pack_unpack (pack_unpack, subst_predicate_or_predicate_name substitution pt)
+  | Derive_constraints preds ->
+    let preds = List.map (subst_predicate_or_predicate_name substitution) preds in
+    Derive_constraints preds
+  | To_from_bytes (to_from, pt) ->
+    To_from_bytes (to_from, Req.Predicate.subst substitution pt)
+  | Have lc -> Have (LC.subst substitution lc)
+  | Instantiate (o_s, it) ->
+    (* o_s is not a (option) binder *)
+    Instantiate (o_s, T.subst substitution it)
+  | Split_case lc -> Split_case (LC.subst substitution lc)
+  | Extract (attrs, to_extract, its) ->
+    Extract (attrs, to_extract, List.map (T.subst substitution) its)
+  | Unfold (fsym, args) ->
+    (* fsym is a function symbol *)
+    Unfold (fsym, List.map (T.subst substitution) args)
+  | Apply (fsym, args) ->
+    (* fsym is a lemma symbol *)
+    Apply (fsym, List.map (T.subst substitution) args)
+  | Assert lc -> Assert (LC.subst substitution lc)
+  | Inline nms -> Inline nms
+  | Print it -> Print (T.subst substitution it)
+
+
+and alpha_rename_ ~from ~to_ prog = (to_, subst (T.make_rename ~from ~to_) prog)
+
+and alpha_rename from prog =
+  let to_ = Sym.fresh_same from in
+  alpha_rename_ ~from ~to_ prog
+
+
+and suitably_alpha_rename syms s prog =
+  if Sym.Set.mem s syms then
+    alpha_rename s prog
+  else
+    (s, prog)
+
+
+let free_vars_predicate_or_predicate_name = function
+  | Predicate pt -> T.free_vars_list (pt.pointer :: pt.iargs)
+  | PredicateName _pn -> Sym.Set.empty
+
+
+let free_vars = function
+  | Pack_unpack (_pack_unpack, pt) -> free_vars_predicate_or_predicate_name pt
+  | Derive_constraints preds ->
+    let fvarss = List.map free_vars_predicate_or_predicate_name preds in
+    List.fold_left Sym.Set.union Sym.Set.empty fvarss
+  | To_from_bytes (_to_from, pt) -> T.free_vars_list (pt.pointer :: pt.iargs)
+  | Have lc -> LC.free_vars lc
+  | Instantiate (_o_s, it) ->
+    (* o_s is not a (option) binder *)
+    T.free_vars it
+  | Split_case lc -> LC.free_vars lc
+  | Extract (_attrs, _to_extract, its) -> T.free_vars_list its
+  | Unfold (_fsym, args) ->
+    (* fsym is a function symbol *)
+    T.free_vars_list args
+  | Apply (_fsym, args) ->
+    (* fsym is a lemma symbol *)
+    T.free_vars_list args
+  | Assert lc -> LC.free_vars lc
+  | Inline _nms -> Sym.Set.empty
+  | Print it -> T.free_vars it
+
+
+let free_vars_list stmts =
+  stmts |> List.map free_vars |> List.fold_left Sym.Set.union Sym.Set.empty
+
+
+let dtree_of_to_instantiate =
+  let open Cerb_frontend.Pp_ast in
+  function
+  | CF.Cn.I_Function f -> Dnode (pp_ctor "[CN]function", [ Dleaf (Sym.pp f) ])
+  | I_Good ty -> Dnode (pp_ctor "[CN]good", [ Dleaf (Sctypes.pp ty) ])
+  | I_Everything -> Dleaf Pp.(!^"[CN]everything")
+
+
+let dtree_of_to_extract =
+  let open Cerb_frontend.Pp_ast in
+  function
+  | CF.Cn.E_Everything -> Dleaf Pp.(!^"[CN]everything")
+  | E_Pred pred ->
+    let pred =
+      match pred with
+      | CN_owned oct -> CF.Cn.CN_owned (Option.map Sctypes.to_ctype oct)
+      | CN_block ct -> CN_block (Option.map Sctypes.to_ctype ct)
+      | CN_named p -> CN_named p
+    in
+    Dnode (pp_ctor "[CN]pred", [ Cerb_frontend.Cn_ocaml.PpAil.dtree_of_cn_pred pred ])
+
+
+let dtree_of_predicate_or_predicate_name = function
+  | Predicate pt -> Request.Predicate.dtree pt
+  | PredicateName pn -> Req.dtree_of_name pn
+
+
+let dtree =
+  let open Cerb_frontend.Pp_ast in
+  function
+  | Pack_unpack (Pack, pred) ->
+    Dnode (pp_ctor "Pack", [ dtree_of_predicate_or_predicate_name pred ])
+  | Pack_unpack (Unpack, pred) ->
+    Dnode (pp_ctor "Unpack", [ dtree_of_predicate_or_predicate_name pred ])
+  | Derive_constraints preds ->
+    Dnode
+      (pp_ctor "DeriveConstraints", List.map dtree_of_predicate_or_predicate_name preds)
+  | To_from_bytes (To, pred) ->
+    Dnode (pp_ctor "To_bytes", [ Request.Predicate.dtree pred ])
+  | To_from_bytes (From, pred) ->
+    Dnode (pp_ctor "From_bytes", [ Request.Predicate.dtree pred ])
+  | Have lc -> Dnode (pp_ctor "Have", [ LC.dtree lc ])
+  | Instantiate (to_instantiate, it) ->
+    Dnode (pp_ctor "Instantiate", [ dtree_of_to_instantiate to_instantiate; T.dtree it ])
+  | Split_case lc -> Dnode (pp_ctor "Split_case", [ LC.dtree lc ])
+  | Extract (attrs, to_extract, it) ->
+    Dnode
+      ( pp_ctor "Extract",
+        Dnode (pp_ctor "Attrs", List.map (fun s -> Dleaf (Id.pp s)) attrs)
+        :: dtree_of_to_extract to_extract
+        :: List.map T.dtree it )
+  | Unfold (s, args) -> Dnode (pp_ctor "Unfold", Dleaf (Sym.pp s) :: List.map T.dtree args)
+  | Apply (s, args) -> Dnode (pp_ctor "Apply", Dleaf (Sym.pp s) :: List.map T.dtree args)
+  | Assert lc -> Dnode (pp_ctor "Assert", [ LC.dtree lc ])
+  | Inline nms -> Dnode (pp_ctor "Inline", List.map (fun nm -> Dleaf (Sym.pp nm)) nms)
+  | Print it -> Dnode (pp_ctor "Print", [ T.dtree it ])

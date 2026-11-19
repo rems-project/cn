@@ -1,0 +1,5 @@
+return code: 1
+tests/cn/spec_decl_arg_number_mismatch.error.c:2:10: error: spec has the wrong number of arguments
+/*@ spec createArray(pointer p, u32 len);
+         ^
+spec has 2, but declaration has 1

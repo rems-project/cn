@@ -1,0 +1,22 @@
+//CN_VIP #include <stdio.h>
+#include <string.h>
+#include <inttypes.h>
+#include "cn_lemmas.h"
+int main() {
+  int y=2, x=1;
+  int *p = &x + 1;
+  int *q = &y;
+  /*@ derive_constraints (RW<int*>(&p), RW<int*>(&q)); @*/
+  //CN_VIP printf("Addresses: p=%p q=%p\n",(void*)p,(void*)q);
+  /*CN_VIP*//*@ to_bytes RW<int*>(&p); @*/
+  /*CN_VIP*//*@ to_bytes RW<int*>(&q); @*/
+  /*CN_VIP*//*@ focus RW<byte>, 0,1,2,3,4,5,6,7; @*/
+  /*CN_VIP*//*@ apply byte_array_init_8(&p, &q, sizeof<int*>); @*/
+  /*CN_VIP*/int result = _memcmp((byte*)&p, (byte*)&q, sizeof(p));
+  /*CN_VIP*//*@ from_bytes RW<int*>(&p); @*/
+  /*CN_VIP*//*@ from_bytes RW<int*>(&q); @*/
+  if (result == 0) {
+    *p = 11;  // CN VIP UB
+    //CN_VIP printf("x=%d y=%d *p=%d *q=%d\n",x,y,*p,*q);
+  }
+}

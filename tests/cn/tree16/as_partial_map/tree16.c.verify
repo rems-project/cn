@@ -1,0 +1,5 @@
+return code: 0
+tests/cn/tree16/as_partial_map/tree16.c:56:22: warning: annotation on array_shift suggests nodes_ptr has type struct node** but it has type struct node*[16]*.
+      {Indirect_Tree(array_shift<tree>(nodes_ptr, i))};
+                     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
+[1/1]: lookup_rec -- pass

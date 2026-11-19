@@ -1,0 +1,4 @@
+return code: 1
+tests/cn/mod_return_sign.error.c:7:23: error: Use `rem` or `mod` instead of `%`.
+    ensures return == x % y; @*/
+                      ~~^~~ 

@@ -1,0 +1,5 @@
+return code: 1
+tests/cn/flexible-array-member.error.c:7:14: error: Unexpected member chars
+/*@ requires v.chars[0] == 0; @*/
+             ~^~~~~~ 
+the struct only has members len

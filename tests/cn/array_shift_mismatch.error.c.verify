@@ -1,0 +1,7 @@
+return code: 1
+tests/cn/array_shift_mismatch.error.c:8:19: warning: annotation on array_shift suggests p has type void* but it has type signed int*.
+    ptr_eq(return,array_shift<void>(p, 1u64));
+                  ^~~~~~~~~~~~~~~~~~~~~~~~~~ 
+tests/cn/array_shift_mismatch.error.c:8:19: error: C-type must not be void in a array_shift<_>
+    ptr_eq(return,array_shift<void>(p, 1u64));
+                  ^~~~~~~~~~~~~~~~~~~~~~~~~~ 

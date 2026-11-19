@@ -1,0 +1,12 @@
+return code: 0
+tests/cn/ptr_diff.c:4:14: warning: annotation on RW suggests &p[-2] has type signed int[11]* but it has type char*.
+    take P = RW<int[11]>(array_shift<char>(p, -2));
+             ^~~~~~~~~~~ 
+tests/cn/ptr_diff.c:7:15: warning: annotation on RW suggests &p[-2] has type signed int[11]* but it has type char*.
+    take P2 = RW<int[11]>(array_shift<char>(p, -2));
+              ^~~~~~~~~~~ 
+[1/5]: live_RW_footprint -- pass
+[2/5]: live_RW_both -- pass
+[3/5]: live_RW_one -- pass
+[4/5]: live_alloc -- pass
+[5/5]: main -- pass

@@ -1,0 +1,116 @@
+open Cerb_frontend
+
+type executable_spec =
+  { pre_post : (Symbol.sym * (string list * string list)) list;
+    in_stmt : (Cerb_location.t * string list) list;
+    returns :
+      (Cerb_location.t
+      * (GenTypes.genTypeCategory AilSyntax.expression option * string list))
+        list
+  }
+
+val generate_c_assume_pres_internal
+  :  Cn_to_ail.env ->
+  bool ->
+  (bool * Extract.instrumentation) list ->
+  GenTypes.genTypeCategory AilSyntax.sigma ->
+  unit Mucore.file ->
+  (AilSyntax.sigma_declaration
+  * GenTypes.genTypeCategory AilSyntax.sigma_function_definition)
+    list
+
+val generate_c_specs
+  :  Config.config ->
+  bool ->
+  bool ->
+  bool ->
+  bool ->
+  bool ->
+  bool ->
+  Cn_to_ail.env ->
+  Extract.instrumentation list ->
+  GenTypes.genTypeCategory AilSyntax.sigma ->
+  unit Mucore.file ->
+  executable_spec
+
+val generate_c_records
+  :  (Sym.t * (Cerb_location.t * Annot.attributes * Ctype.tag_definition)) list ->
+  string
+
+val generate_c_datatypes
+  :  GenTypes.genTypeCategory AilSyntax.sigma ->
+  (Cerb_location.t * string) list
+
+val generate_ghost_enum : unit Mucore.file -> string
+
+val order_ail_tag_definitions
+  :  (Symbol.sym * (Cerb_location.t * Annot.attributes * Ctype.tag_definition)) list ->
+  (Symbol.sym * (Cerb_location.t * Annot.attributes * Ctype.tag_definition)) list
+
+val generate_c_tag_def_strs
+  :  (Symbol.sym * (Cerb_location.t * Annot.attributes * Ctype.tag_definition)) list ->
+  string
+
+val generate_c_tag_decl_strs
+  :  (Symbol.sym
+     * (Cerb_location.t * Cerb_frontend.Annot.attributes * Ctype.tag_definition))
+       list ->
+  string list
+
+val generate_cn_versions_of_structs : AilSyntax.sigma_tag_definition list -> string
+
+val generate_c_functions
+  :  accept_uninterp:bool ->
+  remove_uninterp:bool ->
+  Cn_to_ail.env ->
+  _ Mucore.file ->
+  GenTypes.genTypeCategory AilSyntax.sigma ->
+  string * string * Cerb_location.t list
+
+val generate_c_predicates
+  :  accept_uninterp:bool ->
+  remove_uninterp:bool ->
+  Cn_to_ail.env ->
+  bool ->
+  _ Mucore.file ->
+  GenTypes.genTypeCategory AilSyntax.sigma ->
+  string * string * Cerb_location.t list
+
+val generate_c_lemmas : Cn_to_ail.env -> bool -> unit Mucore.file -> string * string
+
+val generate_ownership_functions : bool -> Sctypes.t list -> string * string
+
+val generate_conversion_and_equality_functions
+  :  Cn_to_ail.env ->
+  GenTypes.genTypeCategory AilSyntax.sigma ->
+  string * string
+
+val has_main : GenTypes.genTypeCategory AilSyntax.sigma -> bool
+
+val get_global_init_stats
+  :  ?max_bump_blocks:int ->
+  ?bump_block_size:int ->
+  ?source_locs_mode:bool ->
+  ?correct_missing_ownership_mode:bool ->
+  ?experimental_ownership_stack_mode:bool ->
+  unit ->
+  GenTypes.genTypeCategory AilSyntax.statement_
+
+val generate_global_assignments
+  :  ?source_locs_mode:bool ->
+  ?correct_missing_ownership_mode:bool ->
+  ?experimental_ownership_stack_mode:bool ->
+  ?max_bump_blocks:int ->
+  ?bump_block_size:int ->
+  GenTypes.genTypeCategory AilSyntax.sigma ->
+  unit Mucore.file ->
+  (Sym.t * (string list * string list)) list
+
+val generate_fn_call_ghost_args_injs
+  :  Cn_to_ail.env ->
+  unit Mucore.file ->
+  (Cerb_location.t * string list) list
+
+val generate_tag_definition_injs
+  :  AilSyntax.sigma_tag_definition list ->
+  (Cerb_location.t * string list) list

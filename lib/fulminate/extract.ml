@@ -1,0 +1,236 @@
+open Mucore
+
+type statement = Locations.t * Cnstatement.statement Cnprog.t list
+
+let statement_subst subst ((loc, cnprogs) : statement) : statement =
+  (loc, List.map ((Cnprog.subst Cnstatement.subst) subst) cnprogs)
+
+
+type statements = statement list
+
+let statements_subst subst = List.map (statement_subst subst)
+
+let statements_free_vars statements =
+  List.map snd statements
+  |> List.concat
+  |> List.map (Cnprog.free_vars Cnstatement.free_vars)
+  |> List.fold_left Sym.Set.union Sym.Set.empty
+
+
+type loop =
+  { contains_user_spec : bool;
+    cond_loc : Locations.t;
+    loop_loc : Locations.t;
+    invariant : unit ArgumentTypes.t (* invariant, with nothing at leaf *)
+  }
+
+let loop_subst subst (loop : loop) =
+  { loop with invariant = ArgumentTypes.subst (fun _ () -> ()) subst loop.invariant }
+
+
+type loops = loop list
+
+let loops_subst subst = List.map (loop_subst subst)
+
+type fn_body = statements * loops
+
+let fn_body_subst subst ((statements, loops) : fn_body) =
+  (statements_subst subst statements, loops_subst subst loops)
+
+
+type fn_rt_and_body = ReturnTypes.t * fn_body
+
+let fn_rt_and_body_subst subst ((rt, fn_body) : fn_rt_and_body) =
+  (ReturnTypes.subst subst rt, fn_body_subst subst fn_body)
+
+
+type fn_args_and_body = fn_rt_and_body ArgumentTypes.t
+
+let fn_args_and_body_subst subst (at : fn_args_and_body) : fn_args_and_body =
+  ArgumentTypes.subst fn_rt_and_body_subst subst at
+
+
+type fn_largs_and_body = fn_rt_and_body LogicalArgumentTypes.t
+
+let fn_largs_and_body_subst subst (lat : fn_largs_and_body) : fn_largs_and_body =
+  LogicalArgumentTypes.subst fn_rt_and_body_subst subst lat
+
+
+type instrumentation =
+  { fn : Sym.t;
+    fn_loc : Locations.t;
+    internal : fn_args_and_body option;
+    trusted : bool;
+    contains_function_level_spec : bool;
+    is_static : bool
+  }
+
+(* replace `s_replace` of basetype `bt` with `s_with` *)
+let sym_subst (s_replace, bt, s_with) =
+  let module MT = MakeTerm in
+  Terms.Normal.make_subst [ (s_replace, MT.sym_ (s_with, bt, Cerb_location.unknown)) ]
+
+
+let rec stmts_in_expr (Mucore.Expr (loc, _, _, e_)) =
+  match e_ with
+  | Epure _ -> []
+  | Ememop _ -> []
+  | Eaction _ -> []
+  | Eskip -> []
+  | Eccall _ -> []
+  | Eproc _ -> []
+  | Elet (_, _, e) -> stmts_in_expr e
+  | Eunseq es -> List.concat_map stmts_in_expr es
+  | Ewseq (_, e1, e2) -> stmts_in_expr e1 @ stmts_in_expr e2
+  | Esseq (_, e1, e2) -> stmts_in_expr e1 @ stmts_in_expr e2
+  | Eif (_, e1, e2) -> stmts_in_expr e1 @ stmts_in_expr e2
+  | Ebound e -> stmts_in_expr e
+  | End es -> List.concat_map stmts_in_expr es
+  | Erun _ -> []
+  | CN_progs (_stmts_s, stmts_i) -> [ (loc, stmts_i) ]
+
+
+let from_fn (file : _ Mucore.file) (fn, decl) =
+  match decl with
+  | ProcDecl (fn_loc, _fn) ->
+    { fn;
+      fn_loc;
+      internal = None;
+      trusted = false;
+      (* Set to false since we don't instrument CN-annotated declarations *)
+      contains_function_level_spec = false;
+      is_static = false
+    }
+  | Proc { loc = fn_loc; args_and_body; trusted; contains_function_level_spec } ->
+    let args_and_body = Core_to_mucore.at_of_arguments Fun.id args_and_body in
+    let internal =
+      ArgumentTypes.map
+        (fun (body, labels, rt) ->
+           (* Collect CN statements and loop invariants *)
+           let stmts, loops =
+             List.fold_left
+               (fun (stmts, loops) (_, label) ->
+                  match label with
+                  | To_inline (_, _, _, _, body) ->
+                    (stmts @ stmts_in_expr body, loops) (* Collect CN statements *)
+                  | Loop (_, args, _, `Aux_info (cond_loc, loop_loc, contains_user_spec))
+                    ->
+                    let at = Core_to_mucore.at_of_arguments Fun.id args in
+                    (* Separate loop invariant from CN statements associated with Loop *)
+                    let invariant = ArgumentTypes.map (fun _ -> ()) at in
+                    ( stmts @ stmts_in_expr (ArgumentTypes.get_return at),
+                      { contains_user_spec; cond_loc; loop_loc; invariant } :: loops )
+                  | Return _ ->
+                    (* Nothing to collect *)
+                    (stmts, loops))
+               (stmts_in_expr body, [])
+               (Pmap.bindings_list labels)
+           in
+           (rt, (stmts, loops)))
+        args_and_body
+    in
+    let trusted_flag = match trusted with Mucore.Trusted _ -> true | _ -> false in
+    (* The external map records resolved linkage, including a definition that
+       inherits internal linkage from an earlier static declaration. *)
+    let has_external_linkage =
+      file.extern
+      |> Pmap.bindings_list
+      |> List.exists (fun (_, (symbols, _)) -> List.exists (Sym.equal fn) symbols)
+    in
+    { fn;
+      fn_loc;
+      internal = Some internal;
+      trusted = trusted_flag;
+      contains_function_level_spec;
+      is_static = not has_external_linkage
+    }
+
+
+let collect_instrumentation (file : _ Mucore.file) =
+  let instrs = List.map (from_fn file) (Pmap.bindings_list file.funs) in
+  (instrs, Compile.exec_spec_hack_syms)
+
+
+(* GHOST ARGUMENTS *)
+let args_and_body_list_of_mucore prog5 =
+  let opt_proc_param_of_fun_map_decl fmd =
+    match fmd with Mucore.Proc proc -> Some proc.args_and_body | ProcDecl _ -> None
+  in
+  let fns = prog5.Mucore.funs in
+  let opt_args_and_body_list =
+    Pmap.fold (fun _ fmd acc -> opt_proc_param_of_fun_map_decl fmd :: acc) fns []
+  in
+  List.filter_map Fun.id opt_args_and_body_list
+
+
+let ghost_args_and_their_call_locs prog5 =
+  let rec param_of_arguments = function
+    | Computational (_, _, args) -> param_of_arguments args
+    | Ghost (_, _, args) -> param_of_arguments args
+    | L args ->
+      let rec aux = function
+        | Define (_, _, args) -> aux args
+        | Resource (_, _, args) -> aux args
+        | Constraint (_, _, args) -> aux args
+        | I param -> param
+      in
+      aux args
+  in
+  let exprs_of_mucore prog5 =
+    let maybe_expr_of_label_def ld =
+      match ld with
+      | To_inline _ -> None
+      | Return _ -> None
+      | Loop (_, arguments, _, _) ->
+        let expr = param_of_arguments arguments in
+        Some expr
+    in
+    let exprs_of_label_map lm =
+      Pmap.fold
+        (fun _ label acc ->
+           match maybe_expr_of_label_def label with
+           | Some expr -> expr :: acc
+           | None -> acc)
+        lm
+        []
+    in
+    let args_and_body_list = args_and_body_list_of_mucore prog5 in
+    let exprs =
+      List.map
+        (fun args_and_body ->
+           let expr, label_map, _ = param_of_arguments args_and_body in
+           let exprs = exprs_of_label_map label_map in
+           expr :: exprs)
+        args_and_body_list
+    in
+    List.flatten exprs
+  in
+  let exprs = exprs_of_mucore prog5 in
+  let acc = ref [] in
+  let rec aux_expr (Mucore.Expr (loc, _, _, e_)) =
+    match e_ with
+    | Epure _ -> ()
+    | Ememop _ -> ()
+    | Eaction _ -> ()
+    | Eskip -> ()
+    | Eccall (_, _, _, Some (_, ghost_args)) -> acc := (loc, ghost_args) :: !acc
+    | Eccall (_, _, _, None) -> acc := (loc, []) :: !acc
+    | Eproc _ -> ()
+    | Elet (_, _, e) -> aux_expr e
+    | Eunseq es -> List.iter aux_expr es
+    | Ewseq (_, e1, e2) ->
+      aux_expr e1;
+      aux_expr e2
+    | Esseq (_, e1, e2) ->
+      aux_expr e1;
+      aux_expr e2
+    | Eif (_, e1, e2) ->
+      aux_expr e1;
+      aux_expr e2
+    | Ebound e -> aux_expr e
+    | End es -> List.iter aux_expr es
+    | Erun (_, _) -> ()
+    | CN_progs (_, _) -> ()
+  in
+  List.iter aux_expr exprs;
+  !acc

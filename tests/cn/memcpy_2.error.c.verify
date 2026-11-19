@@ -1,0 +1,9 @@
+return code: 1
+[1/1]: naive_memcpy -- fail
+tests/cn/memcpy_2.error.c:36:3: error: Missing resource for loop
+  for (i = 0; i < n; i = i + 1)
+  ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
+Resource needed: each(integer j; 0 <= j && j < n)
+{RW<char>(dst + j @ char)}
+      tests/cn/memcpy_2.error.c:37:16: (arg dstInv)
+State file: file:///tmp/state__memcpy_2.error.c__naive_memcpy.html
