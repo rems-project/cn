@@ -1942,8 +1942,7 @@ let generate_datatype_equality_function (env : env) (cn_datatype : _ cn_datatype
 
 
 let generate_datatype_map_get (cn_datatype : _ cn_datatype) =
-  let cn_sym = cn_datatype.cn_dt_name in
-  generate_map_get cn_sym
+  generate_map_get cn_datatype.cn_dt_name
 
 
 let generate_datatype_default_function (cn_datatype : _ cn_datatype) =
