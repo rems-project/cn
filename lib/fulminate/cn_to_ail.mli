@@ -74,8 +74,11 @@ type env =
   { filename : string;
     datatypes : AilSyntax.sigma_cn_datatype list;
     globals : (Ctype.union_tag * Ctype.ctype) list;
-    funs : Sym.Set.t
+    funs : Sym.Set.t;
+    cn_funs : Sym.Set.t
   }
+
+val cn_fun_sym : Sym.t -> Sym.t
 
 val env_of : filename:string -> _ AilSyntax.sigma -> _ Mucore.file -> env
 

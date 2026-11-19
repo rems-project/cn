@@ -76,8 +76,12 @@ type env =
   { filename : string; (* For accessor names *)
     datatypes : A.sigma_cn_datatype list;
     globals : (C.union_tag * C.ctype) list; (* Globals accessed in spec *)
-    funs : Sym.Set.t (* C functions *)
+    funs : Sym.Set.t; (* C functions *)
+    cn_funs : Sym.Set.t (* CN functions, predicates and lemmas *)
   }
+
+(* Generated name of a CN function, predicate or lemma: cannot clash with the program's C functions *)
+let cn_fun_sym sym = Sym.fresh ("cn_" ^ Sym.pp_string sym)
 
 type spec_mode =
   | Pre
@@ -1366,6 +1370,8 @@ let rec cn_to_ail_expr_aux
   | Apply (sym, ts) ->
     let bs_ss_es = List.map (fun e -> cn_to_ail_expr_aux env ~spec_mode e PassBack) ts in
     let bs, ss, es = list_split_three bs_ss_es in
+    (* Fulminate constructs Apply statements for its helper functions, for which no `cn_` prefix should be attached *)
+    let sym = if Sym.Set.mem sym env.cn_funs then cn_fun_sym sym else sym in
     let f = mk_expr A.(AilEident sym) in
     let ail_expr_ = A.AilEcall (f, es) in
     dest d ~spec_mode (List.concat bs, List.concat ss, mk_expr ail_expr_)
@@ -2724,6 +2730,7 @@ let cn_to_ail_resource
             IT (Sym loop_ownership_sym, BT.Integer, Cerb_location.unknown)
           | None -> it_zero_const
         in
+        (* TODO: Generate Ail directly + don't reuse Apply. Can remove `cn_funs` from `env` after this change *)
         let fn_call_it =
           IT
             ( Apply
@@ -2747,7 +2754,7 @@ let cn_to_ail_resource
         let fcall =
           A.(
             AilEcall
-              ( mk_expr (AilEident pname),
+              ( mk_expr (AilEident (cn_fun_sym pname)),
                 (e :: es) @ List.map mk_expr [ AilEident enum_sym; loop_ownership_expr_ ]
               ))
         in
@@ -2904,7 +2911,7 @@ let cn_to_ail_resource
         let fcall =
           A.(
             AilEcall
-              ( mk_expr (AilEident pname),
+              ( mk_expr (AilEident (cn_fun_sym pname)),
                 (mk_expr (AilEident ptr_add_sym) :: es)
                 @ List.map mk_expr [ AilEident enum_sym; loop_ownership_expr_ ] ))
         in
@@ -3210,7 +3217,12 @@ let env_of ~filename (sigm : _ A.sigma) (prog5 : _ Mucore.file) : env =
   { filename;
     datatypes = sigm.cn_datatypes;
     globals = extract_global_variables prog5;
-    funs = Sym.Set.of_list (List.map fst (Pmap.bindings_list prog5.funs))
+    funs = Sym.Set.of_list (List.map fst (Pmap.bindings_list prog5.funs));
+    cn_funs =
+      Sym.Set.of_list
+        (List.map fst prog5.logical_predicates
+         @ List.map fst prog5.resource_predicates
+         @ List.map fst prog5.lemmata)
   }
 
 
