@@ -219,60 +219,40 @@ int* create_ownership_ghost_state_entry(int depth) {
   return ghost_state_entry;
 }
 
-cn_bool* convert_to_cn_bool(_Bool b) {
-  cn_bool* res = cn_bump_malloc(sizeof(cn_bool));
-  if (!res)
-    exit(1);
-  res->val = b;
-  return res;
-}
-
-_Bool convert_from_cn_bool(cn_bool* b) {
-  return b->val;
-}
-
-void cn_assert(cn_bool* cn_b, enum spec_mode spec_mode) {
+void cn_assert(cn_bool cn_b, enum spec_mode spec_mode) {
   // cn_printf(CN_LOGGING_INFO, "[CN: assertion] function %s, file %s, line %d\n", error_msg_info.function_name, error_msg_info.file_name, error_msg_info.line_number);
-  if (!(cn_b->val)) {
+  if (!cn_b) {
     print_error_msg_info(global_error_msg_info);
     cn_failure(CN_FAILURE_ASSERT, spec_mode);
   }
 }
 
-cn_bool* cn_bool_and(cn_bool* b1, cn_bool* b2) {
-  cn_bool* res = cn_bump_malloc(sizeof(cn_bool));
-  res->val = b1->val && b2->val;
-  return res;
+cn_bool cn_bool_and(cn_bool b1, cn_bool b2) {
+  return b1 && b2;
 }
 
-void cn_bool_inplace_and(cn_bool* inplace_b1, cn_bool* b2) {
-  inplace_b1->val = inplace_b1->val && b2->val;
+void cn_bool_inplace_and(cn_bool* inplace_b1, cn_bool b2) {
+  *inplace_b1 = *inplace_b1 && b2;
 }
 
-cn_bool* cn_bool_or(cn_bool* b1, cn_bool* b2) {
-  cn_bool* res = cn_bump_malloc(sizeof(cn_bool));
-  res->val = b1->val || b2->val;
-  return res;
+cn_bool cn_bool_or(cn_bool b1, cn_bool b2) {
+  return b1 || b2;
 }
 
-cn_bool* cn_bool_implies(cn_bool* b1, cn_bool* b2) {
-  cn_bool* res = cn_bump_malloc(sizeof(cn_bool));
-  res->val = !b1->val || b2->val;
-  return res;
+cn_bool cn_bool_implies(cn_bool b1, cn_bool b2) {
+  return !b1 || b2;
 }
 
-cn_bool* cn_bool_not(cn_bool* b) {
-  cn_bool* res = cn_bump_malloc(sizeof(cn_bool));
-  res->val = !(b->val);
-  return res;
+cn_bool cn_bool_not(cn_bool b) {
+  return !b;
 }
 
-cn_bool* cn_bool_equality(cn_bool* b1, cn_bool* b2) {
-  return convert_to_cn_bool(b1->val == b2->val);
+cn_bool cn_bool_equality(cn_bool b1, cn_bool b2) {
+  return b1 == b2;
 }
 
-void* cn_ite(cn_bool* b, void* e1, void* e2) {
-  return b->val ? e1 : e2;
+void* cn_ite(cn_bool b, void* e1, void* e2) {
+  return b ? e1 : e2;
 }
 
 cn_map* map_create(void) {
@@ -704,31 +684,31 @@ cn_map* default_cn_map(void) {
   return map_create();
 }
 
-cn_bool* default_cn_bool(void) {
+cn_bool default_cn_bool(void) {
   return convert_to_cn_bool(false);
 }
 
-cn_bool* cn_pointer_equality(void* i1, void* i2) {
+cn_bool cn_pointer_equality(void* i1, void* i2) {
   return convert_to_cn_bool((((cn_pointer*)i1)->ptr) == (((cn_pointer*)i2)->ptr));
 }
 
-cn_bool* cn_pointer_is_null(cn_pointer* p) {
+cn_bool cn_pointer_is_null(cn_pointer* p) {
   return convert_to_cn_bool(p->ptr == NULL);
 }
 
-cn_bool* cn_pointer_lt(cn_pointer* p1, cn_pointer* p2) {
+cn_bool cn_pointer_lt(cn_pointer* p1, cn_pointer* p2) {
   return convert_to_cn_bool(p1->ptr < p2->ptr);
 }
 
-cn_bool* cn_pointer_le(cn_pointer* p1, cn_pointer* p2) {
+cn_bool cn_pointer_le(cn_pointer* p1, cn_pointer* p2) {
   return convert_to_cn_bool(p1->ptr <= p2->ptr);
 }
 
-cn_bool* cn_pointer_gt(cn_pointer* p1, cn_pointer* p2) {
+cn_bool cn_pointer_gt(cn_pointer* p1, cn_pointer* p2) {
   return convert_to_cn_bool(p1->ptr > p2->ptr);
 }
 
-cn_bool* cn_pointer_ge(cn_pointer* p1, cn_pointer* p2) {
+cn_bool cn_pointer_ge(cn_pointer* p1, cn_pointer* p2) {
   return convert_to_cn_bool(p1->ptr >= p2->ptr);
 }
 
@@ -737,8 +717,7 @@ cn_pointer* cast_cn_pointer_to_cn_pointer(cn_pointer* p) {
 }
 
 // Check if m2 is a subset of m1
-cn_bool* cn_map_subset(
-    cn_map* m1, cn_map* m2, cn_bool*(value_equality_fun)(void*, void*)) {
+cn_bool cn_map_subset(cn_map* m1, cn_map* m2, cn_bool(value_equality_fun)(void*, void*)) {
   if (ht_size(m1) != ht_size(m2))
     return convert_to_cn_bool(0);
 
@@ -762,8 +741,8 @@ cn_bool* cn_map_subset(
   return convert_to_cn_bool(1);
 }
 
-cn_bool* cn_map_equality(
-    cn_map* m1, cn_map* m2, cn_bool*(value_equality_fun)(void*, void*)) {
+cn_bool cn_map_equality(
+    cn_map* m1, cn_map* m2, cn_bool(value_equality_fun)(void*, void*)) {
   return cn_bool_and(cn_map_subset(m1, m2, value_equality_fun),
       cn_map_subset(m2, m1, value_equality_fun));
 }
