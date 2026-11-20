@@ -154,9 +154,7 @@ typedef struct cn_pointer {
   void* ptr;
 } cn_pointer;
 
-typedef struct cn_bool {
-  bool val;
-} cn_bool;
+typedef bool cn_bool;
 
 typedef struct cn_alloc_id {
   uint8_t val;
@@ -210,22 +208,26 @@ void cn_failure(enum cn_failure_mode failure_mode, enum spec_mode spec_mode);
 
 /* Conversion functions */
 
-cn_bool* convert_to_cn_bool(bool b);
-bool convert_from_cn_bool(cn_bool* b);
-void cn_assert(cn_bool* cn_b, enum spec_mode spec_mode);
-cn_bool* cn_bool_and(cn_bool* b1, cn_bool* b2);
-void cn_bool_inplace_and(cn_bool* inplace_b1, cn_bool* b2);
-cn_bool* cn_bool_or(cn_bool* b1, cn_bool* b2);
-cn_bool* cn_bool_not(cn_bool* b);
-cn_bool* cn_bool_implies(cn_bool* b1, cn_bool* b2);
-cn_bool* cn_bool_equality(cn_bool* b1, cn_bool* b2);
-void* cn_ite(cn_bool* b, void* e1, void* e2);
+static inline cn_bool convert_to_cn_bool(bool b) {
+  return b;
+}
+static inline bool convert_from_cn_bool(cn_bool b) {
+  return b;
+}
+void cn_assert(cn_bool cn_b, enum spec_mode spec_mode);
+cn_bool cn_bool_and(cn_bool b1, cn_bool b2);
+void cn_bool_inplace_and(cn_bool* inplace_b1, cn_bool b2);
+cn_bool cn_bool_or(cn_bool b1, cn_bool b2);
+cn_bool cn_bool_not(cn_bool b);
+cn_bool cn_bool_implies(cn_bool b1, cn_bool b2);
+cn_bool cn_bool_equality(cn_bool b1, cn_bool b2);
+void* cn_ite(cn_bool b, void* e1, void* e2);
 
 cn_map* map_create(void);
 cn_map* cn_map_set(cn_map* m, cn_integer* key, void* value);
 cn_map* cn_map_deep_copy(cn_map* m1);
-cn_bool* cn_map_equality(
-    cn_map* m1, cn_map* m2, cn_bool*(value_equality_fun)(void*, void*));
+cn_bool cn_map_equality(
+    cn_map* m1, cn_map* m2, cn_bool(value_equality_fun)(void*, void*));
 
 #define convert_to_cn_map(c_ptr, cntype_conversion_fn, num_elements)                     \
   ({                                                                                     \
@@ -240,12 +242,12 @@ cn_bool* cn_map_equality(
     (arr)[i] = convert_from_##cntype(cn_map_get_##cntype(m, convert_to_cn_integer(i)));  \
   }
 
-cn_bool* cn_pointer_equality(void* i1, void* i2);
-cn_bool* cn_pointer_is_null(cn_pointer*);
-cn_bool* cn_pointer_le(cn_pointer* i1, cn_pointer* i2);
-cn_bool* cn_pointer_lt(cn_pointer* i1, cn_pointer* i2);
-cn_bool* cn_pointer_ge(cn_pointer* i1, cn_pointer* i2);
-cn_bool* cn_pointer_gt(cn_pointer* i1, cn_pointer* i2);
+cn_bool cn_pointer_equality(void* i1, void* i2);
+cn_bool cn_pointer_is_null(cn_pointer*);
+cn_bool cn_pointer_le(cn_pointer* i1, cn_pointer* i2);
+cn_bool cn_pointer_lt(cn_pointer* i1, cn_pointer* i2);
+cn_bool cn_pointer_ge(cn_pointer* i1, cn_pointer* i2);
+cn_bool cn_pointer_gt(cn_pointer* i1, cn_pointer* i2);
 
 #define cn_pointer_deref(CN_PTR, CTYPE) *((CTYPE*)CN_PTR->ptr)
 
@@ -254,7 +256,7 @@ cn_bool* cn_pointer_gt(cn_pointer* i1, cn_pointer* i2);
 #define CN_GEN_EQUALITY(CNTYPE) CN_GEN_EQUALITY_(CNTYPE)
 
 #define CN_GEN_EQUALITY_(CNTYPE)                                                         \
-  static inline cn_bool* CNTYPE##_equality(void* i1, void* i2) {                         \
+  static inline cn_bool CNTYPE##_equality(void* i1, void* i2) {                          \
     return convert_to_cn_bool(((CNTYPE*)i1)->val == ((CNTYPE*)i2)->val);                 \
   }
 
@@ -273,22 +275,22 @@ cn_bool* cn_pointer_gt(cn_pointer* i1, cn_pointer* i2);
 /* Arithmetic operators */
 
 #define CN_GEN_LT(CNTYPE)                                                                \
-  static inline cn_bool* CNTYPE##_lt(CNTYPE* i1, CNTYPE* i2) {                           \
+  static inline cn_bool CNTYPE##_lt(CNTYPE* i1, CNTYPE* i2) {                            \
     return convert_to_cn_bool(i1->val < i2->val);                                        \
   }
 
 #define CN_GEN_LE(CNTYPE)                                                                \
-  static inline cn_bool* CNTYPE##_le(CNTYPE* i1, CNTYPE* i2) {                           \
+  static inline cn_bool CNTYPE##_le(CNTYPE* i1, CNTYPE* i2) {                            \
     return convert_to_cn_bool(i1->val <= i2->val);                                       \
   }
 
 #define CN_GEN_GT(CNTYPE)                                                                \
-  static inline cn_bool* CNTYPE##_gt(CNTYPE* i1, CNTYPE* i2) {                           \
+  static inline cn_bool CNTYPE##_gt(CNTYPE* i1, CNTYPE* i2) {                            \
     return convert_to_cn_bool(i1->val > i2->val);                                        \
   }
 
 #define CN_GEN_GE(CNTYPE)                                                                \
-  static inline cn_bool* CNTYPE##_ge(CNTYPE* i1, CNTYPE* i2) {                           \
+  static inline cn_bool CNTYPE##_ge(CNTYPE* i1, CNTYPE* i2) {                            \
     return convert_to_cn_bool(i1->val >= i2->val);                                       \
   }
 
@@ -467,7 +469,7 @@ static inline int ipow(int base, int exp) {
   }
 
 cn_map* default_cn_map(void);
-cn_bool* default_cn_bool(void);
+cn_bool default_cn_bool(void);
 
 #define CN_GEN_MAP_GET(CNTYPE)                                                           \
   static inline void* cn_map_get_##CNTYPE(cn_map* m, cn_integer* key) {                  \
