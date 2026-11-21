@@ -105,6 +105,7 @@ jobs:
         opam switch ${{ matrix.version }}
         eval $(opam env --switch=${{ matrix.version }})
         ./tests/diff-prog.py cn tests/cn/verify.json 2> diff.patch || (cat diff.patch; exit 1)
+        ./tests/diff-prog.py cn tests/cn-check-consistency/verify.json 2> diff.patch || (cat diff.patch; exit 1)
 
     - name: Run CN Tutorial tests
       run: |
