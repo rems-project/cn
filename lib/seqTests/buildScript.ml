@@ -54,6 +54,7 @@ let compile ~filename_base =
        (String.concat
           " "
           ([ Config.get_cc ();
+             Memory.cc_char_signedness_flag ();
              "${CFLAGS}";
              "${CPPFLAGS}";
              "-c";
@@ -73,6 +74,7 @@ let compile ~filename_base =
                  "&& [ ! \"./" ^ filename_base ^ ".exec.c\"";
                  "-nt \"./" ^ filename_base ^ ".exec.o\" ]; } ||";
                  Config.get_cc ();
+                 Memory.cc_char_signedness_flag ();
                  "${CFLAGS}";
                  "${CPPFLAGS}";
                  "-c";

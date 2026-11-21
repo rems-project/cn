@@ -43,6 +43,7 @@ let verify
       no_inherit_loc
       magic_comment_char_dollar
       allow_split_magic_comments
+      impl
       disable_derived_lc1
       try_hard
       always_interp
@@ -82,7 +83,8 @@ let verify
   Prooflog.set_enabled coq_proof_log;
   Typing.unfold_multiclause_preds := not disable_unfold_multiclause_preds;
   let filename = Common.there_can_only_be_one filename in
-  Common.with_well_formedness_check (* CLI arguments *)
+  Common.with_well_formedness_check
+    ~impl (* CLI arguments *)
     ~filename
     ~cc
     ~macros:(("__CN_VERIFY", None) :: macros)
@@ -360,6 +362,7 @@ let verify_t : unit Term.t =
   $ Common.Flags.no_inherit_loc
   $ Common.Flags.magic_comment_char_dollar
   $ Common.Flags.allow_split_magic_comments
+  $ Common.Flags.impl
   $ Flags.disable_derived_lc1
   $ Flags.try_hard
   $ Flags.always_interp

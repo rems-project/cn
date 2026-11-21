@@ -24,7 +24,24 @@ let print_log_file =
       Cerb_colour.do_colour := true)
 
 
+(** The implementation profile: the sizes and signedness of the integer
+    types, notably whether plain [char] is signed. *)
+type impl =
+  | Hafnium (** AArch64 (pKVM/Hafnium): unsigned plain [char]. The default. *)
+  | X86_64
+  (** x86-64 (GCC/Clang): signed plain [char]; an out-of-range conversion to a
+      signed type reduces modulo 2^N, as GCC documents and as the Core
+      implementation file CN loads (gcc, x86-64) says. *)
+
+let set_impl = function
+  | Hafnium -> CF.Ocaml_implementation.set CF.Ocaml_implementation.HafniumImpl.impl
+  | X86_64 ->
+    CF.Ocaml_implementation.set CF.Ocaml_implementation.DefaultImpl.impl;
+    Check.wrap_signed_conversions := true
+
+
 let frontend
+      ~impl
       ~cc
       ~macros
       ~permissive
@@ -65,7 +82,7 @@ let frontend
       ~do_tracing:false
       ~fs_dump:false
   in
-  CF.Ocaml_implementation.set CF.Ocaml_implementation.HafniumImpl.impl;
+  set_impl impl;
   if allow_split_magic_comments then Parse.allow_split_magic_comments := true;
   let return = CF.Exception.except_return in
   let ( let@ ) = CF.Exception.except_bind in
@@ -146,6 +163,7 @@ let there_can_only_be_one =
 
 
 let with_well_formedness_check
+      ~impl
       (* CLI arguments *)
       ~cc
       ~filename
@@ -179,6 +197,7 @@ let with_well_formedness_check
   let cerb_conf, prog, (markers_env, ail_prog), statement_locs =
     handle_frontend_error
       (frontend
+         ~impl
          ~cc
          ~macros
          ~permissive
@@ -492,6 +511,18 @@ module Flags = struct
   let magic_comment_char_dollar =
     let doc = "Override CN's default magic comment syntax to be \"/*\\$ ... \\$*/\"" in
     Arg.(value & flag & info ~docs:s_cn [ "magic-comment-char-dollar" ] ~doc)
+
+
+  let impl =
+    let doc =
+      "Implementation profile: $(b,hafnium) (default; AArch64, plain char unsigned) or \
+       $(b,x86_64) (plain char signed; out-of-range conversions to signed integer types \
+       reduce modulo 2^N, as in GCC, instead of being rejected)."
+    in
+    Arg.(
+      value
+      & opt (enum [ ("hafnium", Hafnium); ("x86_64", X86_64) ]) Hafnium
+      & info ~docs:s_cn [ "impl" ] ~docv:"PROFILE" ~doc)
 
 
   let allow_split_magic_comments =

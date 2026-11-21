@@ -1,0 +1,4 @@
+return code: 0
+[1/3]: negative_char -- pass
+[2/3]: char_param -- pass
+[3/3]: main -- pass
