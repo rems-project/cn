@@ -231,10 +231,6 @@ cn_bool cn_bool_and(cn_bool b1, cn_bool b2) {
   return b1 && b2;
 }
 
-void cn_bool_inplace_and(cn_bool* inplace_b1, cn_bool b2) {
-  *inplace_b1 = *inplace_b1 && b2;
-}
-
 cn_bool cn_bool_or(cn_bool b1, cn_bool b2) {
   return b1 || b2;
 }

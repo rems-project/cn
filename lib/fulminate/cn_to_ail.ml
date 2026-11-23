@@ -662,11 +662,13 @@ let gen_bool_while_loop
   let incr_func_name =
     match typedef_name with Some str -> str ^ "_increment" | None -> ""
   in
-  let cn_bool_inplace_and_sym = Sym.fresh "cn_bool_inplace_and" in
-  let inplace_and_expr_ =
-    A.(AilEcall (mk_expr (AilEident cn_bool_inplace_and_sym), [ mk_expr b_ident; e ]))
+  let cn_bool_and_sym = Sym.fresh "cn_bool_and" in
+  let and_expr_ =
+    A.(AilEcall (mk_expr (AilEident cn_bool_and_sym), [ mk_expr b_ident; e ]))
   in
-  let inplace_and_stat = A.(AilSexpr (mk_expr inplace_and_expr_)) in
+  let and_stat_ =
+    A.(AilSexpr (mk_expr (AilEassign (mk_expr b_ident, mk_expr and_expr_))))
+  in
   let incr_stat =
     A.(
       AilSexpr
@@ -686,7 +688,7 @@ let gen_bool_while_loop
           A.(
             AilSif
               ( wrap_with_convert_from_cn_bool if_cond_expr,
-                mk_stmt (AilSblock ([], List.map mk_stmt (ss @ [ inplace_and_stat ]))),
+                mk_stmt (AilSblock ([], List.map mk_stmt (ss @ [ and_stat_ ]))),
                 mk_stmt (AilSblock ([], [ mk_stmt AilSskip ])) ));
           bump_alloc_end_stat_;
           incr_stat
@@ -694,8 +696,7 @@ let gen_bool_while_loop
     | None ->
       List.map
         mk_stmt
-        ((bump_alloc_start_stat_ :: ss)
-         @ [ inplace_and_stat; bump_alloc_end_stat_; incr_stat ])
+        ((bump_alloc_start_stat_ :: ss) @ [ and_stat_; bump_alloc_end_stat_; incr_stat ])
   in
   let while_loop =
     A.(
