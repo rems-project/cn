@@ -222,6 +222,22 @@ cn_bool cn_bool_implies(cn_bool b1, cn_bool b2);
 cn_bool cn_bool_equality(cn_bool b1, cn_bool b2);
 void* cn_ite(cn_bool b, void* e1, void* e2);
 
+/* Unboxed CN values are boxed when stored as void* (in maps and ghost frames) */
+#define CN_GEN_BOX(CNTYPE)                                                               \
+  static inline CNTYPE* CNTYPE##_box(CNTYPE value) {                                     \
+    CNTYPE* res = cn_bump_malloc(sizeof(CNTYPE));                                        \
+    *res = value;                                                                        \
+    return res;                                                                          \
+  }
+
+#define CN_GEN_UNBOX(CNTYPE)                                                             \
+  static inline CNTYPE CNTYPE##_unbox(void* boxed) {                                     \
+    return *(CNTYPE*)boxed;                                                              \
+  }
+
+CN_GEN_BOX(cn_bool)
+CN_GEN_UNBOX(cn_bool)
+
 cn_map* map_create(void);
 cn_map* cn_map_set(cn_map* m, cn_integer* key, void* value);
 cn_map* cn_map_deep_copy(cn_map* m1);
@@ -615,6 +631,19 @@ int top_ghost_frame_tag(void);
 void pop_ghost_frame(void);
 void free_ghost_frame_stack(void);
 void cn_ghost_arg_failure(void);
+
+#define CN_GEN_GHOST_ARG_ADD(CNTYPE)                                                     \
+  static inline void add_##CNTYPE##_arg_to_ghost_frame(int i, CNTYPE value) {            \
+    add_arg_to_ghost_frame(i, CNTYPE##_box(value));                                      \
+  }
+
+#define CN_GEN_GHOST_ARG_LOAD(CNTYPE)                                                    \
+  static inline CNTYPE load_##CNTYPE##_arg_from_ghost_frame(int i) {                     \
+    return CNTYPE##_unbox(load_arg_from_ghost_frame(i));                                 \
+  }
+
+CN_GEN_GHOST_ARG_ADD(cn_bool)
+CN_GEN_GHOST_ARG_LOAD(cn_bool)
 
 // Unused
 #define c_concat_with_mapping_stat(STAT, CTYPE, VAR_NAME, GHOST_STATE, STACK_DEPTH)      \

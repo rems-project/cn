@@ -3677,10 +3677,17 @@ let rec cn_to_ail_cnprog_ghost_arg env ~spec_mode i = function
     let upd_s = generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) () in
     let pop_s = generate_cn_pop_msg_info () in
     let bs, ss, e = cn_to_ail_expr env ~spec_mode ghost_it PassBack in
+    let bt = TN.get_bt ghost_it in
+    let add_fn_str =
+      match get_underscored_typedef_string_from_bt bt with
+      | Some str when not (is_boxed (bt_to_cn_base_type bt)) ->
+        "add_" ^ str ^ "_arg_to_ghost_frame"
+      | _ -> "add_arg_to_ghost_frame"
+    in
     let add_arg_to_ghost_frame_call =
       mk_expr
         (AilEcall
-           ( mk_expr (AilEident (Sym.fresh "add_arg_to_ghost_frame")),
+           ( mk_expr (AilEident (Sym.fresh add_fn_str)),
              [ mk_expr
                  (AilEconst (ConstantInteger (IConstant (Z.of_int i, Decimal, None))));
                e
@@ -4310,17 +4317,24 @@ let rec cn_to_ail_pre_post_aux
         let cn_ctype = bt_to_ail_ctype bt in
         let binding = create_binding cn_sym cn_ctype in
         let gen_load_arg_from_ghost_frame cn_ctype ghost_idx =
-          A.AilEcast
-            ( C.no_qualifiers,
-              cn_ctype,
-              mk_expr
-                (AilEcall
-                   ( mk_expr (AilEident (Sym.fresh "load_arg_from_ghost_frame")),
-                     [ mk_expr
-                         (AilEconst
-                            (ConstantInteger
-                               (IConstant (Z.of_int ghost_idx, Decimal, None))))
-                     ] )) )
+          let idx_expr =
+            mk_expr
+              (A.AilEconst
+                 (ConstantInteger (IConstant (Z.of_int ghost_idx, Decimal, None))))
+          in
+          match get_underscored_typedef_string_from_bt bt with
+          | Some str when not (is_boxed (bt_to_cn_base_type bt)) ->
+            A.AilEcall
+              ( mk_expr (AilEident (Sym.fresh ("load_" ^ str ^ "_arg_from_ghost_frame"))),
+                [ idx_expr ] )
+          | _ ->
+            A.AilEcast
+              ( C.no_qualifiers,
+                cn_ctype,
+                mk_expr
+                  (AilEcall
+                     ( mk_expr (AilEident (Sym.fresh "load_arg_from_ghost_frame")),
+                       [ idx_expr ] )) )
         in
         let rhs = gen_load_arg_from_ghost_frame cn_ctype ghost_idx in
         let decl = A.(AilSdeclaration [ (cn_sym, Some (mk_expr rhs)) ]) in
