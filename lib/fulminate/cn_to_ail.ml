@@ -312,6 +312,9 @@ let lookup_records_map_with_default ?(cn_sym : Sym.t option) bt =
     lookup_records_map bt
 
 
+(* CN types represented as pointers rather than C values *)
+let is_boxed = function CN_bool -> false | _ -> true
+
 (* TODO: Complete *)
 let rec cn_to_ail_base_type cn_typ =
   let typedef_string_opt =
@@ -355,8 +358,10 @@ let rec cn_to_ail_base_type cn_typ =
     | CN_c_typedef_name _ -> failwith (__LOC__ ^ ": TODO CN_c_typedef_name")
   in
   let ret = mk_ctype ~annots typ in
-  (* Make everything a pointer. TODO: Change *)
-  match typ with C.Void -> ret | _ -> mk_ctype C.(Pointer (C.no_qualifiers, ret))
+  match typ with
+  | C.Void -> ret
+  | _ when is_boxed cn_typ -> mk_ctype C.(Pointer (C.no_qualifiers, ret))
+  | _ -> ret
 
 
 let bt_to_ail_ctype t = cn_to_ail_base_type (bt_to_cn_base_type t)
@@ -1927,22 +1932,7 @@ let generate_datatype_equality_function (env : env) (cn_datatype : _ cn_datatype
         0,
         empty_attributes,
         param_syms,
-        mk_stmt
-          A.(
-            AilSblock
-              ( [],
-                [ mk_stmt tag_if_stmt;
-                  mk_stmt
-                    (AilSreturn
-                       (mk_expr (* AilEconst ConstantNull *)
-                          (AilEcast
-                             ( C.no_qualifiers,
-                               C.mk_ctype_pointer C.no_qualifiers C.void,
-                               mk_expr
-                                 (AilEconst
-                                    (ConstantInteger (IConstant (Z.zero, Decimal, None))))
-                             ))))
-                ] )) ) )
+        mk_stmt A.(AilSblock ([], [ mk_stmt tag_if_stmt; mk_stmt return_false ])) ) )
   in
   [ (decl, def) ]
 
