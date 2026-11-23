@@ -190,18 +190,35 @@ let memory_accesses_injections ail_prog =
     | CF.GenTypes.GenLValueType (_, _, is_register) -> is_register
     | _ -> false
   in
-  let is_access_register = function
+  let rec accesses_compound_literal (A.AnnotatedExpression (_, _, _, e)) =
+    match e with
+    | A.AilEcompound _ -> true
+    | AilEmemberof (e, _) -> accesses_compound_literal e
+    | AilEunary
+        (Indirection, A.AnnotatedExpression (_, _, _, AilEbinary (e1, Arithmetic Add, e2)))
+      ->
+      (* Check array being indexed into for compound-literal-ness.
+      Index itself is checked separately -- distinct access, checked via AilEcompound match case.
+      a[i] and i[a] both desugar to *(a + i) (C11 6.5.2.1p2), hence the two cases below *)
+      (match (e1, e2) with
+       | A.AnnotatedExpression (_, _, _, AilEarray_decay a), _
+       | _, A.AnnotatedExpression (_, _, _, AilEarray_decay a) ->
+         accesses_compound_literal a
+       | _ -> false)
+    | _ -> false
+  in
+  let should_not_instrument = function
     | Load { lvalue; _ }
     | Store { lvalue; _ }
     | StoreOp { lvalue; _ }
     | Postfix { lvalue; _ } ->
-      is_register lvalue
+      is_register lvalue || accesses_compound_literal lvalue
   in
   List.iter
     (* HK: Currently, `env` is ignored. It will be used in future patches. *)
     (fun (access, _env) ->
        (* Don't instrument *)
-       if is_access_register access then
+       if should_not_instrument access then
          ()
        else (
          match access with
