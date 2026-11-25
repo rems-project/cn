@@ -574,11 +574,17 @@ let wrap_spec_with_fulm_on_checks (ail_executable_spec : ail_executable_spec) =
 let get_equality_fn_call bt e1 e2 =
   match bt with
   | BT.Map (_, val_bt) ->
-    let val_ctype_with_ptr = bt_to_ail_ctype val_bt in
-    let val_ctype = get_ctype_without_ptr val_ctype_with_ptr in
-    let val_str = str_of_ctype val_ctype in
-    let val_str = String.concat "_" (String.split_on_char ' ' val_str) in
-    let val_equality_str = val_str ^ "_equality" in
+    let val_equality_str =
+      match get_underscored_typedef_string_from_bt val_bt with
+      | Some str when not (is_boxed (bt_to_cn_base_type val_bt)) ->
+        str ^ "_boxed_equality"
+      | _ ->
+        let val_ctype_with_ptr = bt_to_ail_ctype val_bt in
+        let val_ctype = get_ctype_without_ptr val_ctype_with_ptr in
+        let val_str = str_of_ctype val_ctype in
+        let val_str = String.concat "_" (String.split_on_char ' ' val_str) in
+        val_str ^ "_equality"
+    in
     A.(
       AilEcall
         ( mk_expr (AilEident (Sym.fresh "cn_map_equality")),
