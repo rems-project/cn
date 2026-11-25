@@ -235,8 +235,15 @@ void* cn_ite(cn_bool b, void* e1, void* e2);
     return *(CNTYPE*)boxed;                                                              \
   }
 
+/* Equality of two boxed values, for cn_map_equality */
+#define CN_GEN_BOXED_EQUALITY(CNTYPE)                                                    \
+  static inline cn_bool CNTYPE##_boxed_equality(void* boxed1, void* boxed2) {            \
+    return CNTYPE##_equality(CNTYPE##_unbox(boxed1), CNTYPE##_unbox(boxed2));            \
+  }
+
 CN_GEN_BOX(cn_bool)
 CN_GEN_UNBOX(cn_bool)
+CN_GEN_BOXED_EQUALITY(cn_bool)
 
 cn_map* map_create(void);
 cn_map* cn_map_set(cn_map* m, cn_integer* key, void* value);
