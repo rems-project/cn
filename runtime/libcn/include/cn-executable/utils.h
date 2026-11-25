@@ -498,6 +498,23 @@ cn_bool default_cn_bool(void);
     return res;                                                                          \
   }
 
+#define CN_GEN_MAP_GET_UNBOXED(CNTYPE)                                                   \
+  static inline CNTYPE cn_map_get_##CNTYPE(cn_map* m, cn_integer* key) {                 \
+    int64_t* key_ptr = (int64_t*)fulm_malloc(sizeof(int64_t), &fulm_default_alloc);      \
+    *key_ptr = key->val;                                                                 \
+    void* res = ht_get(m, key_ptr);                                                      \
+    fulm_free(key_ptr, &fulm_default_alloc);                                             \
+    if (!res) {                                                                          \
+      return default_##CNTYPE();                                                         \
+    }                                                                                    \
+    return CNTYPE##_unbox(res);                                                          \
+  }
+
+#define CN_GEN_MAP_SET(CNTYPE)                                                           \
+  static inline cn_map* cn_map_set_##CNTYPE(cn_map* m, cn_integer* key, CNTYPE value) {  \
+    return cn_map_set(m, key, CNTYPE##_box(value));                                      \
+  }
+
 #define CN_GEN_CASTS_INNER(CTYPE, CNTYPE)                                                \
   CN_GEN_CAST_INT_TYPES(cn_bits_i8, CTYPE, CNTYPE)                                       \
   CN_GEN_CAST_INT_TYPES(cn_bits_i16, CTYPE, CNTYPE)                                      \
@@ -581,6 +598,8 @@ CN_GEN_EQUALITY(cn_alloc_id)
 CN_GEN_DEFAULT(cn_pointer)
 CN_GEN_MAP_GET(cn_pointer)
 CN_GEN_MAP_GET(cn_map)
+CN_GEN_MAP_GET_UNBOXED(cn_bool)
+CN_GEN_MAP_SET(cn_bool)
 
 /* OWNERSHIP */
 

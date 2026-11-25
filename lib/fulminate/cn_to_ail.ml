@@ -480,6 +480,12 @@ let get_underscored_typedef_string_from_bt ?(is_record = false) bt =
      | _ -> None)
 
 
+let map_set_fn_str bt =
+  match get_underscored_typedef_string_from_bt bt with
+  | Some str when not (is_boxed (bt_to_cn_base_type bt)) -> "cn_map_set_" ^ str
+  | _ -> "cn_map_set"
+
+
 let get_conversion_to_fn_str (bt : BT.t) : string option =
   let open Option in
   let@ ty_str = get_underscored_typedef_string_from_bt bt in
@@ -1350,7 +1356,7 @@ let rec cn_to_ail_expr_aux
     let map_set_fcall =
       A.(
         AilEcall
-          ( mk_expr (AilEident (Sym.fresh "cn_map_set")),
+          ( mk_expr (AilEident (Sym.fresh (map_set_fn_str (TN.get_bt value)))),
             [ mk_expr A.(AilEident new_map_sym); e2; e3 ] ))
     in
     dest
@@ -2804,7 +2810,7 @@ let cn_to_ail_resource
     let start_assign = A.(AilSdeclaration [ (i_sym, Some e_start) ]) in
     let end_binding = create_binding end_sym cn_integer_ptr_ctype in
     let end_assign = A.(AilSdeclaration [ (end_sym, Some e_end) ]) in
-    let return_ctype, _return_bt = calculate_resource_return_type preds loc q.name in
+    let return_ctype, return_bt = calculate_resource_return_type preds loc q.name in
     (* Translation of q.pointer *)
     let i_it = IT (Sym i_sym, i_bt, Cerb_location.unknown) in
     let value_it =
@@ -3029,7 +3035,7 @@ let cn_to_ail_resource
             let map_set_expr_ =
               A.(
                 AilEcall
-                  ( mk_expr (AilEident (Sym.fresh "cn_map_set")),
+                  ( mk_expr (AilEident (Sym.fresh (map_set_fn_str return_bt))),
                     List.map mk_expr [ AilEident sym; i_expr ] @ [ rhs ] ))
             in
             let loop_body_bs, loop_body_ss =
@@ -4802,7 +4808,7 @@ let cn_to_ail_assume_resource
     let start_assign = A.(AilSdeclaration [ (i_sym, Some e_start) ]) in
     let end_binding = create_binding end_sym cn_integer_ptr_ctype in
     let end_assign = A.(AilSdeclaration [ (end_sym, Some e_end) ]) in
-    let return_ctype, _return_bt = calculate_return_type q.name in
+    let return_ctype, return_bt = calculate_return_type q.name in
     (* Translation of q.pointer *)
     let i_it = IT (Sym i_sym, i_bt, Cerb_location.unknown) in
     let value_it =
@@ -4923,7 +4929,7 @@ let cn_to_ail_assume_resource
         let map_set_expr_ =
           A.(
             AilEcall
-              ( mk_expr (AilEident (Sym.fresh "cn_map_set")),
+              ( mk_expr (AilEident (Sym.fresh (map_set_fn_str return_bt))),
                 List.map mk_expr [ AilEident sym; i_expr ] @ [ rhs ] ))
         in
         let if_stat =
