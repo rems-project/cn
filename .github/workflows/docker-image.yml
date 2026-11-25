@@ -1,0 +1,112 @@
+name: Docker image
+
+# Builds, publishes and tests ONE Docker image (e.g. "ubuntu") for both
+# Intel/AMD and ARM. Called once per image by docker.yml, so a failure in one
+# image doesn't stop the others from being updated.
+
+on:
+  workflow_call:
+    inputs:
+      os:
+        description: Which Dockerfile to build (Dockerfile.<os>)
+        required: true
+        type: string
+
+env:
+  CN_IMAGE_ID: ghcr.io/rems-project/cn
+
+jobs:
+  build:
+
+    name: Build (${{ inputs.os }}, ${{ matrix.runner }})
+
+    strategy:
+      # Don't let one machine type's failure cancel the other's build.
+      fail-fast: false
+      matrix:
+        # Pin both runners to the same Ubuntu release so amd64 and arm64 get
+        # the same Docker version and push images in the same format.
+        runner: [24.04, 24.04-arm]
+
+    runs-on: ubuntu-${{ matrix.runner }}
+
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Login to GitHub Container Registry
+      uses: docker/login-action@v4
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build ${{ inputs.os }}-${{ matrix.runner }} image
+      uses: docker/build-push-action@v7
+      with:
+        context: .
+        # Pushed separately below, so that only the upload is retried.
+        push: false
+        tags: ${{ env.CN_IMAGE_ID }}:release-${{ inputs.os }}-${{ matrix.runner }}
+        file: Dockerfile.${{ inputs.os }}
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Push ${{ inputs.os }}-${{ matrix.runner }} image
+      if: ${{ github.event_name != 'pull_request' }}
+      env:
+        IMAGE: ${{ env.CN_IMAGE_ID }}:release-${{ inputs.os }}-${{ matrix.runner }}
+      run: |
+        # Several jobs upload to the same registry repository at once, and
+        # the registry occasionally rejects one with "unknown blob". A retry
+        # normally succeeds, and only re-sends layers that didn't make it.
+        for attempt in 1 2 3; do
+          docker push "$IMAGE" && exit 0
+          echo "Push attempt $attempt failed; retrying in 30s..."
+          sleep 30
+        done
+        exit 1
+
+  combine-multiplatform:
+
+    name: Combine (${{ inputs.os }})
+
+    if: ${{ github.event_name != 'pull_request' }}
+
+    runs-on: ubuntu-latest
+    needs: [build]
+
+    steps:
+    - name: Login to GitHub Container Registry
+      uses: docker/login-action@v4
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Create ${{ inputs.os }} manifest and push
+      run: |
+        # `docker manifest create` rejects sources that are already image
+        # indexes (e.g. when buildx attaches provenance attestations), which
+        # depends on the runner's Docker setup. `imagetools create` accepts
+        # both plain manifests and indexes.
+        docker buildx imagetools create \
+          -t ${{ env.CN_IMAGE_ID }}:release-${{ inputs.os }} \
+          ${{ env.CN_IMAGE_ID }}:release-${{ inputs.os }}-24.04 \
+          ${{ env.CN_IMAGE_ID }}:release-${{ inputs.os }}-24.04-arm
+
+  # Other CI is testing anyway - if need be, can run tests in Dockerfile itself
+  test-docker-image:
+
+    name: Test (${{ inputs.os }})
+
+    if: ${{ github.event_name != 'pull_request' }}
+
+    runs-on: ubuntu-latest
+    needs: [combine-multiplatform]
+
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Run CI tests
+      run: |
+        docker pull ${{ env.CN_IMAGE_ID }}:release-${{ inputs.os }}
+        docker run -v $PWD:/work -w /work ${{ env.CN_IMAGE_ID }}:release-${{ inputs.os }} tests/diff-prog.py cn tests/cn/verify.json
