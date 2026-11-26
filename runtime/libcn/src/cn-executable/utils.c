@@ -657,8 +657,8 @@ _Bool is_mapped(void* ptr) {
 //     va_end(args);
 // }
 
-cn_map* cn_map_set(cn_map* m, cn_integer* key, void* value) {
-  ht_set(m, &key->val, value);
+cn_map* cn_map_set(cn_map* m, cn_integer key, void* value) {
+  ht_set(m, &key, value);
   return m;
 }
 
@@ -843,16 +843,12 @@ static uint64_t cn_flsl(uint64_t x) {
   return x ? sizeof(x) * 8 - __builtin_clzl(x) : 0;
 }
 
-cn_bits_u32* cn_bits_u32_fls(cn_bits_u32* i1) {
-  cn_bits_u32* res = (cn_bits_u32*)cn_bump_malloc(sizeof(cn_bits_u32));
-  res->val = cn_fls(i1->val);
-  return res;
+cn_bits_u32 cn_bits_u32_fls(cn_bits_u32 i1) {
+  return cn_fls(i1);
 }
 
-cn_bits_u64* cn_bits_u64_flsl(cn_bits_u64* i1) {
-  cn_bits_u64* res = (cn_bits_u64*)cn_bump_malloc(sizeof(cn_bits_u64));
-  res->val = cn_flsl(i1->val);
-  return res;
+cn_bits_u64 cn_bits_u64_flsl(cn_bits_u64 i1) {
+  return cn_flsl(i1);
 }
 
 void* cn_aligned_alloc_aux(size_t align, size_t size, _Bool wildcard) {
