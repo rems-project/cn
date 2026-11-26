@@ -143,6 +143,12 @@ val generate_struct_map_get
   * GenTypes.genTypeCategory AilSyntax.sigma_function_definition)
     list
 
+val generate_struct_map_set
+  :  AilSyntax.sigma_tag_definition ->
+  (AilSyntax.sigma_declaration
+  * GenTypes.genTypeCategory AilSyntax.sigma_function_definition)
+    list
+
 val generate_struct_default_function
   :  ?is_record:bool ->
   AilSyntax.sigma_tag_definition ->
