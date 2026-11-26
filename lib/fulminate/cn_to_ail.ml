@@ -1680,17 +1680,14 @@ let generate_map_get sym =
   let fn_sym = Sym.fresh fn_str in
   let ret_sym = Sym.fresh "ret" in
   let ret_binding = create_binding ret_sym void_ptr_type in
-  let key_val_mem =
-    let here = Locations.other __LOC__ in
-    mk_expr A.(AilEmemberofptr (mk_expr (AilEident param2_sym), Id.make here "val"))
-  in
   let ht_get_fcall =
     mk_expr
       A.(
         AilEcall
           ( mk_expr (AilEident (Sym.fresh "ht_get")),
-            [ mk_expr (AilEident param1_sym); mk_expr (AilEunary (Address, key_val_mem)) ]
-          ))
+            [ mk_expr (AilEident param1_sym);
+              mk_expr (AilEunary (Address, mk_expr (AilEident param2_sym)))
+            ] ))
   in
   let ret_decl = A.(AilSdeclaration [ (ret_sym, Some ht_get_fcall) ]) in
   let ret_ident = A.(AilEident ret_sym) in
