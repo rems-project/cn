@@ -227,15 +227,18 @@ cn_bool cn_map_equality(
 
 #define convert_to_cn_map(c_ptr, cntype, num_elements)                                   \
   ({                                                                                     \
-    cn_map* m = map_create();                                                            \
-    for (int i = 0; i < num_elements; i++) {                                             \
-      cn_map_set_##cntype(m, convert_to_cn_integer(i), convert_to_##cntype((c_ptr)[i])); \
+    cn_map* __cn_map = map_create();                                                     \
+    for (int __cn_i = 0; __cn_i < num_elements; __cn_i++) {                              \
+      cn_map_set_##cntype(__cn_map,                                                      \
+          convert_to_cn_integer(__cn_i),                                                 \
+          convert_to_##cntype((c_ptr)[__cn_i]));                                         \
     }                                                                                    \
-    m;                                                                                   \
+    __cn_map;                                                                            \
   })
 #define convert_from_cn_map(arr, m, cntype, num_elements)                                \
-  for (int i = 0; i < num_elements; i++) {                                               \
-    (arr)[i] = convert_from_##cntype(cn_map_get_##cntype(m, convert_to_cn_integer(i)));  \
+  for (int __cn_i = 0; __cn_i < num_elements; __cn_i++) {                                \
+    (arr)[__cn_i] =                                                                      \
+        convert_from_##cntype(cn_map_get_##cntype(m, convert_to_cn_integer(__cn_i)));    \
   }
 
 cn_bool cn_pointer_equality(cn_pointer i1, cn_pointer i2);
