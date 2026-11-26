@@ -684,31 +684,31 @@ cn_bool default_cn_bool(void) {
   return convert_to_cn_bool(false);
 }
 
-cn_bool cn_pointer_equality(void* i1, void* i2) {
-  return convert_to_cn_bool((((cn_pointer*)i1)->ptr) == (((cn_pointer*)i2)->ptr));
+cn_bool cn_pointer_equality(cn_pointer i1, cn_pointer i2) {
+  return convert_to_cn_bool(i1 == i2);
 }
 
-cn_bool cn_pointer_is_null(cn_pointer* p) {
-  return convert_to_cn_bool(p->ptr == NULL);
+cn_bool cn_pointer_is_null(cn_pointer p) {
+  return convert_to_cn_bool(p == NULL);
 }
 
-cn_bool cn_pointer_lt(cn_pointer* p1, cn_pointer* p2) {
-  return convert_to_cn_bool(p1->ptr < p2->ptr);
+cn_bool cn_pointer_lt(cn_pointer p1, cn_pointer p2) {
+  return convert_to_cn_bool(p1 < p2);
 }
 
-cn_bool cn_pointer_le(cn_pointer* p1, cn_pointer* p2) {
-  return convert_to_cn_bool(p1->ptr <= p2->ptr);
+cn_bool cn_pointer_le(cn_pointer p1, cn_pointer p2) {
+  return convert_to_cn_bool(p1 <= p2);
 }
 
-cn_bool cn_pointer_gt(cn_pointer* p1, cn_pointer* p2) {
-  return convert_to_cn_bool(p1->ptr > p2->ptr);
+cn_bool cn_pointer_gt(cn_pointer p1, cn_pointer p2) {
+  return convert_to_cn_bool(p1 > p2);
 }
 
-cn_bool cn_pointer_ge(cn_pointer* p1, cn_pointer* p2) {
-  return convert_to_cn_bool(p1->ptr >= p2->ptr);
+cn_bool cn_pointer_ge(cn_pointer p1, cn_pointer p2) {
+  return convert_to_cn_bool(p1 >= p2);
 }
 
-cn_pointer* cast_cn_pointer_to_cn_pointer(cn_pointer* p) {
+cn_pointer cast_cn_pointer_to_cn_pointer(cn_pointer p) {
   return p;
 }
 
@@ -743,29 +743,31 @@ cn_bool cn_map_equality(
       cn_map_subset(m2, m1, value_equality_fun));
 }
 
-cn_pointer* convert_to_cn_pointer(const volatile void* ptr) {
-  cn_pointer* res = (cn_pointer*)cn_bump_malloc(sizeof(cn_pointer));
-  res->ptr = (void*)ptr;  // Carries around an address
-  return res;
+cn_pointer convert_to_cn_pointer(const volatile void* ptr) {
+  return (void*)ptr;
 }
 
-void* convert_from_cn_pointer(cn_pointer* cn_ptr) {
-  return cn_ptr->ptr;
+void* convert_from_cn_pointer(cn_pointer cn_ptr) {
+  return cn_ptr;
 }
 
-cn_pointer* cn_pointer_min(cn_pointer* p, cn_pointer* q) {
+cn_pointer default_cn_pointer(void) {
+  return convert_to_cn_pointer(0);
+}
+
+cn_pointer cn_pointer_min(cn_pointer p, cn_pointer q) {
   uintptr_t p_raw = (uintptr_t)convert_from_cn_pointer(p);
   uintptr_t q_raw = (uintptr_t)convert_from_cn_pointer(q);
   return convert_to_cn_pointer((void*)(p_raw < q_raw ? p_raw : q_raw));
 }
 
-cn_pointer* cn_pointer_max(cn_pointer* p, cn_pointer* q) {
+cn_pointer cn_pointer_max(cn_pointer p, cn_pointer q) {
   uintptr_t p_raw = (uintptr_t)convert_from_cn_pointer(p);
   uintptr_t q_raw = (uintptr_t)convert_from_cn_pointer(q);
   return convert_to_cn_pointer((void*)(p_raw > q_raw ? p_raw : q_raw));
 }
 
-cn_pointer* cn_pointer_mod(cn_pointer* ptr, cn_pointer* n) {
+cn_pointer cn_pointer_mod(cn_pointer ptr, cn_pointer n) {
   uintptr_t ptr_raw = (uintptr_t)convert_from_cn_pointer(ptr);
   uintptr_t n_raw = (uintptr_t)convert_from_cn_pointer(n);
   return convert_to_cn_pointer((void*)(ptr_raw % n_raw));

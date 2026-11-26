@@ -150,9 +150,7 @@ typedef struct cn_integer {
   int64_t val;
 } cn_integer;
 
-typedef struct cn_pointer {
-  void* ptr;
-} cn_pointer;
+typedef void* cn_pointer;
 
 typedef bool cn_bool;
 
@@ -264,14 +262,18 @@ cn_bool cn_map_equality(
     (arr)[i] = convert_from_##cntype(cn_map_get_##cntype(m, convert_to_cn_integer(i)));  \
   }
 
-cn_bool cn_pointer_equality(void* i1, void* i2);
-cn_bool cn_pointer_is_null(cn_pointer*);
-cn_bool cn_pointer_le(cn_pointer* i1, cn_pointer* i2);
-cn_bool cn_pointer_lt(cn_pointer* i1, cn_pointer* i2);
-cn_bool cn_pointer_ge(cn_pointer* i1, cn_pointer* i2);
-cn_bool cn_pointer_gt(cn_pointer* i1, cn_pointer* i2);
+cn_bool cn_pointer_equality(cn_pointer i1, cn_pointer i2);
+cn_bool cn_pointer_is_null(cn_pointer);
+cn_bool cn_pointer_le(cn_pointer i1, cn_pointer i2);
+cn_bool cn_pointer_lt(cn_pointer i1, cn_pointer i2);
+cn_bool cn_pointer_ge(cn_pointer i1, cn_pointer i2);
+cn_bool cn_pointer_gt(cn_pointer i1, cn_pointer i2);
 
-#define cn_pointer_deref(CN_PTR, CTYPE) *((CTYPE*)CN_PTR->ptr)
+CN_GEN_BOX(cn_pointer)
+CN_GEN_UNBOX(cn_pointer)
+CN_GEN_BOXED_EQUALITY(cn_pointer)
+
+#define cn_pointer_deref(CN_PTR, CTYPE) *((CTYPE*)CN_PTR)
 
 /* CN integer type auxilliary functions */
 
@@ -443,11 +445,10 @@ static inline int ipow(int base, int exp) {
 
 #define cn_array_shift(cn_ptr, size, index)                                              \
   convert_to_cn_pointer(                                                                 \
-      (char*)((uintptr_t)cn_ptr->ptr + (uintptr_t)index->val * (uintptr_t)size))
+      (char*)((uintptr_t)cn_ptr + (uintptr_t)index->val * (uintptr_t)size))
 
 #define cn_member_shift(cn_ptr, tag, member_name)                                        \
-  convert_to_cn_pointer(                                                                 \
-      (void*)(((uintptr_t)cn_ptr->ptr) + offsetof(struct tag, member_name)))
+  convert_to_cn_pointer((void*)(((uintptr_t)cn_ptr) + offsetof(struct tag, member_name)))
 
 #define CN_GEN_INCREMENT(CNTYPE)                                                         \
   static inline CNTYPE* CNTYPE##_increment(CNTYPE* i) {                                  \
@@ -456,25 +457,21 @@ static inline int ipow(int base, int exp) {
   }
 
 #define CN_GEN_PTR_ADD(CNTYPE)                                                           \
-  static inline cn_pointer* cn_pointer_add_##CNTYPE(cn_pointer* ptr, CNTYPE* i) {        \
-    cn_pointer* res = (cn_pointer*)cn_bump_malloc(sizeof(cn_pointer));                   \
-    res->ptr = (char*)ptr->ptr + i->val;                                                 \
-    return res;                                                                          \
+  static inline cn_pointer cn_pointer_add_##CNTYPE(cn_pointer ptr, CNTYPE* i) {          \
+    return (char*)ptr + i->val;                                                          \
   }
 
 /* Casting functions */
 
 #define CN_GEN_CAST_TO_PTR(CNTYPE, INTPTR_TYPE)                                          \
-  static inline cn_pointer* cast_##CNTYPE##_to_cn_pointer(CNTYPE* i) {                   \
-    cn_pointer* res = (cn_pointer*)cn_bump_malloc(sizeof(cn_pointer));                   \
-    res->ptr = (void*)(INTPTR_TYPE)i->val;                                               \
-    return res;                                                                          \
+  static inline cn_pointer cast_##CNTYPE##_to_cn_pointer(CNTYPE* i) {                    \
+    return (void*)(INTPTR_TYPE)i->val;                                                   \
   }
 
 #define CN_GEN_CAST_FROM_PTR(CTYPE, CNTYPE, INTPTR_TYPE)                                 \
-  static inline CNTYPE* cast_cn_pointer_to_##CNTYPE(cn_pointer* ptr) {                   \
+  static inline CNTYPE* cast_cn_pointer_to_##CNTYPE(cn_pointer ptr) {                    \
     CNTYPE* res = (CNTYPE*)cn_bump_malloc(sizeof(CNTYPE));                               \
-    res->val = (CTYPE)(INTPTR_TYPE)(ptr->ptr);                                           \
+    res->val = (CTYPE)(INTPTR_TYPE)(ptr);                                                \
     return res;                                                                          \
   }
 
@@ -593,17 +590,18 @@ CN_GEN_PTR_CASTS_UNSIGNED(uint32_t, cn_bits_u32)
 CN_GEN_PTR_CASTS_UNSIGNED(uint64_t, cn_bits_u64)
 CN_GEN_PTR_CASTS_SIGNED(signed long, cn_integer)
 
-cn_pointer* convert_to_cn_pointer(const volatile void* ptr);
-void* convert_from_cn_pointer(cn_pointer* cn_ptr);
-cn_pointer* cn_pointer_min(cn_pointer* p, cn_pointer* q);
-cn_pointer* cn_pointer_max(cn_pointer* p, cn_pointer* q);
-cn_pointer* cn_pointer_mod(cn_pointer* ptr, cn_pointer* n);
-cn_pointer* cast_cn_pointer_to_cn_pointer(cn_pointer* p);
+cn_pointer convert_to_cn_pointer(const volatile void* ptr);
+void* convert_from_cn_pointer(cn_pointer cn_ptr);
+cn_pointer cn_pointer_min(cn_pointer p, cn_pointer q);
+cn_pointer cn_pointer_max(cn_pointer p, cn_pointer q);
+cn_pointer cn_pointer_mod(cn_pointer ptr, cn_pointer n);
+cn_pointer cast_cn_pointer_to_cn_pointer(cn_pointer p);
+cn_pointer default_cn_pointer(void);
 
 CN_GEN_CONVERT(uint8_t, cn_alloc_id)
 CN_GEN_EQUALITY(cn_alloc_id)
-CN_GEN_DEFAULT(cn_pointer)
-CN_GEN_MAP_GET(cn_pointer)
+CN_GEN_MAP_GET_UNBOXED(cn_pointer)
+CN_GEN_MAP_SET(cn_pointer)
 CN_GEN_MAP_GET(cn_map)
 CN_GEN_MAP_GET_UNBOXED(cn_bool)
 CN_GEN_MAP_SET(cn_bool)
@@ -670,6 +668,8 @@ void cn_ghost_arg_failure(void);
 
 CN_GEN_GHOST_ARG_ADD(cn_bool)
 CN_GEN_GHOST_ARG_LOAD(cn_bool)
+CN_GEN_GHOST_ARG_ADD(cn_pointer)
+CN_GEN_GHOST_ARG_LOAD(cn_pointer)
 
 // Unused
 #define c_concat_with_mapping_stat(STAT, CTYPE, VAR_NAME, GHOST_STATE, STACK_DEPTH)      \
