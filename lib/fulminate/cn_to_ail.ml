@@ -684,11 +684,11 @@ let gen_bool_while_loop
   let and_stat_ =
     A.(AilSexpr (mk_expr (AilEassign (mk_expr b_ident, mk_expr and_expr_))))
   in
+  let incr_expr_ =
+    A.(AilEcall (mk_expr (AilEident (Sym.fresh incr_func_name)), [ mk_expr incr_var ]))
+  in
   let incr_stat =
-    A.(
-      AilSexpr
-        (mk_expr
-           (AilEcall (mk_expr (AilEident (Sym.fresh incr_func_name)), [ mk_expr incr_var ]))))
+    A.(AilSexpr (mk_expr (AilEassign (mk_expr incr_var, mk_expr incr_expr_))))
   in
   let while_cond_with_conversion = wrap_with_convert_from_cn_bool while_cond in
   let bump_alloc_binding, bump_alloc_start_stat_, bump_alloc_end_stat_ =
@@ -2941,8 +2941,12 @@ let cn_to_ail_resource
       A.(
         AilSexpr
           (mk_expr
-             (AilEcall
-                (mk_expr (AilEident increment_fn_sym), [ mk_expr (AilEident i_sym) ]))))
+             (AilEassign
+                ( mk_expr (AilEident i_sym),
+                  mk_expr
+                    (AilEcall
+                       ( mk_expr (AilEident increment_fn_sym),
+                         [ mk_expr (AilEident i_sym) ] )) ))))
     in
     let gen_conj_loop ~permission_only_bounds (bs, ss) if_cond while_cond incr_stat =
       let loop_body =
@@ -4867,8 +4871,12 @@ let cn_to_ail_assume_resource
       A.(
         AilSexpr
           (mk_expr
-             (AilEcall
-                (mk_expr (AilEident increment_fn_sym), [ mk_expr (AilEident i_sym) ]))))
+             (AilEassign
+                ( mk_expr (AilEident i_sym),
+                  mk_expr
+                    (AilEcall
+                       ( mk_expr (AilEident increment_fn_sym),
+                         [ mk_expr (AilEident i_sym) ] )) ))))
     in
     let bs', ss' =
       match rm_ctype return_ctype with
