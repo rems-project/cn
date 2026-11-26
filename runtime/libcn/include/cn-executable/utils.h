@@ -154,9 +154,7 @@ typedef void* cn_pointer;
 
 typedef bool cn_bool;
 
-typedef struct cn_alloc_id {
-  uint8_t val;
-} cn_alloc_id;
+typedef uint8_t cn_alloc_id;
 
 typedef hash_table cn_map;
 
@@ -598,8 +596,15 @@ cn_pointer cn_pointer_mod(cn_pointer ptr, cn_pointer n);
 cn_pointer cast_cn_pointer_to_cn_pointer(cn_pointer p);
 cn_pointer default_cn_pointer(void);
 
-CN_GEN_CONVERT(uint8_t, cn_alloc_id)
-CN_GEN_EQUALITY(cn_alloc_id)
+cn_alloc_id convert_to_cn_alloc_id(uint8_t i);
+cn_bool cn_alloc_id_equality(cn_alloc_id i1, cn_alloc_id i2);
+cn_alloc_id default_cn_alloc_id(void);
+
+CN_GEN_BOX(cn_alloc_id)
+CN_GEN_UNBOX(cn_alloc_id)
+CN_GEN_BOXED_EQUALITY(cn_alloc_id)
+CN_GEN_MAP_GET_UNBOXED(cn_alloc_id)
+CN_GEN_MAP_SET(cn_alloc_id)
 CN_GEN_MAP_GET_UNBOXED(cn_pointer)
 CN_GEN_MAP_SET(cn_pointer)
 CN_GEN_MAP_GET(cn_map)
@@ -670,6 +675,8 @@ CN_GEN_GHOST_ARG_ADD(cn_bool)
 CN_GEN_GHOST_ARG_LOAD(cn_bool)
 CN_GEN_GHOST_ARG_ADD(cn_pointer)
 CN_GEN_GHOST_ARG_LOAD(cn_pointer)
+CN_GEN_GHOST_ARG_ADD(cn_alloc_id)
+CN_GEN_GHOST_ARG_LOAD(cn_alloc_id)
 
 // Unused
 #define c_concat_with_mapping_stat(STAT, CTYPE, VAR_NAME, GHOST_STATE, STACK_DEPTH)      \

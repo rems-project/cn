@@ -755,6 +755,18 @@ cn_pointer default_cn_pointer(void) {
   return convert_to_cn_pointer(0);
 }
 
+cn_alloc_id convert_to_cn_alloc_id(uint8_t i) {
+  return i;
+}
+
+cn_bool cn_alloc_id_equality(cn_alloc_id i1, cn_alloc_id i2) {
+  return convert_to_cn_bool(i1 == i2);
+}
+
+cn_alloc_id default_cn_alloc_id(void) {
+  return convert_to_cn_alloc_id(0);
+}
+
 cn_pointer cn_pointer_min(cn_pointer p, cn_pointer q) {
   uintptr_t p_raw = (uintptr_t)convert_from_cn_pointer(p);
   uintptr_t q_raw = (uintptr_t)convert_from_cn_pointer(q);
