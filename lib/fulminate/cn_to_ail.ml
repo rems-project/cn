@@ -313,7 +313,7 @@ let lookup_records_map_with_default ?(cn_sym : Sym.t option) bt =
 
 
 (* CN types represented as pointers rather than C values *)
-let is_boxed = function CN_bool | CN_loc -> false | _ -> true
+let is_boxed = function CN_bool | CN_loc | CN_alloc_id -> false | _ -> true
 
 (* TODO: Complete *)
 let rec cn_to_ail_base_type cn_typ =
