@@ -313,7 +313,7 @@ let lookup_records_map_with_default ?(cn_sym : Sym.t option) bt =
 
 
 (* CN types represented as pointers rather than C values *)
-let is_boxed = function CN_bool -> false | _ -> true
+let is_boxed = function CN_bool | CN_loc -> false | _ -> true
 
 (* TODO: Complete *)
 let rec cn_to_ail_base_type cn_typ =
@@ -857,15 +857,13 @@ let generate_get_or_put_ownership_function ~without_ownership_checking ctype
   let fn_prefix = if without_ownership_checking then "deref_" else "owned_" in
   let fn_sym = Sym.fresh (fn_prefix ^ ctype_str) in
   let param1_sym = Sym.fresh "cn_ptr" in
-  let here = Locations.other __LOC__ in
   let cast_expr =
     mk_expr
       A.(
         AilEcast
           ( C.no_qualifiers,
             mk_ctype C.(Pointer (C.no_qualifiers, ctype)),
-            mk_expr (AilEmemberofptr (mk_expr (AilEident param1_sym), Id.make here "ptr"))
-          ))
+            mk_expr (AilEident param1_sym) ))
   in
   let generic_c_ptr_sym = Sym.fresh "generic_c_ptr" in
   let generic_c_ptr_bs, generic_c_ptr_ss =
@@ -2888,9 +2886,6 @@ let cn_to_ail_resource
                       A.(Arithmetic Mul),
                       mk_expr (wrap_with_convert_from (rm_expr range_expr) i_bt) ))
             in
-            let ptr_member_of =
-              mk_expr A.(AilEmemberofptr (ptr_expr, Id.make Cerb_location.unknown "ptr"))
-            in
             let ptr_arg =
               mk_expr
                 A.(
@@ -2902,7 +2897,7 @@ let cn_to_ail_resource
                            ( CF.Ctype.no_qualifiers,
                              CF.Ctype.(
                                mk_ctype_pointer no_qualifiers (Sctypes.to_ctype sct)),
-                             ptr_member_of )) ))
+                             ptr_expr )) ))
             in
             let args = [ enum_expr; ptr_arg; mul_expr; loop_ownership_expr ] in
             let ownership_assert_expr =
@@ -4604,15 +4599,13 @@ let generate_assume_ownership_function ~without_ownership_checking ctype
   let fn_prefix = if without_ownership_checking then "deref_" else "owned_" in
   let fn_sym = Sym.fresh ("assume_" ^ fn_prefix ^ ctype_str) in
   let param1_sym = Sym.fresh "cn_ptr" in
-  let here = Locations.other __LOC__ in
   let cast_expr =
     mk_expr
       A.(
         AilEcast
           ( C.no_qualifiers,
             mk_ctype C.(Pointer (C.no_qualifiers, ctype)),
-            mk_expr (AilEmemberofptr (mk_expr (AilEident param1_sym), Id.make here "ptr"))
-          ))
+            mk_expr (AilEident param1_sym) ))
   in
   let param2_sym = Sym.fresh "fun" in
   let param1 = (param1_sym, bt_to_ail_ctype BT.(Loc ())) in
@@ -4626,7 +4619,7 @@ let generate_assume_ownership_function ~without_ownership_checking ctype
       let ownership_fn_sym = Sym.fresh "cn_assume_ownership" in
       let ownership_fn_args =
         A.
-          [ AilEmemberofptr (mk_expr (AilEident param1_sym), Id.make here "ptr");
+          [ AilEident param1_sym;
             AilEsizeof (C.no_qualifiers, ctype);
             AilEident param2_sym
           ]
