@@ -1820,14 +1820,31 @@ let generate_datatype_equality_function (env : env) (cn_datatype : _ cn_datatype
   *)
   let dt_sym = cn_datatype.cn_dt_name in
   let fn_sym = Sym.fresh ("struct_" ^ Sym.pp_string dt_sym ^ "_equality") in
-  let param1_sym = Sym.fresh "x" in
-  let param2_sym = Sym.fresh "y" in
   let here = Locations.other __LOC__ in
   let id_tag = Id.make here "tag" in
-  let param_syms = [ param1_sym; param2_sym ] in
-  let param_type = mk_ctype (C.Pointer (C.no_qualifiers, mk_ctype (Struct dt_sym))) in
+  (* void* parameters, so that the function can be passed to cn_map_equality *)
+  let fn_param_syms = [ Sym.fresh "x"; Sym.fresh "y" ] in
   let param_types =
-    List.map (fun ctype -> (C.no_qualifiers, ctype, false)) [ param_type; param_type ]
+    List.map (fun _ -> (C.no_qualifiers, void_ptr_type, false)) fn_param_syms
+  in
+  let dt_ptr_ctype = mk_ctype (C.Pointer (C.no_qualifiers, mk_ctype (Struct dt_sym))) in
+  let param_syms =
+    List.map (fun sym -> generate_sym_with_suffix ~suffix:"_cast" sym) fn_param_syms
+  in
+  let param1_sym, param2_sym = (List.nth param_syms 0, List.nth param_syms 1) in
+  let cast_bindings = List.map (fun sym -> create_binding sym dt_ptr_ctype) param_syms in
+  let cast_assignments =
+    List.map
+      (fun (cast_sym, sym) ->
+         A.(
+           AilSdeclaration
+             [ ( cast_sym,
+                 Some
+                   (mk_expr
+                      (AilEcast (C.no_qualifiers, dt_ptr_ctype, mk_expr (AilEident sym))))
+               )
+             ]))
+      (List.combine param_syms fn_param_syms)
   in
   let tag_check_cond =
     A.(
@@ -1937,8 +1954,13 @@ let generate_datatype_equality_function (env : env) (cn_datatype : _ cn_datatype
       ( cn_datatype.cn_dt_loc,
         0,
         empty_attributes,
-        param_syms,
-        mk_stmt A.(AilSblock ([], [ mk_stmt tag_if_stmt; mk_stmt return_false ])) ) )
+        fn_param_syms,
+        mk_stmt
+          A.(
+            AilSblock
+              ( cast_bindings,
+                List.map mk_stmt (cast_assignments @ [ tag_if_stmt; return_false ]) )) )
+    )
   in
   [ (decl, def) ]
 
