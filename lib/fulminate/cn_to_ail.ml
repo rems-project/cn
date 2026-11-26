@@ -2329,7 +2329,7 @@ let generate_struct_conversion_to_function
     let param_sym = sym in
     let param_type = (C.no_qualifiers, mk_ctype C.(Struct sym), false) in
     (* Function body *)
-    let res_sym = Sym.fresh "res" in
+    let res_sym = Sym.fresh "__cn_res" in
     let res_binding =
       create_binding
         res_sym
@@ -2396,7 +2396,7 @@ let generate_struct_conversion_from_function
         false )
     in
     (* Function body *)
-    let res_sym = Sym.fresh "res" in
+    let res_sym = Sym.fresh "__cn_res" in
     let res_binding = create_binding res_sym struct_ctype in
     let res_assign = A.(AilSdeclaration [ (res_sym, None) ]) in
     let generate_member_assignment (id, (_, _, _, ctype)) =

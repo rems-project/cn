@@ -227,15 +227,18 @@ cn_bool cn_map_equality(
 
 #define convert_to_cn_map(c_ptr, cntype, num_elements)                                   \
   ({                                                                                     \
-    cn_map* m = map_create();                                                            \
-    for (int i = 0; i < num_elements; i++) {                                             \
-      cn_map_set_##cntype(m, convert_to_cn_integer(i), convert_to_##cntype((c_ptr)[i])); \
+    cn_map* __cn_map = map_create();                                                     \
+    for (int __cn_i = 0; __cn_i < num_elements; __cn_i++) {                              \
+      cn_map_set_##cntype(__cn_map,                                                      \
+          convert_to_cn_integer(__cn_i),                                                 \
+          convert_to_##cntype((c_ptr)[__cn_i]));                                         \
     }                                                                                    \
-    m;                                                                                   \
+    __cn_map;                                                                            \
   })
 #define convert_from_cn_map(arr, m, cntype, num_elements)                                \
-  for (int i = 0; i < num_elements; i++) {                                               \
-    (arr)[i] = convert_from_##cntype(cn_map_get_##cntype(m, convert_to_cn_integer(i)));  \
+  for (int __cn_i = 0; __cn_i < num_elements; __cn_i++) {                                \
+    (arr)[__cn_i] =                                                                      \
+        convert_from_##cntype(cn_map_get_##cntype(m, convert_to_cn_integer(__cn_i)));    \
   }
 
 cn_bool cn_pointer_equality(cn_pointer i1, cn_pointer i2);
@@ -644,48 +647,48 @@ static inline void cn_postfix(const volatile void* ptr, size_t size) {
 
 #define CN_LOAD(LV)                                                                      \
   ({                                                                                     \
-    typeof(LV)* __tmp = &(LV);                                                           \
+    typeof(LV)* __cn_tmp = &(LV);                                                        \
     if (is_fulminate_on()) {                                                             \
       update_cn_error_message_info_access_check(0);                                      \
       c_ownership_check(                                                                 \
-          "Load", __tmp, sizeof(typeof(LV)), get_cn_stack_depth(), C_ACCESS);            \
-      cn_load(__tmp, sizeof(typeof(LV)));                                                \
+          "Load", __cn_tmp, sizeof(typeof(LV)), get_cn_stack_depth(), C_ACCESS);         \
+      cn_load(__cn_tmp, sizeof(typeof(LV)));                                             \
       cn_pop_msg_info();                                                                 \
     }                                                                                    \
-    *__tmp;                                                                              \
+    *__cn_tmp;                                                                           \
   })
 
 #define CN_STORE_OP(LV, op, X)                                                           \
   ({                                                                                     \
-    typeof(LV)* __tmp;                                                                   \
-    __tmp = &(LV);                                                                       \
+    typeof(LV)* __cn_tmp;                                                                \
+    __cn_tmp = &(LV);                                                                    \
     if (is_fulminate_on()) {                                                             \
       update_cn_error_message_info_access_check(0);                                      \
       c_ownership_check(                                                                 \
-          "Store", __tmp, sizeof(typeof(LV)), get_cn_stack_depth(), C_ACCESS);           \
-      cn_store(__tmp, sizeof(typeof(LV)));                                               \
+          "Store", __cn_tmp, sizeof(typeof(LV)), get_cn_stack_depth(), C_ACCESS);        \
+      cn_store(__cn_tmp, sizeof(typeof(LV)));                                            \
       cn_pop_msg_info();                                                                 \
     }                                                                                    \
-    *__tmp op## = (X);                                                                   \
+    *__cn_tmp op## = (X);                                                                \
   })
 
 #define CN_STORE(LV, X) CN_STORE_OP(LV, , X)
 
 #define CN_POSTFIX(LV, OP)                                                               \
   ({                                                                                     \
-    typeof(LV)* __tmp;                                                                   \
-    __tmp = &(LV);                                                                       \
+    typeof(LV)* __cn_tmp;                                                                \
+    __cn_tmp = &(LV);                                                                    \
     if (is_fulminate_on()) {                                                             \
       update_cn_error_message_info_access_check(0);                                      \
       c_ownership_check("Postfix operation",                                             \
-          __tmp,                                                                         \
+          __cn_tmp,                                                                      \
           sizeof(typeof(LV)),                                                            \
           get_cn_stack_depth(),                                                          \
           C_ACCESS);                                                                     \
-      cn_postfix(__tmp, sizeof(typeof(LV)));                                             \
+      cn_postfix(__cn_tmp, sizeof(typeof(LV)));                                          \
       cn_pop_msg_info();                                                                 \
     }                                                                                    \
-    (*__tmp) OP;                                                                         \
+    (*__cn_tmp) OP;                                                                      \
   })
 
 #ifdef __CN_INSTRUMENT
