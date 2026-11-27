@@ -1428,9 +1428,14 @@ let rec cn_to_ail_expr_aux
       | _ :: _ps' -> false
       | [] -> failwith "Empty patterns not allowed"
     in
-    let expand_datatype c (ps, e) =
+    (* Specialise a row to constructor [c], whose members have types [member_bts].
+       A leading wildcard stands for every member, so it becomes one wildcard
+       per member (none for a constructor without members). *)
+    let expand_datatype c member_bts (ps, e) =
       match ps with
-      | T.(Pat (PWild, _p_bt, _p_loc) as pat) :: ps' -> Some (pat :: ps', e)
+      | T.(Pat (PWild, _p_bt, p_loc)) :: ps' ->
+        let wildcards = List.map (fun bt -> mk_pattern T.PWild bt p_loc) member_bts in
+        Some (wildcards @ ps', e)
       | T.(Pat (PConstructor (c_nm, members), _, _)) :: ps' ->
         if Sym.equal c c_nm then (
           let member_patterns = List.map snd members in
@@ -1480,7 +1485,6 @@ let rec cn_to_ail_expr_aux
              | dt :: _ ->
                let b1, s1, e1 = cn_to_ail_expr_aux env ~spec_mode term PassBack in
                let build_case (constr_sym, members_with_types) =
-                 let cases' = List.filter_map (expand_datatype constr_sym) cases in
                  let suffix = "_" ^ string_of_int count in
                  let lc_sym =
                    generate_sym_with_suffix ~suffix:"" ~lowercase:true constr_sym
@@ -1503,6 +1507,7 @@ let rec cn_to_ail_expr_aux
                  in
                  let ids, ts = List.split (List.rev members_with_types) in
                  let bts = List.map cn_base_type_to_bt ts in
+                 let cases' = List.filter_map (expand_datatype constr_sym bts) cases in
                  let new_constr_it =
                    IT (Sym count_sym, BT.Struct lc_sym, Cerb_location.unknown)
                  in
