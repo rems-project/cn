@@ -1,0 +1,5 @@
+return code: 1
+tests/cn-check-consistency/inconsistent.error.c:1:1: error: proc/fun makes inconsistent assumptions
+int g(int x)
+~~~~^~~~~~~~ 
+State file: file:///tmp/state__inconsistent.error.c.html
