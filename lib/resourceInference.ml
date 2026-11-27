@@ -77,7 +77,7 @@ module General = struct
     let@ simp_ctxt = simp_ctxt () in
     let module LAT = LogicalArgumentTypes in
     match ftyp with
-    | LAT.Resource ((s, (resource, _bt)), info, ftyp) ->
+    | LAT.Resource ((s, (resource, bt)), info, ftyp) ->
       let resource = Simplify.Request.simp simp_ctxt resource in
       let situation, request_chain = uiinfo in
       let step =
@@ -101,7 +101,12 @@ module General = struct
                   { requests = request_chain; situation; model; ctxt }
               in
               { loc; msg })
-          | `True -> assert false)
+          | `True ->
+            (* The context is inconsistent, so this path is unreachable (for
+               example, after a call whose postcondition is false): treat the
+               request as satisfied. *)
+            let oargs = MT.default_ bt here in
+            return (LAT.subst rt_subst (Terms.Normal.make_subst [ (s, oargs) ]) ftyp, []))
        | Some ((re, Resource.O oargs), l) ->
          assert (Request.equal re resource);
          let oargs = Simplify.Terms.simp simp_ctxt oargs in
@@ -425,7 +430,10 @@ module General = struct
 end
 
 module Special = struct
-  let fail_missing_resource loc (situation, requests) =
+  (* [request] could not be satisfied. If the context is inconsistent, the path
+     is unreachable (for example, after a call whose postcondition is false), so
+     return [request] with a default output of type [oarg_bt]. Otherwise fail. *)
+  let missing_resource loc (situation, requests) request oarg_bt =
     let here = Locations.other __LOC__ in
     let@ provable = provable loc in
     match provable (LC.T (MT.bool_ false here)) with
@@ -434,7 +442,7 @@ module Special = struct
       fail (fun ctxt ->
         let msg = TypeErrors.Missing_resource { requests; situation; model; ctxt } in
         { loc; msg })
-    | `True -> assert false
+    | `True -> return (request, Resource.O (MT.default_ oarg_bt here))
 
 
   let predicate_request loc situation (request, oinfo) =
@@ -458,7 +466,9 @@ module Special = struct
       else
         ();
       return r
-    | None -> fail_missing_resource loc uiinfo
+    | None ->
+      let@ oarg_bt = WellTyped.oarg_bt_of_pred loc request.name in
+      missing_resource loc uiinfo request oarg_bt
 
 
   let has_predicate loc situation (request, oinfo) =
@@ -545,5 +555,7 @@ module Special = struct
       else
         ();
       return r
-    | None -> fail_missing_resource loc uiinfo
+    | None ->
+      let@ item_bt = WellTyped.oarg_bt_of_pred loc request.name in
+      missing_resource loc uiinfo request (BaseTypes.make_map_bt (snd request.q) item_bt)
 end
