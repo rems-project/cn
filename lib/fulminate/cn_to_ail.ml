@@ -4103,6 +4103,17 @@ let cn_to_ail_loop_inv
                     (AilEconst (ConstantInteger (IConstant (Z.of_int 0, Decimal, None))))
                 ))))
     in
+    (* Bump allocator frame for the loop. The first evaluation of the loop condition
+       takes the frame; every later evaluation first frees what was allocated since
+       then (by the previous invariant check and loop iteration). After the loop, the
+       frame is freed once more, if it was taken.
+
+       Freeing in the condition, rather than at the end of the loop body, does not
+       depend on the shape of the loop (do-while loops, single-statement bodies) and
+       also covers `continue`. The frame is not taken on entry to the loop, as the
+       initialisation of a for-loop runs between the two and may need to keep what it
+       allocates. The flag is needed because a do-while loop or a break can leave the
+       loop before the condition is first evaluated. *)
     let bump_alloc_binding, bump_alloc_start_stat_, bump_alloc_end_stat_ =
       gen_bump_alloc_bs_and_ss ()
     in
@@ -4114,6 +4125,31 @@ let cn_to_ail_loop_inv
             (mk_expr (AilEassign (mk_expr (AilEident frame_id_var_sym), start_fn_call)))
         )
       | _ -> failwith "Bump alloc pattern match failed"
+    in
+    let frame_taken_sym =
+      Sym.fresh ("__cn_bump_frame_taken_" ^ Pp.plain (Sym.pp (Sym.fresh_anon ())))
+    in
+    let frame_taken_binding =
+      create_binding frame_taken_sym (mk_ctype C.(Basic (Integer Bool)))
+    in
+    let frame_taken_expr = mk_expr A.(AilEident frame_taken_sym) in
+    let int_const n =
+      mk_expr A.(AilEconst (ConstantInteger (IConstant (Z.of_int n, Decimal, None))))
+    in
+    let frame_taken_decl = A.AilSdeclaration [ (frame_taken_sym, Some (int_const 0)) ] in
+    let set_frame_taken =
+      A.(AilSexpr (mk_expr (AilEassign (frame_taken_expr, int_const 1))))
+    in
+    let bump_alloc_cond_stat =
+      A.(
+        AilSif
+          ( frame_taken_expr,
+            mk_stmt bump_alloc_end_stat_,
+            mk_stmt
+              (AilSblock ([], List.map mk_stmt [ bump_alloc_assign; set_frame_taken ])) ))
+    in
+    let bump_alloc_exit_stat =
+      A.(AilSif (frame_taken_expr, mk_stmt bump_alloc_end_stat_, mk_stmt AilSskip))
     in
     let cn_ownership_leak_check_call =
       A.AilSexpr (mk_expr (AilEcall (mk_expr (AilEident OE.cn_loop_leak_check_sym), [])))
@@ -4129,16 +4165,17 @@ let cn_to_ail_loop_inv
       @ [ cn_loop_put_call ]
     in
     let _, wrapped_stats = wrap_with_fulm_on_check ([], inv_stats) in
-    let stats = (bump_alloc_assign :: wrapped_stats) @ [ dummy_expr_as_stat ] in
+    let stats = (bump_alloc_cond_stat :: wrapped_stats) @ [ dummy_expr_as_stat ] in
     let ail_gcc_stat_as_expr = A.(AilEgcc_statement ([], List.map mk_stmt stats)) in
     let ail_stat_as_expr_stat = A.(AilSexpr (mk_expr ail_gcc_stat_as_expr)) in
     Some
       { cond = (loop.cond_loc, (cond_bs, [ ail_stat_as_expr_stat ]));
         loop_loc = loop.loop_loc;
         loop_entry =
-          ( (bump_alloc_binding :: loop_ownership_state.binding) @ loop_bs,
-            bump_alloc_decl :: loop_ownership_state.decl :: loop_ss );
-        loop_exit = ([], [ bump_alloc_end_stat_ ])
+          ( (bump_alloc_binding :: frame_taken_binding :: loop_ownership_state.binding)
+            @ loop_bs,
+            bump_alloc_decl :: frame_taken_decl :: loop_ownership_state.decl :: loop_ss );
+        loop_exit = ([], [ bump_alloc_exit_stat ])
       })
   else
     (* Produce no runtime loop invariant statements if the user has not written any spec for this loop *)

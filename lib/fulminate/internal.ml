@@ -117,15 +117,11 @@ let generate_c_loop_invariants
              ( get_start_loc loop_info.loop_loc,
                "{" :: generate_ail_stat_strs loop_info.loop_entry )
            in
-           let end_internal_inj =
-             ( get_end_loc ~offset:(-1) loop_info.loop_loc,
-               generate_ail_stat_strs loop_info.loop_exit )
-           in
            let end_external_inj =
              ( get_end_loc loop_info.loop_loc,
                generate_ail_stat_strs loop_info.loop_exit @ [ "}" ] )
            in
-           [ cond_inj; decl_inj; end_internal_inj; end_external_inj ])
+           [ cond_inj; decl_inj; end_external_inj ])
         ail_loop_invariants
     in
     List.concat injs)
