@@ -19,6 +19,7 @@ let run_seq_tests
       no_inherit_loc
       magic_comment_char_dollar
       allow_split_magic_comments
+      impl
       (* Executable spec *)
         without_ownership_checking
       source_locs_mode
@@ -49,7 +50,8 @@ let run_seq_tests
   let basefile = Filename.basename filename in
   let pp_file = Filename.temp_file "cn_" basefile in
   let out_file = Fulminate.get_instrumented_filename basefile in
-  Common.with_well_formedness_check (* CLI arguments *)
+  Common.with_well_formedness_check
+    ~impl (* CLI arguments *)
     ~filename
     ~cc
     ~macros:(("__CN_SEQ_TEST", None) :: ("__CN_INSTRUMENT", None) :: macros)
@@ -186,6 +188,7 @@ let cmd =
     $ Common.Flags.no_inherit_loc
     $ Common.Flags.magic_comment_char_dollar
     $ Common.Flags.allow_split_magic_comments
+    $ Common.Flags.impl
     $ Instrument.Flags.without_ownership_checking
     $ Instrument.Flags.source_locs_mode
     $ Instrument.Flags.correct_missing_ownership_mode
